@@ -1,18 +1,200 @@
 <?php
+/** File 20-compatible encyclopedia catalog and public entry rendering. */
+
 defined( 'ABSPATH' ) || exit;
+
 final class HE_Catalog {
-	public function hooks() { add_shortcode( 'he_encyclopedia_home', array( $this, 'home' ) ); add_shortcode( 'he_saved_entries', array( $this, 'saved' ) ); add_filter( 'the_content', array( $this, 'replace' ), 8 ); add_filter( 'the_content', array( $this, 'single' ), 20 ); add_action( 'template_redirect', array( $this, 'guard' ), 1 ); }
-	public function replace( $content ) { if ( ! is_singular( 'page' ) || ! in_the_loop() || ! is_main_query() ) { return $content; } $pages = (array) get_option( 'spf_page_map', array() ); if ( ! empty( $pages['encyclopedia'] ) && (int) $pages['encyclopedia'] === (int) get_queried_object_id() && has_shortcode( $content, 'sabri_platform_module' ) ) { return '[he_encyclopedia_home]'; } return $content; }
-	public function home() { ob_start(); ?><main class="he-shell"><div class="he-main-nav"><?php echo $this->navigation( 'encyclopedia' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div><header class="he-hero"><div><span>Homeopathy Knowledge Center</span><h1>Encyclopedia</h1><p>Search responsible American English entries, references, relationships, medical red flags, and connected learning material.</p></div><form method="get" role="search"><label class="screen-reader-text" for="he-search">Search Encyclopedia</label><input id="he-search" type="search" name="entry_search" placeholder="Search remedies, symptoms, conditions, anatomy, or concepts"><button type="submit">Search</button></form></header><?php echo $this->browser(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></main><?php return ob_get_clean(); }
-	private function browser( $fixed_ids = null ) { $search = isset( $_GET['entry_search'] ) ? sanitize_text_field( wp_unslash( $_GET['entry_search'] ) ) : ''; $type = isset( $_GET['entry_type'] ) ? sanitize_title( wp_unslash( $_GET['entry_type'] ) ) : ''; $letter = isset( $_GET['entry_letter'] ) ? strtoupper( substr( sanitize_text_field( wp_unslash( $_GET['entry_letter'] ) ), 0, 1 ) ) : ''; $system = isset( $_GET['entry_system'] ) ? sanitize_text_field( wp_unslash( $_GET['entry_system'] ) ) : ''; $sort = isset( $_GET['entry_sort'] ) ? sanitize_key( wp_unslash( $_GET['entry_sort'] ) ) : 'latest'; $args = array( 'post_type' => HE_Content::TYPE, 'post_status' => 'publish', 'posts_per_page' => 200, 's' => $search, 'tax_query' => array( array( 'taxonomy' => HE_Content::TAX, 'field' => 'slug', 'terms' => $type && HE_Content::allowed( $type ) ? array( $type ) : array_keys( HE_Content::types() ) ) ), 'orderby' => 'date', 'order' => 'DESC' ); if ( $system ) { $args['meta_query'] = array( array( 'key' => '_he_body_system', 'value' => $system, 'compare' => 'LIKE' ) ); } if ( 'popular' === $sort ) { $args['meta_key'] = '_he_views'; $args['orderby'] = 'meta_value_num'; } if ( is_array( $fixed_ids ) ) { $args['post__in'] = $fixed_ids ? $fixed_ids : array( 0 ); $args['orderby'] = 'post__in'; } $entries = get_posts( $args ); if ( $letter && preg_match( '/^[A-Z]$/', $letter ) ) { $entries = array_values( array_filter( $entries, function( $entry ) use ( $letter ) { return strtoupper( substr( $entry->post_title, 0, 1 ) ) === $letter; } ) ); } $systems = $this->systems(); ob_start(); ?>
-		<section class="he-browser"><div class="he-section-head"><div><span>Browse Knowledge</span><h2><?php echo is_array( $fixed_ids ) ? 'Saved Knowledge' : 'Explore Entries'; ?></h2></div><?php $pages = (array) get_option( 'he_page_map', array() ); if ( HE_Permissions::can_submit() && ! empty( $pages['submit'] ) ) : ?><a class="he-button" href="<?php echo esc_url( get_permalink( $pages['submit'] ) ); ?>">Submit Entry</a><?php endif; ?></div><nav class="he-az" aria-label="Browse entries alphabetically"><a href="<?php echo esc_url( remove_query_arg( 'entry_letter' ) ); ?>">All</a><?php foreach ( range( 'A', 'Z' ) as $char ) : ?><a class="<?php echo $letter === $char ? 'is-active' : ''; ?>" href="<?php echo esc_url( add_query_arg( 'entry_letter', $char ) ); ?>"><?php echo esc_html( $char ); ?></a><?php endforeach; ?></nav>
-		<?php if ( ! is_array( $fixed_ids ) ) : ?><form class="he-filters" method="get"><label>Search<input name="entry_search" value="<?php echo esc_attr( $search ); ?>"></label><label>Knowledge type<select name="entry_type"><option value="">All types</option><?php foreach ( HE_Content::types() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $type, $slug ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label><label>Body system<select name="entry_system"><option value="">All systems</option><?php foreach ( $systems as $name ) : ?><option value="<?php echo esc_attr( $name ); ?>" <?php selected( $system, $name ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label><label>Order<select name="entry_sort"><option value="latest" <?php selected( $sort, 'latest' ); ?>>Latest</option><option value="popular" <?php selected( $sort, 'popular' ); ?>>Popular</option></select></label><button class="he-button" type="submit">Apply</button></form><?php endif; ?><div class="he-grid"><?php if ( $entries ) : foreach ( array_slice( $entries, 0, 60 ) as $entry ) : echo $this->card( $entry ); endforeach; else : ?><div class="he-empty"><h3>No entries found</h3><p>Try another type, letter, system, or search phrase.</p></div><?php endif; ?></div><p class="he-disclaimer">Encyclopedia entries are educational. They do not diagnose, prescribe, promise a cure, or replace emergency and qualified medical care.</p></section>
-		<?php return ob_get_clean(); }
-	private function systems() { global $wpdb; $values = $wpdb->get_col( "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key='_he_body_system' AND meta_value<>'' ORDER BY meta_value ASC LIMIT 100" ); return array_map( 'sanitize_text_field', $values ); }
-	private function card( $entry ) { $id = $entry->ID; ob_start(); ?><article class="he-card" data-entry-id="<?php echo absint( $id ); ?>"><?php if ( has_post_thumbnail( $id ) ) : ?><a class="he-card-image" href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php echo get_the_post_thumbnail( $id, 'medium_large', array( 'loading' => 'lazy', 'alt' => $entry->post_title ) ); ?></a><?php endif; ?><div><span class="he-type"><?php echo esc_html( HE_Content::type( $id ) ); ?></span><h3><a href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php echo esc_html( $entry->post_title ); ?></a></h3><p><?php echo esc_html( wp_trim_words( $entry->post_excerpt, 26 ) ); ?></p><small><?php echo esc_html( HE_Permissions::label( $entry->post_author ) ); ?> · Updated <?php echo esc_html( get_the_modified_date( '', $id ) ); ?></small><?php echo HE_Interactions::actions( $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></article><?php return ob_get_clean(); }
-	public function saved() { if ( ! is_user_logged_in() ) { return '<div class="he-notice"><p>Log in to view Saved Knowledge.</p><a class="he-button" href="' . esc_url( wp_login_url( get_permalink() ) ) . '">Log In</a></div>'; } global $wpdb; $ids = $wpdb->get_col( $wpdb->prepare( "SELECT entry_id FROM {$wpdb->prefix}he_bookmarks WHERE user_id=%d ORDER BY created_at DESC", get_current_user_id() ) ); return '<main class="he-shell">' . $this->browser( array_map( 'absint', $ids ) ) . '</main>'; }
-	public function single( $content ) { if ( ! is_singular( HE_Content::TYPE ) || ! in_the_loop() || ! is_main_query() ) { return $content; } $id = get_the_ID(); $author = absint( get_post_field( 'post_author', $id ) ); $reviewer = absint( HE_Content::meta( $id, 'reviewer_id' ) ); $head = '<div class="he-entry-head"><span class="he-type">' . esc_html( HE_Content::type( $id ) ) . '</span><p>By <a href="' . esc_url( HE_Permissions::profile( $author ) ) . '">' . esc_html( get_the_author_meta( 'display_name', $author ) ) . '</a> · ' . esc_html( HE_Permissions::label( $author ) ) . '</p>' . ( $reviewer ? '<p>Reviewed by ' . esc_html( get_the_author_meta( 'display_name', $reviewer ) ) . '</p>' : '' ) . '<p>Published ' . esc_html( get_the_date( '', $id ) ) . ' · Updated ' . esc_html( get_the_modified_date( '', $id ) ) . '</p></div>'; $tail = ''; foreach ( HE_Content::fields() as $key => $label ) { $value = HE_Content::meta( $id, $key ); if ( $value ) { $tail .= '<section class="he-panel he-' . esc_attr( str_replace( '_', '-', $key ) ) . '"><h2>' . esc_html( $label ) . '</h2>' . $this->lines( $value ) . '</section>'; } } $related = (array) HE_Content::meta( $id, 'related_ids' ); if ( $related ) { $tail .= '<section class="he-panel"><h2>Related Encyclopedia Entries</h2><ul>'; foreach ( array_slice( array_map( 'absint', $related ), 0, 5 ) as $related_id ) { if ( 'publish' === get_post_status( $related_id ) ) { $tail .= '<li><a href="' . esc_url( get_permalink( $related_id ) ) . '">' . esc_html( get_the_title( $related_id ) ) . '</a></li>'; } } $tail .= '</ul></section>'; } $book = absint( HE_Content::meta( $id, 'book_id' ) ); $lesson = absint( HE_Content::meta( $id, 'lesson_id' ) ); if ( $book || $lesson ) { $tail .= '<section class="he-panel"><h2>Connected Learning</h2><ul>' . ( $book ? '<li><a href="' . esc_url( get_permalink( $book ) ) . '">' . esc_html( get_the_title( $book ) ) . '</a></li>' : '' ) . ( $lesson ? '<li><a href="' . esc_url( get_permalink( $lesson ) ) . '">' . esc_html( get_the_title( $lesson ) ) . '</a></li>' : '' ) . '</ul></section>'; } $tail .= '<p class="he-disclaimer">Educational information only. Seek qualified assessment for diagnosis and urgent or worsening symptoms.</p>' . HE_Interactions::actions( $id ); return '<article class="he-entry" data-entry-id="' . absint( $id ) . '">' . $head . $content . $tail . '</article>'; }
-	private function lines( $text ) { $lines = preg_split( '/\r\n|\r|\n/', $text ); if ( count( $lines ) < 2 ) { return '<p>' . esc_html( $text ) . '</p>'; } $out = '<ul>'; foreach ( $lines as $line ) { if ( trim( $line ) ) { $out .= '<li>' . esc_html( trim( $line ) ) . '</li>'; } } return $out . '</ul>'; }
-	public function guard() { if ( is_singular( HE_Content::TYPE ) && ! HE_Content::allowed( HE_Content::type( get_queried_object_id(), 'slug' ) ) ) { global $wp_query; $wp_query->set_404(); status_header( 404 ); nocache_headers(); include get_404_template(); exit; } }
-	private function navigation( $active ) { $specs = array( 'home' => array( 'Home', 'sabri-platform-home' ), 'news' => array( 'News', 'sabri-news' ), 'founder' => array( 'Founder', 'sabri-founder' ), 'learn' => array( 'Learn Sabri Classical Homeopathy', 'learn-sabri-classical-homeopathy' ), 'encyclopedia' => array( 'Encyclopedia', 'homeopathy-encyclopedia' ), 'doctors' => array( 'Doctors', 'homeopathy-doctors' ), 'clinic' => array( 'Worldwide Clinic', 'worldwide-clinic' ), 'videos' => array( 'Video Wall', 'video-wall' ), 'reels' => array( 'Reels', 'reels' ), 'pdf' => array( 'PDF Library', 'pdf-library' ), 'radar' => array( 'Radar', 'homeopathy-radar' ), 'ai' => array( 'Sabri Classical Homeopathy AI', 'sabri-classical-homeopathy-ai' ), 'network' => array( 'Network', 'homeopathy-network' ), 'marketplace' => array( 'Marketplace', 'homeopathy-marketplace' ) ); $pages = (array) get_option( 'spf_page_map', array() ); $out = '<nav aria-label="Main platform navigation">'; foreach ( $specs as $key => $spec ) { $url = ! empty( $pages[ $key ] ) ? get_permalink( $pages[ $key ] ) : home_url( '/' . $spec[1] . '/' ); $out .= '<a class="' . ( $active === $key ? 'is-active' : '' ) . '" href="' . esc_url( $url ) . '">' . esc_html( $spec[0] ) . '</a>'; } return $out . '</nav>'; }
+	public function hooks() {
+		add_shortcode( 'he_encyclopedia_home', array( $this, 'home' ) );
+		add_shortcode( 'sabri_encyclopedia', array( $this, 'home' ) );
+		add_shortcode( 'he_saved_entries', array( $this, 'saved' ) );
+		add_filter( 'the_content', array( $this, 'replace' ), 8 );
+		add_filter( 'the_content', array( $this, 'single' ), 20 );
+		add_action( 'template_redirect', array( $this, 'guard' ), 1 );
+	}
+
+	/** Replace only the Foundation-owned Encyclopedia module placeholder. */
+	public function replace( $content ) {
+		if ( ! is_singular( 'page' ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
+		}
+		$pages = (array) get_option( 'spf_page_map', array() );
+		$page_id = isset( $pages['encyclopedia'] ) ? absint( $pages['encyclopedia'] ) : 0;
+		if ( $page_id && $page_id === (int) get_queried_object_id() && has_shortcode( $content, 'sabri_platform_module' ) ) {
+			return '[sabri_encyclopedia]';
+		}
+		return $content;
+	}
+
+	public function home() {
+		ob_start();
+		?>
+		<section class="he-module he-shell" aria-labelledby="he-encyclopedia-title">
+			<header class="he-hero">
+				<div><span><?php esc_html_e( 'Homeopathy Knowledge Center', 'homeopathy-encyclopedia' ); ?></span><h1 id="he-encyclopedia-title"><?php esc_html_e( 'Encyclopedia', 'homeopathy-encyclopedia' ); ?></h1><p><?php esc_html_e( 'Search governed American English entries, references, relationships, medical red flags, and connected learning material.', 'homeopathy-encyclopedia' ); ?></p></div>
+				<form method="get" role="search"><label class="screen-reader-text" for="he-search"><?php esc_html_e( 'Search Encyclopedia', 'homeopathy-encyclopedia' ); ?></label><input id="he-search" type="search" name="entry_search" value="<?php echo esc_attr( $this->request( 'entry_search' ) ); ?>" placeholder="<?php esc_attr_e( 'Search remedies, symptoms, conditions, anatomy, or concepts', 'homeopathy-encyclopedia' ); ?>"><button type="submit"><?php esc_html_e( 'Search', 'homeopathy-encyclopedia' ); ?></button></form>
+			</header>
+			<?php echo $this->browser(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+		</section>
+		<?php
+		return ob_get_clean();
+	}
+
+	private function browser( array $fixed_ids = null ) {
+		$filters = array(
+			'search' => sanitize_text_field( $this->request( 'entry_search' ) ),
+			'type' => sanitize_title( $this->request( 'entry_type' ) ),
+			'system' => sanitize_title( $this->request( 'entry_system' ) ),
+			'letter' => strtoupper( substr( sanitize_text_field( $this->request( 'entry_letter' ) ), 0, 1 ) ),
+			'sort' => 'popular' === sanitize_key( $this->request( 'entry_sort' ) ) ? 'popular' : 'latest',
+		);
+		if ( $filters['letter'] && ! preg_match( '/^[A-Z#]$/', $filters['letter'] ) ) {
+			$filters['letter'] = '';
+		}
+		$page = isset( $_GET['he_page'] ) ? max( 1, absint( $_GET['he_page'] ) ) : 1;
+		$result = HE_Database::catalog( $filters, $page, 24, $fixed_ids );
+		$entries = $result['ids'] ? get_posts( array( 'post_type' => HE_Content::TYPE, 'post_status' => 'publish', 'post__in' => $result['ids'], 'orderby' => 'post__in', 'posts_per_page' => count( $result['ids'] ), 'no_found_rows' => true ) ) : array();
+		ob_start();
+		?>
+		<section class="he-browser" aria-labelledby="he-browser-title">
+			<div class="he-section-head"><div><span><?php esc_html_e( 'Browse Knowledge', 'homeopathy-encyclopedia' ); ?></span><h2 id="he-browser-title"><?php echo esc_html( is_array( $fixed_ids ) ? __( 'Saved Knowledge', 'homeopathy-encyclopedia' ) : __( 'Explore Entries', 'homeopathy-encyclopedia' ) ); ?></h2></div><?php $pages = (array) get_option( 'he_page_map', array() ); if ( ! empty( $pages['submit'] ) ) : ?><a class="he-button" href="<?php echo esc_url( get_permalink( absint( $pages['submit'] ) ) ); ?>"><?php esc_html_e( 'Submit Entry', 'homeopathy-encyclopedia' ); ?></a><?php endif; ?></div>
+			<nav class="he-az" aria-label="<?php esc_attr_e( 'Browse entries alphabetically', 'homeopathy-encyclopedia' ); ?>"><a class="<?php echo '' === $filters['letter'] ? 'is-active' : ''; ?>" href="<?php echo esc_url( $this->filter_url( 'entry_letter', false ) ); ?>"><?php esc_html_e( 'All', 'homeopathy-encyclopedia' ); ?></a><?php foreach ( range( 'A', 'Z' ) as $char ) : ?><a class="<?php echo $filters['letter'] === $char ? 'is-active' : ''; ?>" href="<?php echo esc_url( $this->filter_url( 'entry_letter', $char ) ); ?>"><?php echo esc_html( $char ); ?></a><?php endforeach; ?><a class="<?php echo '#' === $filters['letter'] ? 'is-active' : ''; ?>" href="<?php echo esc_url( $this->filter_url( 'entry_letter', '#' ) ); ?>">#</a></nav>
+			<?php if ( ! is_array( $fixed_ids ) ) : ?>
+				<form class="he-filters" method="get">
+					<label><?php esc_html_e( 'Search', 'homeopathy-encyclopedia' ); ?><input name="entry_search" value="<?php echo esc_attr( $filters['search'] ); ?>"></label>
+					<label><?php esc_html_e( 'Knowledge type', 'homeopathy-encyclopedia' ); ?><select name="entry_type"><option value=""><?php esc_html_e( 'All types', 'homeopathy-encyclopedia' ); ?></option><?php foreach ( HE_Content::types() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $filters['type'], $slug ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
+					<label><?php esc_html_e( 'Body system', 'homeopathy-encyclopedia' ); ?><select name="entry_system"><option value=""><?php esc_html_e( 'All systems', 'homeopathy-encyclopedia' ); ?></option><?php foreach ( HE_Content::systems() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $filters['system'], $slug ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
+					<label><?php esc_html_e( 'Order', 'homeopathy-encyclopedia' ); ?><select name="entry_sort"><option value="latest" <?php selected( $filters['sort'], 'latest' ); ?>><?php esc_html_e( 'Latest', 'homeopathy-encyclopedia' ); ?></option><option value="popular" <?php selected( $filters['sort'], 'popular' ); ?>><?php esc_html_e( 'Popular', 'homeopathy-encyclopedia' ); ?></option></select></label>
+					<button class="he-button" type="submit"><?php esc_html_e( 'Apply', 'homeopathy-encyclopedia' ); ?></button>
+				</form>
+			<?php endif; ?>
+			<p class="he-result-count" role="status"><?php echo esc_html( sprintf( _n( '%s entry found', '%s entries found', $result['total'], 'homeopathy-encyclopedia' ), number_format_i18n( $result['total'] ) ) ); ?></p>
+			<div class="he-grid"><?php if ( $entries ) : foreach ( $entries as $entry ) : echo $this->card( $entry ); endforeach; else : ?><div class="he-empty"><h3><?php esc_html_e( 'No entries found', 'homeopathy-encyclopedia' ); ?></h3><p><?php esc_html_e( 'Try another type, letter, system, or search phrase.', 'homeopathy-encyclopedia' ); ?></p></div><?php endif; ?></div>
+			<?php if ( $result['pages'] > 1 ) : ?><nav class="he-pagination" aria-label="<?php esc_attr_e( 'Encyclopedia pages', 'homeopathy-encyclopedia' ); ?>"><?php echo wp_kses_post( paginate_links( array( 'base' => str_replace( '999999999', '%#%', esc_url( add_query_arg( 'he_page', 999999999 ) ) ), 'format' => '', 'current' => $result['page'], 'total' => $result['pages'], 'prev_text' => __( 'Previous', 'homeopathy-encyclopedia' ), 'next_text' => __( 'Next', 'homeopathy-encyclopedia' ) ) ) ); ?></nav><?php endif; ?>
+			<p class="he-disclaimer"><?php esc_html_e( 'Encyclopedia entries are educational. They do not replace urgent assessment or an individualized consultation with a qualified practitioner.', 'homeopathy-encyclopedia' ); ?></p>
+		</section>
+		<?php
+		return ob_get_clean();
+	}
+
+	private function card( $entry ) {
+		$entry_id = absint( $entry->ID );
+		ob_start();
+		?>
+		<article class="he-card" data-entry-id="<?php echo absint( $entry_id ); ?>"><?php if ( has_post_thumbnail( $entry_id ) ) : ?><a class="he-card-image" href="<?php echo esc_url( get_permalink( $entry_id ) ); ?>"><?php echo get_the_post_thumbnail( $entry_id, 'medium_large', array( 'loading' => 'lazy', 'alt' => $entry->post_title ) ); ?></a><?php endif; ?><div><span class="he-type"><?php echo esc_html( HE_Content::term( $entry_id ) ); ?></span><h3><a href="<?php echo esc_url( get_permalink( $entry_id ) ); ?>"><?php echo esc_html( $entry->post_title ); ?></a></h3><p><?php echo esc_html( wp_trim_words( $entry->post_excerpt, 26 ) ); ?></p><small><?php echo esc_html( HE_Permissions::label( $entry->post_author ) ); ?> · <?php echo esc_html( sprintf( __( 'Updated %s', 'homeopathy-encyclopedia' ), get_the_modified_date( '', $entry_id ) ) ); ?></small><?php echo HE_Interactions::actions( $entry_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></article>
+		<?php
+		return ob_get_clean();
+	}
+
+	public function saved() {
+		if ( ! is_user_logged_in() ) {
+			return '<div class="he-notice"><p>' . esc_html__( 'Log in to view Saved Knowledge.', 'homeopathy-encyclopedia' ) . '</p><a class="he-button" href="' . esc_url( wp_login_url( get_permalink() ) ) . '">' . esc_html__( 'Log In', 'homeopathy-encyclopedia' ) . '</a></div>';
+		}
+		global $wpdb;
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT entry_id FROM {$wpdb->prefix}he_bookmarks WHERE user_id=%d ORDER BY created_at DESC", get_current_user_id() ) );
+		return '<section class="he-module he-shell">' . $this->browser( array_map( 'absint', $ids ) ) . '</section>';
+	}
+
+	public function single( $content ) {
+		if ( ! is_singular( HE_Content::TYPE ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
+		}
+		$entry_id = get_the_ID();
+		if ( ! HE_Content::publicly_available( $entry_id ) ) {
+			return '';
+		}
+		$author = absint( get_post_field( 'post_author', $entry_id ) );
+		$reviewer = absint( HE_Content::meta( $entry_id, 'reviewer_id' ) );
+		$head = '<div class="he-entry-head"><span class="he-type">' . esc_html( HE_Content::term( $entry_id ) ) . '</span><p>' . sprintf( esc_html__( 'By %1$s · %2$s', 'homeopathy-encyclopedia' ), '<a href="' . esc_url( HE_Permissions::profile_url( $author ) ) . '">' . esc_html( get_the_author_meta( 'display_name', $author ) ) . '</a>', esc_html( HE_Permissions::label( $author ) ) ) . '</p>';
+		if ( $reviewer ) {
+			$head .= '<p>' . esc_html( sprintf( __( 'Reviewed by %s', 'homeopathy-encyclopedia' ), get_the_author_meta( 'display_name', $reviewer ) ) ) . '</p>';
+		}
+		$head .= '<p>' . esc_html( sprintf( __( 'Published %1$s · Updated %2$s', 'homeopathy-encyclopedia' ), get_the_date( '', $entry_id ), get_the_modified_date( '', $entry_id ) ) ) . '</p></div>';
+		$tail = '<section class="he-panel"><h2>' . esc_html__( 'Body System', 'homeopathy-encyclopedia' ) . '</h2><p>' . esc_html( HE_Content::term( $entry_id, HE_Content::SYSTEM ) ) . '</p></section>';
+		foreach ( HE_Content::fields() as $key => $label ) {
+			$value = HE_Content::meta( $entry_id, $key );
+			if ( $value ) {
+				$tail .= '<section class="he-panel he-' . esc_attr( str_replace( '_', '-', $key ) ) . '"><h2>' . esc_html( $label ) . '</h2>' . $this->lines( $value ) . '</section>';
+			}
+		}
+		$related = (array) HE_Content::meta( $entry_id, 'related_ids' );
+		$related_links = '';
+		foreach ( array_slice( array_map( 'absint', $related ), 0, 5 ) as $related_id ) {
+			if ( HE_Content::publicly_available( $related_id ) ) {
+				$related_links .= '<li><a href="' . esc_url( get_permalink( $related_id ) ) . '">' . esc_html( get_the_title( $related_id ) ) . '</a></li>';
+			}
+		}
+		if ( $related_links ) {
+			$tail .= '<section class="he-panel"><h2>' . esc_html__( 'Related Encyclopedia Entries', 'homeopathy-encyclopedia' ) . '</h2><ul>' . $related_links . '</ul></section>';
+		}
+		$learning_links = '';
+		$book_id = absint( HE_Content::meta( $entry_id, 'book_id' ) );
+		$lesson_id = absint( HE_Content::meta( $entry_id, 'lesson_id' ) );
+		if ( $book_id && HE_Content::learning_item_public( $book_id, 'slc_book' ) ) {
+			$learning_links .= '<li><a href="' . esc_url( get_permalink( $book_id ) ) . '">' . esc_html( get_the_title( $book_id ) ) . '</a></li>';
+		}
+		if ( $lesson_id && HE_Content::learning_item_public( $lesson_id, 'slc_lesson' ) ) {
+			$learning_links .= '<li><a href="' . esc_url( get_permalink( $lesson_id ) ) . '">' . esc_html( get_the_title( $lesson_id ) ) . '</a></li>';
+		}
+		if ( $learning_links ) {
+			$tail .= '<section class="he-panel"><h2>' . esc_html__( 'Connected Learning', 'homeopathy-encyclopedia' ) . '</h2><ul>' . $learning_links . '</ul></section>';
+		}
+		$tail .= '<p class="he-disclaimer">' . esc_html__( 'Educational information only. Seek urgent help for severe or rapidly worsening symptoms and obtain individualized professional assessment when needed.', 'homeopathy-encyclopedia' ) . '</p>' . HE_Interactions::actions( $entry_id );
+		return '<article class="he-entry" data-entry-id="' . absint( $entry_id ) . '">' . $head . $content . $tail . '</article>';
+	}
+
+	private function lines( $text ) {
+		$lines = preg_split( '/\r\n|\r|\n/', (string) $text );
+		if ( count( $lines ) < 2 ) {
+			return '<p>' . esc_html( $text ) . '</p>';
+		}
+		$output = '<ul>';
+		foreach ( $lines as $line ) {
+			if ( trim( $line ) ) {
+				$output .= '<li>' . esc_html( trim( $line ) ) . '</li>';
+			}
+		}
+		return $output . '</ul>';
+	}
+
+	public function guard() {
+		$pages = (array) get_option( 'he_page_map', array() );
+		$current = get_queried_object_id();
+		if ( is_page() && in_array( $current, array_map( 'absint', $pages ), true ) ) {
+			if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+				define( 'DONOTCACHEPAGE', true );
+			}
+			nocache_headers();
+		}
+		if ( is_singular( HE_Content::TYPE ) && ! HE_Content::publicly_available( $current ) ) {
+			global $wp_query;
+			$wp_query->set_404();
+			status_header( 404 );
+			nocache_headers();
+			$template = get_404_template();
+			if ( $template ) {
+				include $template;
+			}
+			exit;
+		}
+	}
+
+	private function request( $key ) {
+		return isset( $_GET[ $key ] ) ? wp_unslash( $_GET[ $key ] ) : '';
+	}
+
+	private function filter_url( $key, $value ) {
+		$args = array();
+		foreach ( array( 'entry_search', 'entry_type', 'entry_system', 'entry_sort', 'entry_letter' ) as $allowed ) {
+			if ( isset( $_GET[ $allowed ] ) && is_scalar( $_GET[ $allowed ] ) ) {
+				$args[ $allowed ] = sanitize_text_field( wp_unslash( $_GET[ $allowed ] ) );
+			}
+		}
+		if ( false === $value || '' === $value ) {
+			unset( $args[ $key ] );
+		} else {
+			$args[ $key ] = sanitize_text_field( $value );
+		}
+		return add_query_arg( $args, remove_query_arg( array( 'entry_search', 'entry_type', 'entry_system', 'entry_sort', 'entry_letter', 'he_page' ) ) );
+	}
 }

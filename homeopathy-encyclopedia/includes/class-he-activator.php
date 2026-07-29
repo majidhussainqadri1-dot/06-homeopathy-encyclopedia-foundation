@@ -1,18 +1,166 @@
 <?php
-defined( 'ABSPATH' ) || exit;
-final class HE_Activator {
-	public static function activate() { HE_Content::register(); HE_Content::seed_types(); self::role(); self::tables(); self::pages(); self::starters(); update_option( 'he_version', HE_VERSION, false ); set_transient( 'he_activation_notice', '1', 120 ); flush_rewrite_rules(); }
-	public static function deactivate() { flush_rewrite_rules(); }
-	private static function role() { $admin = get_role( 'administrator' ); if ( $admin ) { $admin->add_cap( 'manage_homeopathy_encyclopedia' ); } }
-	private static function tables() { global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $c = $wpdb->get_charset_collate(); dbDelta( "CREATE TABLE {$wpdb->prefix}he_bookmarks (id bigint(20) unsigned NOT NULL AUTO_INCREMENT,user_id bigint(20) unsigned NOT NULL,entry_id bigint(20) unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY  (id),UNIQUE KEY user_entry (user_id,entry_id),KEY user_id (user_id)) {$c};" ); dbDelta( "CREATE TABLE {$wpdb->prefix}he_feedback (id bigint(20) unsigned NOT NULL AUTO_INCREMENT,entry_id bigint(20) unsigned NOT NULL,user_id bigint(20) unsigned NOT NULL,kind varchar(20) NOT NULL,reason varchar(40) NOT NULL,details text NOT NULL,status varchar(20) NOT NULL DEFAULT 'open',created_at datetime NOT NULL,PRIMARY KEY  (id),KEY entry_id (entry_id),KEY status (status)) {$c};" ); dbDelta( "CREATE TABLE {$wpdb->prefix}he_audit_log (id bigint(20) unsigned NOT NULL AUTO_INCREMENT,entry_id bigint(20) unsigned NOT NULL,actor_id bigint(20) unsigned NOT NULL,action varchar(30) NOT NULL,note text NOT NULL,created_at datetime NOT NULL,PRIMARY KEY  (id),KEY entry_id (entry_id)) {$c};" ); }
-	private static function pages() { $map = (array) get_option( 'he_page_map', array() ); $map['submit'] = self::page( 'Submit Encyclopedia Entry', 'submit-encyclopedia-entry', '[he_submit_entry]' ); $map['saved'] = self::page( 'Saved Knowledge', 'saved-knowledge', '[he_saved_entries]' ); update_option( 'he_page_map', $map, false ); }
-	private static function page( $title, $slug, $shortcode ) { $p = get_page_by_path( $slug ); if ( $p instanceof WP_Post ) { return $p->ID; } $id = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => $title, 'post_name' => $slug, 'post_content' => $shortcode ), true ); if ( ! is_wp_error( $id ) ) { update_post_meta( $id, '_he_managed_page', '1' ); return $id; } return 0; }
-	private static function starters() { $items = array(
-		array( 'How to Use This Encyclopedia', 'clinical-terminology', 'A guide to searching, reviewing relationships, checking references, and distinguishing education from personal medical advice.', 'Use the search, A–Z index, knowledge types, and related-entry links to explore the encyclopedia. Entries are educational summaries. They must not be used as an automatic diagnosis or personal prescription.', '', 'Always seek qualified care for urgent, severe, persistent, or worsening symptoms.' ),
-		array( 'Classical Homeopathy: An Educational Definition', 'homeopathy-philosophy', 'A neutral orientation to the historical concepts and study vocabulary of classical homeopathy.', 'Classical homeopathy is a historical system of complementary medicine associated with Samuel Hahnemann. Its literature emphasizes individualized symptom observation and the principle commonly described as “like cures like.” This entry describes the field; it does not establish effectiveness for a specific condition.', '', 'Do not delay evidence-based diagnosis, emergency treatment, vaccination, or other necessary medical care.' ),
-		array( 'Introduction to Symptom Analysis', 'symptom', 'A structured introduction to location, sensation, modalities, timing, intensity, and accompanying features.', 'Symptom analysis organizes what a person experiences into clear descriptive elements. Careful description can improve communication with qualified clinicians and support educational case study.', '', 'Sudden neurological symptoms, severe breathing difficulty, chest pain, major bleeding, or loss of consciousness require urgent medical assessment.' ),
-		array( 'The Educational Role of Anatomy and Pathology', 'anatomy', 'Why basic structure, function, and disease mechanisms matter in responsible health education.', 'Anatomy describes body structure. Pathology studies disease processes and their effects. Both are essential for recognizing the limits of complementary-health discussion and the need for appropriate investigation or referral.', 'Human Body', 'Educational summaries do not replace examination, laboratory testing, imaging, or specialist assessment.' ),
-		array( 'Recognizing General Medical Red Flags', 'health-condition', 'A general safety entry describing warning signs that may need urgent or emergency care.', 'Red flags are warning signs that may indicate a serious condition. Examples include severe breathing difficulty, chest pressure, new one-sided weakness, uncontrolled bleeding, a seizure, sudden confusion, or rapidly worsening illness.', '', 'Contact local emergency services for life-threatening symptoms. Online educational content must not delay urgent assessment.' ),
-	); foreach ( $items as $item ) { $found = get_posts( array( 'post_type' => HE_Content::TYPE, 'post_status' => 'any', 'title' => $item[0], 'posts_per_page' => 1, 'fields' => 'ids' ) ); if ( $found ) { continue; } $id = wp_insert_post( array( 'post_type' => HE_Content::TYPE, 'post_status' => 'publish', 'post_title' => $item[0], 'post_excerpt' => $item[2], 'post_content' => $item[3], 'post_author' => HE_Permissions::founder_id(), 'comment_status' => 'open' ), true ); if ( ! is_wp_error( $id ) ) { HE_Content::assign( $id, $item[1] ); update_post_meta( $id, '_he_body_system', $item[4] ); update_post_meta( $id, '_he_red_flags', $item[5] ); update_post_meta( $id, '_he_safety', 'Educational information only. Results and individual circumstances vary.' ); update_post_meta( $id, '_he_references', 'World Health Organization and local emergency-care guidance should be consulted for current public-health and urgent-care information.' ); update_post_meta( $id, '_he_language', 'en-US' ); update_post_meta( $id, '_he_views', 0 ); } } }
-}
+/** Activation, migration, managed ownership, and rollback controls. */
 
+defined( 'ABSPATH' ) || exit;
+
+final class HE_Activator {
+	const STATE_OPTION = 'he_activation_state';
+
+	public static function activate() {
+		$preflight = HE_Dependencies::activation_preflight();
+		if ( is_wp_error( $preflight ) ) {
+			deactivate_plugins( plugin_basename( HE_FILE ) );
+			wp_die( esc_html( $preflight->get_error_message() ), esc_html__( 'File 06 activation stopped', 'homeopathy-encyclopedia' ), array( 'back_link' => true ) );
+		}
+
+		$created = array( 'pages' => array(), 'posts' => array() );
+		update_option( self::STATE_OPTION, array( 'status' => 'running', 'started_at' => gmdate( 'c' ), 'version' => HE_VERSION ), false );
+
+		try {
+			HE_Content::register();
+			HE_Content::seed_terms();
+			HE_Permissions::install_caps();
+			HE_Database::install();
+			HE_Database::migrate_legacy_systems();
+			self::pages( $created );
+			self::starter_drafts( $created );
+			HE_Database::reindex_all();
+			if ( ! wp_next_scheduled( 'he_daily_maintenance' ) ) {
+				wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'he_daily_maintenance' );
+			}
+			update_option( 'he_version', HE_VERSION, false );
+			update_option( self::STATE_OPTION, array( 'status' => 'complete', 'completed_at' => gmdate( 'c' ), 'version' => HE_VERSION ), false );
+			set_transient( 'he_activation_notice', '1', 120 );
+			flush_rewrite_rules();
+		} catch ( Throwable $error ) {
+			self::rollback_created_content( $created );
+			update_option(
+				self::STATE_OPTION,
+				array(
+					'status' => 'failed',
+					'failed_at' => gmdate( 'c' ),
+					'version' => HE_VERSION,
+					'error' => sanitize_text_field( $error->getMessage() ),
+				),
+				false
+			);
+			HE_Dependencies::audit( 'activation_failed', array( 'error' => $error->getMessage() ) );
+			deactivate_plugins( plugin_basename( HE_FILE ) );
+			wp_die( esc_html( $error->getMessage() ), esc_html__( 'File 06 activation rolled back', 'homeopathy-encyclopedia' ), array( 'back_link' => true ) );
+		}
+	}
+
+	public static function deactivate() {
+		wp_clear_scheduled_hook( 'he_daily_maintenance' );
+		flush_rewrite_rules();
+	}
+
+	private static function pages( array &$created ) {
+		$map = (array) get_option( 'he_page_map', array() );
+		$map['submit'] = self::managed_page( 'submit', __( 'Submit Encyclopedia Entry', 'homeopathy-encyclopedia' ), 'submit-encyclopedia-entry', '[he_submit_entry]', $created );
+		$map['saved'] = self::managed_page( 'saved', __( 'Saved Knowledge', 'homeopathy-encyclopedia' ), 'saved-knowledge', '[he_saved_entries]', $created );
+		update_option( 'he_page_map', $map, false );
+	}
+
+	private static function managed_page( $key, $title, $slug, $shortcode, array &$created ) {
+		$map = (array) get_option( 'he_page_map', array() );
+		$stored = isset( $map[ $key ] ) ? absint( $map[ $key ] ) : 0;
+		$existing = $stored ? get_post( $stored ) : null;
+		if ( $existing instanceof WP_Post && 'page' === $existing->post_type && '1' === get_post_meta( $stored, '_he_managed_page', true ) && sanitize_key( $key ) === get_post_meta( $stored, '_he_managed_page_key', true ) && $shortcode === trim( $existing->post_content ) ) {
+			return $stored;
+		}
+
+		$conflict = get_page_by_path( $slug );
+		if ( $conflict instanceof WP_Post && ( '1' !== get_post_meta( $conflict->ID, '_he_managed_page', true ) || sanitize_key( $key ) !== get_post_meta( $conflict->ID, '_he_managed_page_key', true ) || $shortcode !== trim( $conflict->post_content ) ) ) {
+			$slug .= '-file-06';
+		}
+
+		$id = wp_insert_post(
+			array(
+				'post_type' => 'page',
+				'post_status' => 'publish',
+				'post_title' => $title,
+				'post_name' => $slug,
+				'post_content' => $shortcode,
+			),
+			true
+		);
+		if ( is_wp_error( $id ) ) {
+			throw new RuntimeException( $id->get_error_message() );
+		}
+		update_post_meta( $id, '_he_managed_page', '1' );
+		update_post_meta( $id, '_he_managed_page_key', sanitize_key( $key ) );
+		$created['pages'][] = $id;
+		return $id;
+	}
+
+	/** Seed institutional content as review-required drafts, never as automatic public claims. */
+	private static function starter_drafts( array &$created ) {
+		$founder = HE_Permissions::founder_id();
+		if ( ! $founder ) {
+			throw new RuntimeException( __( 'The File 00 official Founder account is unavailable.', 'homeopathy-encyclopedia' ) );
+		}
+		$items = array(
+			array(
+				__( 'How to Use This Encyclopedia', 'homeopathy-encyclopedia' ),
+				'clinical-terminology',
+				'not-applicable',
+				__( 'A guide to searching entries, following relationships, and checking references.', 'homeopathy-encyclopedia' ),
+				__( 'Use the search, A–Z index, knowledge types, body systems, references, and connected-learning links to explore the encyclopedia. Every entry remains subject to editorial review and versioned correction.', 'homeopathy-encyclopedia' ),
+			),
+			array(
+				__( 'Classical Homeopathy: Foundational Definition', 'homeopathy-encyclopedia' ),
+				'homeopathy-philosophy',
+				'not-applicable',
+				__( 'An editorial draft introducing the foundational vocabulary and individualizing method of classical homeopathy.', 'homeopathy-encyclopedia' ),
+				__( 'Classical homeopathy studies the patient as an individual totality and compares characteristic symptoms with the recorded symptom pictures of medicines. This draft requires institutional review before public release.', 'homeopathy-encyclopedia' ),
+			),
+			array(
+				__( 'Introduction to Symptom Analysis', 'homeopathy-encyclopedia' ),
+				'symptom',
+				'general-whole-body',
+				__( 'A structured introduction to location, sensation, modalities, timing, intensity, and accompanying features.', 'homeopathy-encyclopedia' ),
+				__( 'Symptom analysis organizes reported experiences into clear descriptive elements so that the complete pattern can be studied consistently and documented responsibly.', 'homeopathy-encyclopedia' ),
+			),
+		);
+
+		foreach ( $items as $item ) {
+			$existing = get_page_by_title( $item[0], OBJECT, HE_Content::TYPE );
+			if ( $existing instanceof WP_Post ) {
+				continue;
+			}
+			$id = wp_insert_post(
+				array(
+					'post_type' => HE_Content::TYPE,
+					'post_status' => 'draft',
+					'post_title' => $item[0],
+					'post_excerpt' => $item[3],
+					'post_content' => $item[4],
+					'post_author' => $founder,
+					'comment_status' => 'closed',
+				),
+				true
+			);
+			if ( is_wp_error( $id ) ) {
+				throw new RuntimeException( $id->get_error_message() );
+			}
+			$created['posts'][] = $id;
+			if ( ! HE_Content::assign( $id, $item[1], HE_Content::TAX ) || ! HE_Content::assign( $id, $item[2], HE_Content::SYSTEM ) ) {
+				throw new RuntimeException( __( 'A starter draft classification could not be assigned.', 'homeopathy-encyclopedia' ) );
+			}
+			update_post_meta( $id, '_he_references', __( 'Institutional bibliography and source-specific citations must be completed during editorial review.', 'homeopathy-encyclopedia' ) );
+			update_post_meta( $id, '_he_language', 'en-US' );
+			update_post_meta( $id, '_he_language_reviewed', 0 );
+			update_post_meta( $id, '_he_workflow_state', 'seeded_draft' );
+			update_post_meta( $id, '_he_row_version', 1 );
+			update_post_meta( $id, '_he_source_provenance', 'file-06-1.0.0-seed' );
+			HE_Database::audit( $id, 'seeded_draft', '', 'seeded_draft', __( 'Created during activation for editorial review; not publicly released.', 'homeopathy-encyclopedia' ), $founder );
+		}
+	}
+
+	private static function rollback_created_content( array $created ) {
+		foreach ( array_merge( $created['posts'], $created['pages'] ) as $post_id ) {
+			wp_delete_post( absint( $post_id ), true );
+		}
+	}
+}
