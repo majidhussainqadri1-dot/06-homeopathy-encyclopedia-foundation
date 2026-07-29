@@ -1,0 +1,8 @@
+<?php
+defined( 'ABSPATH' ) || exit;
+final class HE_Plugin {
+	public function run() { add_action( 'init', array( 'HE_Content', 'register' ) ); ( new HE_Publishing() )->hooks(); ( new HE_Catalog() )->hooks(); ( new HE_Interactions() )->hooks(); ( new HE_Comments() )->hooks(); ( new HE_Admin() )->hooks(); ( new HE_Privacy() )->hooks(); ( new HE_SEO() )->hooks(); add_action( 'wp_enqueue_scripts', array( $this, 'assets' ) ); add_action( 'admin_enqueue_scripts', array( $this, 'admin_assets' ) ); }
+	public function assets() { global $post; $spf = (array) get_option( 'spf_page_map', array() ); $pages = (array) get_option( 'he_page_map', array() ); $ids = array_merge( array_filter( array( isset( $spf['encyclopedia'] ) ? $spf['encyclopedia'] : 0 ) ), $pages ); $needed = is_singular( HE_Content::TYPE ) || is_post_type_archive( HE_Content::TYPE ) || ( $post instanceof WP_Post && ( in_array( $post->ID, array_map( 'absint', $ids ), true ) || has_shortcode( $post->post_content, 'he_encyclopedia_home' ) || has_shortcode( $post->post_content, 'he_submit_entry' ) || has_shortcode( $post->post_content, 'he_saved_entries' ) ) ); if ( ! $needed ) { return; } wp_enqueue_style( 'he-encyclopedia', HE_URL . 'assets/css/encyclopedia.css', array(), HE_VERSION ); wp_enqueue_script( 'he-encyclopedia', HE_URL . 'assets/js/encyclopedia.js', array(), HE_VERSION, true ); wp_localize_script( 'he-encyclopedia', 'heEncyclopedia', array( 'ajaxUrl' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'he_interaction' ), 'loginUrl' => wp_login_url( home_url( '/' ) ) ) ); }
+	public function admin_assets( $hook ) { if ( false !== strpos( $hook, 'encyclopedia-management' ) ) { wp_enqueue_style( 'he-admin', HE_URL . 'assets/css/admin.css', array(), HE_VERSION ); } }
+}
+

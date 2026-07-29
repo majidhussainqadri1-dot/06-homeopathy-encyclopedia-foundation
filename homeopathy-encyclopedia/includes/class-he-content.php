@@ -1,0 +1,14 @@
+<?php
+defined( 'ABSPATH' ) || exit;
+final class HE_Content {
+	const TYPE = 'he_entry'; const TAX = 'he_type';
+	public static function types() { return array( 'remedy' => 'Remedy', 'symptom' => 'Symptom', 'health-condition' => 'Health Condition', 'anatomy' => 'Anatomy', 'pathology' => 'Pathology', 'body-system' => 'Body System', 'cause-etiology' => 'Cause and Etiology', 'modalities' => 'Modalities', 'clinical-terminology' => 'Clinical Terminology', 'nutrition' => 'Nutrition', 'principles-hygiene' => 'Principles of Hygiene', 'islamic-spiritual-healing' => 'Islamic Spiritual Healing', 'homeopathy-philosophy' => 'Homeopathy Philosophy', 'historical-person' => 'Historical Person', 'book-reference' => 'Book Reference', 'research-reference' => 'Research Reference' ); }
+	public static function fields() { return array( 'source' => 'Source or Classification', 'body_system' => 'Body System', 'key_points' => 'Key Educational Points', 'symptoms' => 'Symptoms or Characteristics', 'causes' => 'Causes and Etiology', 'modalities' => 'Modalities', 'red_flags' => 'Medical Red Flags', 'safety' => 'Safety and Limitations', 'references' => 'References' ); }
+	public static function register() { register_post_type( self::TYPE, array( 'labels' => array( 'name' => 'Encyclopedia Entries', 'singular_name' => 'Encyclopedia Entry' ), 'public' => true, 'show_ui' => true, 'show_in_menu' => false, 'show_in_rest' => false, 'has_archive' => 'encyclopedia-entries', 'rewrite' => array( 'slug' => 'encyclopedia-entry', 'with_front' => false ), 'supports' => array( 'title', 'editor', 'excerpt', 'thumbnail', 'author', 'comments', 'revisions' ), 'taxonomies' => array( self::TAX ), 'capability_type' => 'post', 'capabilities' => array( 'create_posts' => 'do_not_allow' ), 'map_meta_cap' => true, 'delete_with_user' => false ) ); register_taxonomy( self::TAX, array( self::TYPE ), array( 'labels' => array( 'name' => 'Knowledge Types' ), 'public' => true, 'show_ui' => false, 'show_in_rest' => false, 'hierarchical' => true, 'rewrite' => array( 'slug' => 'encyclopedia-type' ) ) ); }
+	public static function seed_types() { foreach ( self::types() as $slug => $name ) { if ( ! get_term_by( 'slug', $slug, self::TAX ) ) { wp_insert_term( $name, self::TAX, array( 'slug' => $slug ) ); } } }
+	public static function allowed( $slug ) { return isset( self::types()[ sanitize_title( $slug ) ] ); }
+	public static function assign( $id, $slug ) { self::seed_types(); $term = get_term_by( 'slug', $slug, self::TAX ); return $term && ! is_wp_error( wp_set_object_terms( $id, array( (int) $term->term_id ), self::TAX, false ) ); }
+	public static function type( $id, $field = 'name' ) { $terms = get_the_terms( absint( $id ), self::TAX ); return $terms && ! is_wp_error( $terms ) ? $terms[0]->{$field} : ''; }
+	public static function meta( $id, $key ) { return get_post_meta( absint( $id ), '_he_' . $key, true ); }
+}
+
