@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   exact-source:
+    if: github.event_name == 'push' || github.head_ref == 'baseline/file-06-original-import'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -29,6 +30,7 @@ jobs:
         run: echo 'b69f4452f5be64ba3ae7002b7767be46375904a98ae9d484f899d27c14c7bc20  CHECKSUMS.sha256' | sha256sum --check --strict
 
   php-syntax:
+    if: github.event_name == 'push' || github.head_ref == 'baseline/file-06-original-import'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
