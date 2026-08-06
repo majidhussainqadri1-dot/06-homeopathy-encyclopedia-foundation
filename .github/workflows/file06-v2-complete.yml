@@ -1,0 +1,58 @@
+name: File 06 v2 Complete Integrity
+on:
+  push:
+    branches: [ codex/file-06-complete-v2.0.0 ]
+  pull_request:
+    branches: [ main ]
+permissions:
+  contents: read
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file"; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+  invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@1e60f620b9541dca151540b7c14e2b5ab58b9d03
+        with:
+          node-version: '22'
+      - name: Verify source, security and architecture
+        run: |
+          php tests/v2-invariants.php
+          bash tests/v2-source-invariants.sh
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+          python3 scripts/verify-manifest.py --root . --manifest V2-CHECKSUMS.sha256
+  reproducible-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build twice and compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/file06-a.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/file06-b.zip
+          cmp -s /tmp/file06-a.zip /tmp/file06-b.zip
+          sha256sum /tmp/file06-a.zip
+          python3 - <<'PY'
+          import json, hashlib
+          from pathlib import Path
+          expected=json.loads(Path('SBOM.json').read_text())['release']['sha256']
+          actual=hashlib.sha256(Path('/tmp/file06-a.zip').read_bytes()).hexdigest()
+          assert expected == actual, (expected, actual)
+          PY
