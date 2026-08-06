@@ -30,6 +30,8 @@ jobs:
           rm -f CHECKSUMS.sha256 CORRECTIVE-CHECKSUMS.sha256 CORRECTIVE-MANIFEST.md CORRECTIVE-REVIEW.md MANIFEST.md SOURCE-PROVENANCE.md BASELINE-REVIEW.md STAGING-ACCEPTANCE.md
           rm -rf .github/workflows
           tar -xzf /tmp/file06-source.tgz
+          rm -rf .github/workflows
+          git checkout HEAD -- .github/workflows
           rm -rf .bootstrap
       - name: Test materialized source
         shell: bash
