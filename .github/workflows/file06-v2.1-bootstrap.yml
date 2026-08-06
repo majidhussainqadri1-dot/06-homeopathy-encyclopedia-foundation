@@ -29,13 +29,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          wc -c .bootstrap/patch-* .bootstrap/meta-*
+          sha256sum .bootstrap/patch-* .bootstrap/meta-*
           cat .bootstrap/patch-00 .bootstrap/patch-0102 .bootstrap/patch-0304 .bootstrap/patch-0506 > /tmp/file06.patch.gz.b64
+          sha256sum /tmp/file06.patch.gz.b64
           echo '5efa08cf1085619d1d896b25bf374f56533fcd5a0e90fd9a829a8cdf4847e416  /tmp/file06.patch.gz.b64' | sha256sum --check --strict
           base64 -d /tmp/file06.patch.gz.b64 > /tmp/file06.patch.gz
           echo '1aabdcdd14a37d18cef476e5b2dc6d155cbd62b7256c1f52279aff5956a35ec7  /tmp/file06.patch.gz' | sha256sum --check --strict
           gzip -dc /tmp/file06.patch.gz > /tmp/file06.patch
 
           cat .bootstrap/meta-0001 .bootstrap/meta-0203 > /tmp/file06-meta.tgz.b64
+          sha256sum /tmp/file06-meta.tgz.b64
           echo '2e9a0e9e105df9a6a930a8735eae836613bd01893b772464ae9c04918262949b  /tmp/file06-meta.tgz.b64' | sha256sum --check --strict
           base64 -d /tmp/file06-meta.tgz.b64 > /tmp/file06-meta.tgz
           echo '19c5234d0989f38973a3d20804e0444dfa69e937eb0ff8917aebf21d14a3f50f  /tmp/file06-meta.tgz' | sha256sum --check --strict
