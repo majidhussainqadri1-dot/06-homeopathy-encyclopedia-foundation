@@ -1,0 +1,43 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:9af1d41e-bcef-47cf-9b64-507547194806",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-06T09:09:00Z",
+    "component": {
+      "type": "application",
+      "name": "File 06 Homeopathy Encyclopedia",
+      "version": "2.0.0",
+      "purl": "pkg:wordpress/homeopathy-encyclopedia@2.0.0"
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "WordPress",
+      "version": ">=6.1; target 7.0.x",
+      "scope": "required"
+    },
+    {
+      "type": "platform",
+      "name": "PHP",
+      "version": ">=7.4; target 8.3",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "WordPress REST API",
+      "version": "core",
+      "scope": "required"
+    }
+  ],
+  "release": {
+    "file": "06-homeopathy-encyclopedia-2.0.0.zip",
+    "sha256": "36893ae7b4dcb9e8e33ef7e77c62c393e92765e03de2a859d23827449999b165",
+    "bytes": 50090,
+    "source_tree_sha256": "526e64e5794f4259d6a62677b9868ee3fa40dc03911046940686198dbad95721",
+    "schema": 7,
+    "contract": "2.0"
+  }
+}

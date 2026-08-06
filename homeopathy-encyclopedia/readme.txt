@@ -1,59 +1,56 @@
 === Homeopathy Encyclopedia Foundation ===
 Contributors: sabrihomeopathy
-Tags: encyclopedia, knowledge graph, remedies, symptoms, pathology
+Tags: encyclopedia, knowledge graph, research, homeopathy, evidence
 Requires at least: 6.1
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 2.0.0
 License: GPLv2 or later
 
-A governed encyclopedia and knowledge-relationship foundation for the Sabri Social Homeopathy Platform.
+Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
 
 == Description ==
 
-File 06 provides a searchable and moderated American English encyclopedia foundation integrated with File 00 membership authority, File 01 platform pages, File 05 connected learning, and File 20 unified navigation and layout.
+File 06 owns permanent canonical knowledge entries, the fixed sixteen-type taxonomy, aliases and transliterations, structured references and evidence grades, immutable published versions, corrections and retractions, duplicate merges and redirects, typed knowledge relations, the public research registry, successful-case governance, restricted dataset-access requests and versioned consumer contracts.
 
-Core controls:
-* Sixteen governed knowledge types and a controlled body-system taxonomy.
-* Dedicated custom post type capabilities; ordinary WordPress post editors cannot manage encyclopedia entries by default.
-* File 00-authoritative Founder and verified-doctor eligibility without role-only fallbacks.
-* Dependency preflight, idempotent schema migrations, managed-page ownership, activation rollback, and guarded uninstall.
-* Server-side title, summary, content, classification, references, red-flag, safety, language-declaration, relationship, and image validation.
-* Image size, MIME, dimension, and pixel-count checks with cleanup when publication fails.
-* Versioned moderation state transitions, self-review prevention, optimistic locking, mandatory rejection/hiding notes, reviewer identity, and visible audit history.
-* True catalog pagination, exact A–Z and taxonomy filters, structured-field search indexing, and atomic view metrics.
-* Cache-safe bookmark state, non-cacheable private pages, rate limits, corrections, reports, and versioned resolution records.
-* Privacy export/erasure coverage for bookmarks, feedback, entries, comments, and audit records with explicit retention messages.
-* Article and MedicalWebPage structured data emitted only for governed public entries.
+Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities and native object/state checks.
 
-== Mandatory dependencies ==
+== Principal controls ==
 
-* File 00 — Sabri Membership Core 1.0.1 or later.
-* File 01 — Sabri Platform Foundation.
-* File 05 — Learn Sabri Classical Homeopathy 1.0.0 or later.
-* File 20 — Sabri Unified Application Shell 1.0.0 or later.
-
-The plugin safely pauses when a mandatory contract is unavailable. File 02 authentication, File 03 profiles, and File 04 publishing may integrate through their owning platform contracts but are not duplicated inside File 06.
+* Stable UUID public IDs and canonical URLs.
+* Sixteen governed knowledge types and controlled body systems.
+* English (US), Urdu and Arabic/RTL-ready data and presentation.
+* Structured sources: source type, author, edition, volume/page, URL/DOI, evidence grade, rights and quotation count.
+* Immutable published snapshots, historical-version viewing, diffs and supersession notices.
+* Correction, retraction, replacement, appeal and consumer-event records.
+* Alias collision protection, duplicate detection, merge lineage and redirect reconciliation.
+* Typed, bounded knowledge graph with provenance.
+* Research proposal-to-publication state machine, ethics and consent gates.
+* Successful cases require verified consent, anonymization, baseline, intervention, follow-up, adverse-event reporting, limitations and the tag “کامیاب کیس”.
+* Dataset metadata is public only when approved; access grants are purpose-bound, expiring and audited.
+* REST contract namespace: /wp-json/sabri/v2/file-06/.
+* Reliable event outbox, idempotency, rate limiting, safe mode, health and bounded repair.
+* Privacy export/erasure coverage and guarded non-destructive uninstall.
+* File 20/22/23/24/25/26 integration providers without duplicating companion ownership.
 
 == Installation ==
 
-1. Confirm the mandatory dependencies are active and healthy.
-2. Confirm File 01 still owns a valid Encyclopedia page containing the platform module shortcode.
-3. Upload the File 06 ZIP through WordPress Admin > Plugins > Add New > Upload Plugin.
-4. Activate Homeopathy Encyclopedia Foundation.
-5. Review the automatically created starter drafts; they are not published automatically.
-6. Use Encyclopedia Management for moderation, corrections, reports, and audit history.
-7. Complete authenticated staging acceptance before production deployment.
+1. Back up the database and files.
+2. Install/activate File 00 and the platform foundation contracts used in the target environment.
+3. Upload the ZIP and activate the plugin on staging.
+4. Open Encyclopedia > Operations and verify schema, cron, outbox and contract health.
+5. Run fresh-install and upgrade/migration acceptance, then reindex.
+6. Test real Founder, editor, reviewer, researcher, verified-doctor, member and guest journeys.
+7. Complete rollback and restore rehearsal before production approval.
 
-== Privacy and retention ==
+== Privacy ==
 
-Private bookmark state is loaded after page display instead of being embedded in cacheable public HTML. Saved Knowledge and submission pages are marked non-cacheable. Destructive uninstall requires both the HE_PURGE_ON_UNINSTALL constant and the he_allow_destructive_uninstall option set to yes. Otherwise content and governance records are retained.
+Public DTOs are allowlisted. Drafts, rejected records, private research, dataset grants, conflicts, consent records and private notes are not public-index data. Published institutional knowledge and integrity history may be retained after account erasure in de-identified form.
 
 == Changelog ==
 
-= 1.0.0 =
-* Corrected the File 06 v0.1.0 audit blockers.
-* Added authoritative dependency, permission, migration, moderation, privacy, caching, search, packaging, and lifecycle controls.
+= 2.0.0 =
+* Implemented the complete File 06 v1.0 plan baseline: canonical identities, versions, evidence, integrity, graph, research, datasets, integrations, security, privacy, operations and deterministic packaging.
 
-= 0.1.0 =
-* Original immutable baseline release.
+= 1.0.0 =
+* Prior corrective foundation release candidate.

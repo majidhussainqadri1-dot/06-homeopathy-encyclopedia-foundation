@@ -1,20 +1,11 @@
-# File 06 Status
+# File 06 Status — 2.0.0
 
-## Current state
-
-**Corrective source review candidate prepared; merge and deployment remain blocked pending independent staging acceptance.**
-
-- Original evidence baseline: `baseline/file-06-original-import`
-- Corrective branch: `audit/file-06-source-review`
-- Corrective version: `1.0.0`
-- Database schema: `2`
-- Source files: `19`
-- PHP files: `15`
-- Source bytes: `138,665`
-- Deterministic source-tree SHA-256: `f336ce4f9996f64455ccae922b34379e3ae053a85f8d34cfde2784ff319f549b`
-- Reproducible RC ZIP SHA-256: `14800cf27df796b0972164b0bb75922ce9d851c35f7a7e31a4a95943b1149fb1`
-- Reproducible RC ZIP size: `44,284` bytes
-
-## Change control
-
-The corrective candidate must remain Draft and unmerged until corrective CI, independent source re-review, and authenticated WordPress staging acceptance all pass. There is no production authorization.
+| Status | Evidence |
+|---|---|
+| Specified | File 06 master plan v1.0, FR-001–019 and NFR-001–010 mapped |
+| Coded | Complete v2 source tree on `codex/file-06-complete-v2.0.0` |
+| Reviewed | Two separate review/fix records in `docs/` |
+| Packaged | Deterministic ZIP builder, exact release hash in `SBOM.json` |
+| Automated QA | PHP lint matrix, JS syntax, source/security/architecture invariants, manifest verification and double build |
+| Staging accepted | Requires target Hostinger staging evidence |
+| Live deployed | Not performed from this repository task |

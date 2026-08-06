@@ -1,32 +1,28 @@
-# File 06 — Homeopathy Encyclopedia Foundation
+# File 06 — Homeopathy Encyclopedia 2.0.0
 
-This repository governs **File 06** of the **Sabri Social Homeopathy Platform**.
+This branch is the complete source candidate for the File 06 master specification.
 
-## Immutable baseline
+## Canonical ownership
 
-The branch `baseline/file-06-original-import` and Draft PR #1 preserve the exact supplied v0.1.0 source as evidence. The baseline is not a functional or production approval.
+File 06 owns canonical knowledge concepts and IDs, fixed taxonomy, aliases, structured references, published versions, review and integrity history, typed knowledge relations, research records and dataset-access governance. It does not own social-feed ranking, course progress, PDF storage, repertory data, AI output, authentication, global navigation or visual-system governance.
 
-## Corrective candidate
+## Runtime package
 
-The branch `audit/file-06-source-review` contains the v1.0.0 RC1 remediation candidate.
+- Plugin folder: `homeopathy-encyclopedia`
+- Plugin version: `2.0.0`
+- Schema: `7`
+- REST namespace: `sabri/v2/file-06`
+- Public routes: `/encyclopedia/`, `/encyclopedia/entry/{slug}/`, `/research/`
+- PHP: 7.4+
+- WordPress target: 7.0.x; minimum declared 6.1
 
-- Corrected source files: `19`
-- PHP files: `15`
-- Source bytes: `138,665`
-- Database schema: `2`
-- Source-tree SHA-256: `f336ce4f9996f64455ccae922b34379e3ae053a85f8d34cfde2784ff319f549b`
-- Reproducible RC ZIP SHA-256: `14800cf27df796b0972164b0bb75922ce9d851c35f7a7e31a4a95943b1149fb1`
-- Reproducible RC ZIP size: `44,284` bytes
+## Release evidence
 
-## Evidence files
+Run:
 
-- `SOURCE-PROVENANCE.md`, `MANIFEST.md`, and `CHECKSUMS.sha256` preserve the original baseline identity.
-- `CORRECTIVE-REVIEW.md` maps the recorded blockers to their remediation.
-- `CORRECTIVE-MANIFEST.md` and `CORRECTIVE-CHECKSUMS.sha256` identify the corrected source.
-- `scripts/` provides deterministic source hashing and release packaging.
-- `tests/` provides deterministic source and security invariants.
-- `.github/workflows/corrective-integrity.yml` verifies the corrective candidate.
+```bash
+bash tests/run-all.sh
+python3 scripts/build-release.py --source homeopathy-encyclopedia --output dist/06-homeopathy-encyclopedia-2.0.0.zip
+```
 
-## Change-control rule
-
-The corrective Pull Request must remain Draft and unmerged until all automated checks pass and authenticated WordPress staging acceptance confirms activation, migration, dependencies, permissions, moderation, privacy, caching, accessibility, responsive behavior, rollback, multisite, and guarded uninstall. Production deployment is not authorized by source-level CI.
+The CI workflow repeats linting, invariant checks and two deterministic package builds. Staging and production evidence remain environment-specific and are recorded using `docs/STAGING-ACCEPTANCE.md`.

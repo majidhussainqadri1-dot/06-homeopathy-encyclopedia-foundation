@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Homeopathy Encyclopedia Foundation
  * Plugin URI: https://www.sabrihomeopathy.com/
- * Description: Governed encyclopedia entries, relationships, search, bookmarks, corrections, moderation, and privacy controls for the Sabri Social Homeopathy Platform.
- * Version: 1.0.0
+ * Description: Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
+ * Version: 2.0.0
  * Requires at least: 6.1
  * Requires PHP: 7.4
  * Author: Dr. Allama Majid Hussain Sabri
@@ -14,55 +14,62 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HE_VERSION', '1.0.0' );
-define( 'HE_SCHEMA_VERSION', 2 );
+define( 'HE_VERSION', '2.0.0' );
+define( 'HE_SCHEMA_VERSION', 7 );
 define( 'HE_FILE', __FILE__ );
 define( 'HE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HE_URL', plugin_dir_url( __FILE__ ) );
+define( 'HE_BASENAME', plugin_basename( __FILE__ ) );
+define( 'HE_CONTRACT_VERSION', '2.0' );
 
-require_once HE_DIR . 'includes/class-he-dependencies.php';
-require_once HE_DIR . 'includes/class-he-database.php';
-require_once HE_DIR . 'includes/class-he-permissions.php';
-require_once HE_DIR . 'includes/class-he-content.php';
-require_once HE_DIR . 'includes/class-he-activator.php';
-require_once HE_DIR . 'includes/class-he-publishing.php';
-require_once HE_DIR . 'includes/class-he-catalog.php';
-require_once HE_DIR . 'includes/class-he-interactions.php';
-require_once HE_DIR . 'includes/class-he-comments.php';
-require_once HE_DIR . 'includes/class-he-admin.php';
-require_once HE_DIR . 'includes/class-he-privacy.php';
-require_once HE_DIR . 'includes/class-he-seo.php';
-require_once HE_DIR . 'includes/class-he-plugin.php';
+require_once HE_DIR . 'includes/class-he-v2-auth.php';
+require_once HE_DIR . 'includes/class-he-v2-schema.php';
+require_once HE_DIR . 'includes/class-he-v2-domain.php';
+require_once HE_DIR . 'includes/class-he-v2-api.php';
+require_once HE_DIR . 'includes/class-he-v2-public.php';
+require_once HE_DIR . 'includes/class-he-v2-admin.php';
+require_once HE_DIR . 'includes/class-he-v2-integrations.php';
+require_once HE_DIR . 'includes/class-he-v2-privacy.php';
 
-register_activation_hook( HE_FILE, array( 'HE_Activator', 'activate' ) );
-register_deactivation_hook( HE_FILE, array( 'HE_Activator', 'deactivate' ) );
+register_activation_hook( HE_FILE, array( 'HE_V2_Schema', 'activate' ) );
+register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
 
-/** Start only when the authoritative platform contracts are available. */
-function he_start_plugin() {
-	load_plugin_textdomain( 'homeopathy-encyclopedia', false, dirname( plugin_basename( HE_FILE ) ) . '/languages' );
+/** Public, stable provider descriptor for File 01/20/22/23/24/25/26 discovery. */
+function he_contract_descriptor() {
+	return array(
+		'owner'            => 'file-06',
+		'contract_version' => HE_CONTRACT_VERSION,
+		'plugin_version'   => HE_VERSION,
+		'schema_version'   => HE_SCHEMA_VERSION,
+		'status'           => HE_V2_Schema::runtime_status(),
+		'queries'          => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research' ),
+		'commands'         => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research' ),
+		'events'           => HE_V2_Integrations::published_events(),
+		'privacy_class'    => 'mixed-public-restricted',
+	);
+}
 
-	if ( ! HE_Dependencies::ready() ) {
-		HE_Dependencies::register_failure_notice();
-		return;
-	}
+/** Start runtime after WordPress and companion contracts are available. */
+function he_start_v2() {
+	load_plugin_textdomain( 'homeopathy-encyclopedia', false, dirname( HE_BASENAME ) . '/languages' );
 
 	try {
-		HE_Database::maybe_upgrade();
+		HE_V2_Schema::maybe_upgrade();
 	} catch ( Throwable $error ) {
-		update_option(
-			'he_runtime_failure',
-			array(
-				'time'  => gmdate( 'c' ),
-				'error' => sanitize_text_field( $error->getMessage() ),
-			),
-			false
-		);
-		HE_Dependencies::audit( 'runtime_migration_failed', array( 'error' => $error->getMessage() ) );
-		HE_Dependencies::register_runtime_failure_notice();
-		return;
+		HE_V2_Schema::record_runtime_failure( 'schema_upgrade_failed', $error->getMessage() );
 	}
 
-	delete_option( 'he_runtime_failure' );
-	( new HE_Plugin() )->run();
+	HE_V2_Domain::register();
+	( new HE_V2_API() )->hooks();
+	( new HE_V2_Public() )->hooks();
+	( new HE_V2_Admin() )->hooks();
+	( new HE_V2_Integrations() )->hooks();
+	( new HE_V2_Privacy() )->hooks();
+
+	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
+		$contracts = is_array( $contracts ) ? $contracts : array();
+		$contracts['file-06'] = he_contract_descriptor();
+		return $contracts;
+	} );
 }
-add_action( 'plugins_loaded', 'he_start_plugin', 30 );
+add_action( 'plugins_loaded', 'he_start_v2', 35 );
