@@ -1,0 +1,51 @@
+name: File 06 Source Bootstrap
+
+on:
+  push:
+    branches: [ codex/file-06-complete-v2.0.0 ]
+    paths:
+      - '.bootstrap/**'
+      - '.github/workflows/file06-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: codex/file-06-complete-v2.0.0
+      - name: Reassemble, verify and extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/part-* > /tmp/file06-source.tgz.b64
+          echo '18ccac8db193aca8ab0bbb5a104a02ca79d2542bc99493c008f5893588f4782c  /tmp/file06-source.tgz.b64' | sha256sum --check --strict
+          base64 -d /tmp/file06-source.tgz.b64 > /tmp/file06-source.tgz
+          echo '2c60012a962a5042be23cf04e389322d319d1885602619a2f3ce653361adb952  /tmp/file06-source.tgz' | sha256sum --check --strict
+          rm -rf homeopathy-encyclopedia tests scripts docs
+          rm -f README.md CHANGELOG.md STATUS.md SBOM.json V2-MANIFEST.md V2-CHECKSUMS.sha256
+          rm -f CHECKSUMS.sha256 CORRECTIVE-CHECKSUMS.sha256 CORRECTIVE-MANIFEST.md CORRECTIVE-REVIEW.md MANIFEST.md SOURCE-PROVENANCE.md BASELINE-REVIEW.md STAGING-ACCEPTANCE.md
+          rm -rf .github/workflows
+          tar -xzf /tmp/file06-source.tgz
+          rm -rf .bootstrap
+      - name: Test materialized source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/run-all.sh
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/file06-a.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/file06-b.zip
+          cmp -s /tmp/file06-a.zip /tmp/file06-b.zip
+          echo '36893ae7b4dcb9e8e33ef7e77c62c393e92765e03de2a859d23827449999b165  /tmp/file06-a.zip' | sha256sum --check --strict
+      - name: Commit complete source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(file-06): complete encyclopedia v2.0.0'
+          git push origin HEAD:codex/file-06-complete-v2.0.0
