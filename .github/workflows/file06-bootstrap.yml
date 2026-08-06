@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .bootstrap/part-* > /tmp/file06-source.tgz.b64
+          cat .bootstrap/part-00 .bootstrap/part-01 .bootstrap/part-02 .bootstrap/part-03 .bootstrap/part-04 .bootstrap/part-05 .bootstrap/part-060 .bootstrap/part-061 > /tmp/file06-source.tgz.b64
           echo '18ccac8db193aca8ab0bbb5a104a02ca79d2542bc99493c008f5893588f4782c  /tmp/file06-source.tgz.b64' | sha256sum --check --strict
           base64 -d /tmp/file06-source.tgz.b64 > /tmp/file06-source.tgz
           echo '2c60012a962a5042be23cf04e389322d319d1885602619a2f3ce653361adb952  /tmp/file06-source.tgz' | sha256sum --check --strict
