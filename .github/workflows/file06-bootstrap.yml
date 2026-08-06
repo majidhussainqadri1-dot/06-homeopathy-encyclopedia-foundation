@@ -30,8 +30,6 @@ jobs:
           rm -f CHECKSUMS.sha256 CORRECTIVE-CHECKSUMS.sha256 CORRECTIVE-MANIFEST.md CORRECTIVE-REVIEW.md MANIFEST.md SOURCE-PROVENANCE.md BASELINE-REVIEW.md STAGING-ACCEPTANCE.md
           rm -rf .github/workflows
           tar -xzf /tmp/file06-source.tgz
-          rm -rf .github/workflows
-          git checkout HEAD -- .github/workflows
           rm -rf .bootstrap
       - name: Test materialized source
         shell: bash
@@ -46,6 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf .github/workflows
+          git checkout HEAD -- .github/workflows
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
