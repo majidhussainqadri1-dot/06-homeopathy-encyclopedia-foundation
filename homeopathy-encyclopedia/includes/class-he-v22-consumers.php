@@ -10,6 +10,8 @@ final class HE_V22_Consumers {
 		add_filter( 'sabri_radar_knowledge_providers', array( __CLASS__, 'radar_provider' ), 100 );
 		add_filter( 'sabri_ai_knowledge_providers', array( __CLASS__, 'ai_provider' ), 100 );
 		add_filter( 'sabri_home_news_knowledge_providers', array( __CLASS__, 'home_news_provider' ), 100 );
+		add_filter( 'sabri_search_connectors', array( __CLASS__, 'search_connector' ), 160 );
+		add_filter( 'sabri_public_component_registry', array( __CLASS__, 'visual_contract' ), 160 );
 	}
 
 	private static function provider( $consumer, $purpose ) {
@@ -58,6 +60,44 @@ final class HE_V22_Consumers {
 	}
 	public static function home_news_provider( $providers ) { return self::attach( $providers, 'file-21', 'read-only knowledge cards and correction projections' ); }
 
+	/** File 26 must consume the v2.2 search semantics, not the inherited v2.0 query. */
+	public static function search_connector( $connectors ) {
+		$connectors = is_array( $connectors ) ? $connectors : array();
+		if ( ! isset( $connectors['file-06'] ) ) {
+			$connectors['file-06'] = array();
+		}
+		$connectors['file-06'] = array_merge( $connectors['file-06'], array(
+			'owner' => 'file-06',
+			'contract_version' => HE_CONTRACT_VERSION,
+			'entity_types' => array( 'knowledge-entry', 'research-record' ),
+			'query' => array( __CLASS__, 'query' ),
+			'get' => array( __CLASS__, 'get' ),
+			'visibility_recheck' => array( __CLASS__, 'visibility' ),
+			'rebuild' => array( 'HE_V22_Governance', 'reindex_batch' ),
+			'rebuild_is_bounded' => true,
+			'privacy_fields' => array( 'id', 'title', 'summary', 'type', 'body_system', 'language', 'canonical_url', 'version', 'safety_status', 'record_status', 'freshness' ),
+			'search_semantics' => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
+		) );
+		return $connectors;
+	}
+
+	/** File 25 owns visual tokens; File 06 only declares consumption. */
+	public static function visual_contract( $components ) {
+		$components = is_array( $components ) ? $components : array();
+		$key = 'file06-knowledge-card-v2';
+		if ( isset( $components[ $key ] ) ) {
+			$components[ $key ]['presentation_owner'] = 'file-25';
+			$components[ $key ]['version'] = '2.2';
+			$components[ $key ]['tokens'] = array(
+				'--sabri-color-primary', '--sabri-color-primary-strong', '--sabri-color-primary-soft',
+				'--sabri-color-surface', '--sabri-color-surface-muted', '--sabri-color-text', '--sabri-color-text-muted',
+				'--sabri-color-border', '--sabri-color-danger', '--sabri-color-warning', '--sabri-color-focus', '--sabri-radius-lg', '--sabri-shadow-card',
+			);
+			$components[ $key ]['token_ownership'] = 'file-25';
+		}
+		return $components;
+	}
+
 	public static function query( $query = '', $filters = array(), $cursor = 0, $limit = 20 ) {
 		$args = is_array( $filters ) ? $filters : array();
 		$args['q'] = sanitize_text_field( (string) $query );
@@ -73,6 +113,11 @@ final class HE_V22_Consumers {
 			return null;
 		}
 		return array_intersect_key( $dto, array_flip( array( 'id', 'canonical_url', 'type', 'body_system', 'language', 'title', 'summary', 'fields', 'references', 'version', 'effective_at', 'change_reason', 'review_status', 'safety_status', 'record_status', 'integrity_notices', 'freshness' ) ) );
+	}
+
+	public static function visibility( $public_id ) {
+		$row = HE_V2_Domain::concept_by_id( sanitize_text_field( (string) $public_id ) );
+		return $row && HE_V2_Domain::is_public_concept( $row );
 	}
 
 	public static function related( $public_id, $depth = 1, $limit = 50 ) {
