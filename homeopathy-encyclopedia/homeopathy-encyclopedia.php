@@ -3,7 +3,7 @@
  * Plugin Name: Homeopathy Encyclopedia Foundation
  * Plugin URI: https://www.sabrihomeopathy.com/
  * Description: Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
- * Version: 2.2.0
+ * Version: 2.3.0
  * Requires at least: 6.1
  * Requires PHP: 7.4
  * Author: Dr. Allama Majid Hussain Sabri
@@ -14,13 +14,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HE_VERSION', '2.2.0' );
-define( 'HE_SCHEMA_VERSION', 8 );
+define( 'HE_VERSION', '2.3.0' );
+define( 'HE_SCHEMA_VERSION', 9 );
 define( 'HE_FILE', __FILE__ );
 define( 'HE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HE_URL', plugin_dir_url( __FILE__ ) );
 define( 'HE_BASENAME', plugin_basename( __FILE__ ) );
-define( 'HE_CONTRACT_VERSION', '2.2' );
+define( 'HE_CONTRACT_VERSION', '2.3' );
 
 require_once HE_DIR . 'includes/class-he-v2-auth.php';
 require_once HE_DIR . 'includes/class-he-v2-schema.php';
@@ -41,9 +41,12 @@ require_once HE_DIR . 'includes/class-he-v22-research-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-admin-first-save.php';
 require_once HE_DIR . 'includes/class-he-v22-consumers.php';
 require_once HE_DIR . 'includes/class-he-v22-operations.php';
+require_once HE_DIR . 'includes/class-he-v23-future-intelligence.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
+register_activation_hook( HE_FILE, array( 'HE_V23_Future_Intelligence', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
+register_deactivation_hook( HE_FILE, array( 'HE_V23_Future_Intelligence', 'deactivate' ) );
 
 /** Public, stable provider descriptor for platform discovery. */
 function he_contract_descriptor() {
@@ -51,6 +54,12 @@ function he_contract_descriptor() {
 	$events[] = 'ResearchPublicationCorrected.v1';
 	$events[] = 'File06IntegrityStateChanged.v1';
 	$events[] = 'EncyclopediaEntryScheduleInvalidated.v1';
+	$events[] = 'ClaimCreated.v1';
+	$events[] = 'ClaimEvidenceLinked.v1';
+	$events[] = 'ClaimStateChanged.v1';
+	$events[] = 'ExternalEvidenceChanged.v1';
+	$events[] = 'KnowledgeTranslationSaved.v1';
+	$events[] = 'KnowledgeWatchChanged.v1';
 	return array(
 		'owner'             => 'file-06',
 		'contract_version'  => HE_CONTRACT_VERSION,
@@ -58,20 +67,24 @@ function he_contract_descriptor() {
 		'schema_version'    => HE_SCHEMA_VERSION,
 		'status'            => HE_V2_Schema::runtime_status(),
 		'identity_authority'=> 'file-00',
+		'notifications_owner'=> 'file-19',
 		'layout_owner'      => 'file-20',
 		'visual_owner'      => 'file-25',
 		'search_owner'      => 'file-26',
 		'assurance_owner'   => 'file-24',
 		'canonical_routes'  => array( '/encyclopedia/', '/encyclopedia/{type}/', '/encyclopedia/entry/{canonical_slug}/', '/research/', '/research/{permanent_id}/', '/knowledge/editor/' ),
-		'queries'           => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research', 'health', 'get_type_schemas' ),
-		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'transition_integrity_action', 'bounded_reindex' ),
+		'queries'           => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research', 'health', 'get_type_schemas', 'get_claim_graph', 'get_provenance', 'get_time_machine', 'get_research_gaps', 'get_integrity_command_center' ),
+		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'transition_integrity_action', 'bounded_reindex', 'create_claim', 'link_claim_evidence', 'transition_claim', 'resolve_external_evidence', 'save_translation', 'manage_watchlist', 'reconcile_impacts' ),
 		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
 		'fixed_type_count'  => count( HE_V22_Type_Schemas::schemas() ),
 		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
-		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
+		'future_features'   => HE_V23_Future_Intelligence::capabilities(),
+		'external_evidence_connectors' => array( 'crossref', 'pubmed', 'clinicaltrials', 'orcid', 'datacite', 'mesh' ),
+		'external_content_auto_publish' => false,
+		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'semantic-duplicate-advisory' ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100 ),
-		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true ),
+		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'impact_consumer_ack_required' => true ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
 	);
 }
@@ -82,6 +95,7 @@ function he_start_v2() {
 
 	try {
 		HE_V22_Governance::maybe_upgrade();
+		HE_V23_Future_Intelligence::ensure_schema();
 	} catch ( Throwable $error ) {
 		HE_V2_Schema::record_runtime_failure( 'schema_upgrade_failed', $error->getMessage() );
 	}
@@ -103,6 +117,7 @@ function he_start_v2() {
 	HE_V22_Admin_First_Save::hooks();
 	HE_V22_Consumers::hooks();
 	HE_V22_Operations::hooks();
+	HE_V23_Future_Intelligence::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
