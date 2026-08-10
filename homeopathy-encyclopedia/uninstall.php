@@ -25,7 +25,7 @@ function he_v2_purge_site() {
 	wp_clear_scheduled_hook( 'he_v24_future_maintenance' );
 	foreach ( array(
 		'concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','search_index','bookmarks','feedback','audit_log','metrics','rate_limits','migration_quarantine',
-		'claims','claim_evidence','provenance','external_records','concept_mappings','similarity','freshness','impact_queue','research_gaps','watchlists','translations'
+		'claims','claim_evidence','provenance','external_records','concept_mappings','researcher_ids','similarity','freshness','impact_queue','research_gaps','watchlists','translations'
 	) as $suffix ) {
 		$table = $wpdb->prefix . 'he_' . $suffix;
 		$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
