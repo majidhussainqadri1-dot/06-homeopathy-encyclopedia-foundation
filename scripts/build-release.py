@@ -5,12 +5,15 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument('--source', required=True)
 parser.add_argument('--output', required=True)
+parser.add_argument('--package-root', default='06-homeopathy-encyclopedia-foundation')
 args = parser.parse_args()
 source = Path(args.source).resolve()
 output = Path(args.output).resolve()
+root_name = args.package_root.strip('/\\')
+if not root_name or '/' in root_name or '\\' in root_name or root_name in {'.', '..'}:
+    raise SystemExit('Invalid --package-root: expected one canonical top-level folder name')
 output.parent.mkdir(parents=True, exist_ok=True)
-root_name = source.name
-fixed = (2026, 8, 6, 0, 0, 0)
+fixed = (2026, 8, 10, 0, 0, 0)
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
     for path in sorted(p for p in source.rglob('*') if p.is_file()):
         rel = Path(root_name) / path.relative_to(source)
