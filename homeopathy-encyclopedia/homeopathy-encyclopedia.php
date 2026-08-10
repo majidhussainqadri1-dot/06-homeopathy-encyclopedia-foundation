@@ -49,9 +49,19 @@ require_once HE_DIR . 'includes/class-he-v24-future-privacy.php';
 require_once HE_DIR . 'includes/class-he-v24-future-review-guard.php';
 require_once HE_DIR . 'includes/class-he-v24-public-provenance.php';
 
+/**
+ * Build the legacy Future-18 base tables, then harden/migrate them before any
+ * Future-18 REST route or background job can be enabled.
+ */
+function he_activate_future_runtime() {
+	wp_clear_scheduled_hook( HE_V23_Future::CRON );
+	wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON );
+	HE_V23_Future::install();
+	HE_V24_Migration_Safety::activate();
+}
+
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
-register_activation_hook( HE_FILE, array( 'HE_V23_Future', 'activate' ) );
-register_activation_hook( HE_FILE, array( 'HE_V24_Migration_Safety', 'activate' ) );
+register_activation_hook( HE_FILE, 'he_activate_future_runtime' );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V24_Future_Schema', 'deactivate' ) );
 
@@ -87,7 +97,7 @@ function he_contract_descriptor() {
 		'future_hardening_version' => '2.4',
 		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
-		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true ),
+		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true, 'future_routes_fail_closed_until_ready' => true ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true ),
 		'public_api'        => array( 'canonical_public_ids_only' => true, 'internal_ids_exposed' => false, 'public_provenance_types' => array( 'concept', 'claim' ) ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
@@ -100,8 +110,11 @@ function he_start_v2() {
 
 	try {
 		HE_V22_Governance::maybe_upgrade();
-		HE_V23_Future::maybe_upgrade();
-		HE_V24_Migration_Safety::maybe_upgrade();
+		$future_v24_before = (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 );
+		if ( $future_v24_before < HE_V24_Future_Schema::VERSION ) {
+			HE_V23_Future::maybe_upgrade();
+			HE_V24_Migration_Safety::maybe_upgrade();
+		}
 	} catch ( Throwable $error ) {
 		HE_V2_Schema::record_runtime_failure( 'schema_upgrade_failed', $error->getMessage() );
 	}
@@ -123,15 +136,19 @@ function he_start_v2() {
 	HE_V22_Admin_First_Save::hooks();
 	HE_V22_Consumers::hooks();
 	HE_V22_Operations::hooks();
-	HE_V23_Future::hooks();
 
 	$future_v24_ready = (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) >= HE_V24_Future_Schema::VERSION;
 	if ( $future_v24_ready ) {
+		HE_V23_Future::hooks();
 		HE_V24_Future_Schema::hooks();
 		HE_V24_Future_API::hooks();
 		HE_V24_Future_Privacy::hooks();
 		HE_V24_Future_Review_Guard::hooks();
 		HE_V24_Public_Provenance::hooks();
+	} else {
+		/* A failed/partial migration must never expose the older, less-hardened Future-18 routes or workers. */
+		wp_clear_scheduled_hook( HE_V23_Future::CRON );
+		wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON );
 	}
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) {
