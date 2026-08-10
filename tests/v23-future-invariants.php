@@ -2,15 +2,20 @@
 $root = dirname( __DIR__ );
 $plugin = $root . '/homeopathy-encyclopedia';
 $f = file_get_contents( $plugin . '/includes/class-he-v23-future.php' );
+$h = file_get_contents( $plugin . '/includes/class-he-v24-audit80-hardening.php' );
+$g = file_get_contents( $plugin . '/includes/class-he-v24-final-guard.php' );
 $b = file_get_contents( $plugin . '/homeopathy-encyclopedia.php' );
 $fail = array();
 function fut_assert( $ok, $msg ) { global $fail; if ( ! $ok ) { $fail[] = $msg; } }
 
-fut_assert( false !== strpos( $b, "define( 'HE_VERSION', '2.3.0' )" ), 'runtime version' );
-fut_assert( false !== strpos( $b, "define( 'HE_SCHEMA_VERSION', 9 )" ), 'schema version' );
-fut_assert( false !== strpos( $b, "HE_CONTRACT_VERSION', '2.3" ), 'contract version' );
+fut_assert( false !== strpos( $b, "define( 'HE_VERSION', '2.4.0' )" ), 'runtime version' );
+fut_assert( false !== strpos( $b, "define( 'HE_SCHEMA_VERSION', 10 )" ), 'schema version' );
+fut_assert( false !== strpos( $b, "HE_CONTRACT_VERSION', '2.4" ), 'contract version' );
 fut_assert( false !== strpos( $b, 'class-he-v23-future.php' ), 'bootstrap future layer' );
+fut_assert( false !== strpos( $b, 'class-he-v24-audit80-hardening.php' ), 'bootstrap audit hardening layer' );
+fut_assert( false !== strpos( $b, 'class-he-v24-final-guard.php' ), 'bootstrap final guard layer' );
 fut_assert( false !== strpos( $b, "'future_requirement_count' => 18" ), '18 requirement count' );
+fut_assert( false !== strpos( $b, "'audit_review_rounds' => 80" ), '80 review count' );
 
 $requirements = array(
  'F06-FUT-001'=>'claims','F06-FUT-002'=>'provenance','F06-FUT-003'=>'retraction-watch','F06-FUT-004'=>'pubmed',
@@ -32,12 +37,24 @@ fut_assert( false !== strpos( $f, "delivery_owner'=>'file-19'" ), 'File 19 deliv
 fut_assert( false !== strpos( $f, "visual_owner'=>'file-25'" ), 'File 25 graph visual ownership' );
 fut_assert( false !== strpos( $f, "assurance_owner'=>'file-24'" ), 'File 24 assurance ownership' );
 fut_assert( false !== strpos( $f, "'file-26'" ), 'File 26 consumer boundary' );
-fut_assert( false !== strpos( $f, "'review_required'=>true" ) || false !== strpos( $f, "'review_required' => true" ), 'external metadata human review gate' );
-fut_assert( false !== strpos( $f, "status'=>'draft'" ), 'translation human-review draft gate' );
-fut_assert( false !== strpos( $f, "state'=>'candidate'" ), 'duplicate candidates are advisory' );
+fut_assert( false !== strpos( $f, "'review_required'=>true" ) || false !== strpos( $f, "'review_required'=>1" ), 'external metadata human review gate' );
+fut_assert( false !== strpos( $f, "status'=>'draft'" ), 'translation draft gate' );
+fut_assert( false !== strpos( $f, "state'=>'candidate'" ), 'duplicate candidates advisory' );
+
+// Audit-80 corrections must remain present.
+fut_assert( false !== strpos( $h, 'source_concept_id' ) && false !== strpos( $h, 'target_concept_id' ), 'graph schema correction' );
+fut_assert( false !== strpos( $h, 'version_number,status,title,summary,content_hash' ), 'time-machine schema correction' );
+fut_assert( false !== strpos( $h, "object_type='concept' AND object_id=%d" ), 'freshness review schema correction' );
+fut_assert( false !== strpos( $h, 'he_future_evidence_source_required' ), 'source-free claim evidence rejection' );
+fut_assert( false !== strpos( $h, 'limit_response_size' ), 'provider response bound' );
+fut_assert( false !== strpos( $h, 'CURSOR_OPTION' ), 'rotating corpus cursor' );
+fut_assert( false !== strpos( $h, 'he_future_translation_source_changed' ), 'translation source revalidation' );
+fut_assert( false !== strpos( $g, 'fully_public_concept' ), 'public projection guard' );
+fut_assert( false !== strpos( $g, 'Idempotency-Key' ), 'Future-18 idempotency gate' );
+fut_assert( false !== strpos( $g, 'unreviewed_claims' ) && false !== strpos( $g, 'dead_letter_impacts' ), 'command center completeness' );
 
 if ( $fail ) {
- fwrite( STDERR, "File 06 v2.3 future invariants FAILED:\n- " . implode( "\n- ", $fail ) . "\n" );
+ fwrite( STDERR, "File 06 v2.4 future invariants FAILED:\n- " . implode( "\n- ", $fail ) . "\n" );
  exit( 1 );
 }
-echo "File 06 v2.3 F06-FUT-001..018 invariants passed.\n";
+echo "File 06 v2.4 F06-FUT-001..018 + Audit-80 invariants passed.\n";
