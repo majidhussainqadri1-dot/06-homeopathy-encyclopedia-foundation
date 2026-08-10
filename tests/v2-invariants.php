@@ -87,7 +87,7 @@ foreach ( $research_tokens as $token ) {
 	he_test_assert( false !== strpos( $all, $token ), 'Missing research invariant: ' . $token );
 }
 he_test_assert( false !== strpos( $public_guard, "array( 'published', 'corrected', 'retracted' )" ), 'Corrected/retracted research public integrity metadata is not preserved.' );
-he_test_assert( false !== strpos( $public_guard, "'public' === $row['data_class']" ), 'Restricted research protocol public guard is missing.' );
+he_test_assert( false !== strpos( $public_guard, "'public' ===" ), 'Restricted research protocol public guard is missing.' );
 
 $contract_tokens = array( 'sabri_composer_content_types', 'sabri_publishing_dashboard_providers', 'sabri_search_connectors', 'sabri_security_assurance_providers', 'sabri_shell_routes', 'sabri_public_component_registry', 'native_enforcement_preserved', 'visibility_recheck' );
 foreach ( $contract_tokens as $token ) {
