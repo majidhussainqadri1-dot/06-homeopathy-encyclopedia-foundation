@@ -33,18 +33,20 @@ $rest_guard = he_read( $plugin . '/includes/class-he-v22-rest-guard.php' );
 $schedule = he_read( $plugin . '/includes/class-he-v22-schedule.php' );
 $search = he_read( $plugin . '/includes/class-he-v22-search.php' );
 $type_schemas = he_read( $plugin . '/includes/class-he-v22-type-schemas.php' );
+$research_guard = he_read( $plugin . '/includes/class-he-v22-research-guard.php' );
 $consumers = he_read( $plugin . '/includes/class-he-v22-consumers.php' );
 $operations = he_read( $plugin . '/includes/class-he-v22-operations.php' );
+$uninstall = he_read( $plugin . '/uninstall.php' );
 $css = he_read( $plugin . '/assets/css/encyclopedia-v2.css' );
 $js = he_read( $plugin . '/assets/js/encyclopedia-v2.js' );
 $builder = he_read( $root . '/scripts/build-release.py' );
-$all = implode( "\n", array( $bootstrap, $schema, $domain, $api, $auth, $integrations, $privacy, $public, $governance, $public_guard, $integrity, $rest_guard, $schedule, $search, $type_schemas, $consumers, $operations ) );
+$all = implode( "\n", array( $bootstrap, $schema, $domain, $api, $auth, $integrations, $privacy, $public, $governance, $public_guard, $integrity, $rest_guard, $schedule, $search, $type_schemas, $research_guard, $consumers, $operations ) );
 
 he_test_assert( false !== strpos( $bootstrap, "define( 'HE_VERSION', '2.2.0' )" ), 'Plugin version is not 2.2.0.' );
 he_test_assert( false !== strpos( $bootstrap, "define( 'HE_SCHEMA_VERSION', 8 )" ), 'Schema version is not 8.' );
 he_test_assert( false !== strpos( $bootstrap, "HE_CONTRACT_VERSION', '2.2" ), 'Contract version is not 2.2.' );
 he_test_assert( false !== strpos( $bootstrap, "'staging_accepted' => false" ) && false !== strpos( $bootstrap, "'live_deployed' => false" ), 'Release truth must keep staging/live separate from coded candidate.' );
-foreach ( array( 'class-he-v22-governance.php', 'class-he-v22-public-guard.php', 'class-he-v22-integrity.php', 'class-he-v22-rest-guard.php', 'class-he-v22-schedule.php', 'class-he-v22-search.php', 'class-he-v22-type-schemas.php', 'class-he-v22-consumers.php', 'class-he-v22-operations.php' ) as $file ) {
+foreach ( array( 'class-he-v22-governance.php', 'class-he-v22-public-guard.php', 'class-he-v22-integrity.php', 'class-he-v22-rest-guard.php', 'class-he-v22-schedule.php', 'class-he-v22-search.php', 'class-he-v22-type-schemas.php', 'class-he-v22-research-guard.php', 'class-he-v22-consumers.php', 'class-he-v22-operations.php' ) as $file ) {
 	he_test_assert( false !== strpos( $bootstrap, $file ), 'Bootstrap does not load ' . $file );
 }
 
@@ -95,13 +97,16 @@ foreach ( $integrity_tokens as $token ) {
 	he_test_assert( false !== strpos( $all, $token ), 'Missing integrity invariant: ' . $token );
 }
 he_test_assert( false !== strpos( $governance, 'he_integrity_workflow_required' ), 'Direct corrected/retracted transitions are not blocked.' );
-he_test_assert( false !== strpos( $integrity, "SELECT * FROM {$actions}" ) || false !== strpos( $integrity, 'FOR UPDATE' ), 'Atomic integrity apply row locking is missing.' );
+he_test_assert( false !== strpos( $integrity, 'FOR UPDATE' ), 'Atomic integrity apply row locking is missing.' );
 he_test_assert( false !== strpos( $integrity, "status='accepted'" ) && false !== strpos( $integrity, 'START TRANSACTION' ) && false !== strpos( $integrity, 'ROLLBACK' ), 'Integrity apply is not accepted-only and transactional.' );
 
 $research_tokens = array( 'ethics_review', 'peer_review', 'successful-case', 'کامیاب کیس', 'case_anonymized', 'case_consent_verified', 'adverse_events', 'dataset_access', 'lawful_basis', 'expires_at', 'he_case_pii_detected', 'dataset_description', 'de_identification', 'access_policy', 'he_fresh_independent_review_required' );
 foreach ( $research_tokens as $token ) {
 	he_test_assert( false !== strpos( $all, $token ), 'Missing research invariant: ' . $token );
 }
+he_test_assert( false !== strpos( $research_guard, 'Investigators' ) && false !== strpos( $research_guard, 'Conflict-of-interest disclosure' ), 'Research investigators/conflict disclosure admin path is incomplete.' );
+he_test_assert( false !== strpos( $research_guard, 'observation_label' ) && false !== strpos( $research_guard, 'case_tag' ), 'Successful-case observation label/classification enforcement is incomplete.' );
+he_test_assert( false !== strpos( $research_guard, 'he_dataset_private_by_default' ) && false !== strpos( $research_guard, 'de_identification' ) && false !== strpos( $research_guard, 'access_policy' ), 'Dataset private-by-default governance is incomplete.' );
 he_test_assert( false !== strpos( $public_guard, "array( 'published', 'corrected', 'retracted' )" ), 'Corrected/retracted research public integrity metadata is not preserved.' );
 he_test_assert( false !== strpos( $public_guard, "'public' ===" ), 'Restricted research protocol public guard is missing.' );
 he_test_assert( false !== strpos( $public_guard, 'ScholarlyArticle' ) && false !== strpos( $public_guard, '<link rel="canonical"' ), 'Research canonical/structured-data output is missing.' );
@@ -131,6 +136,8 @@ he_test_assert( false !== strpos( $privacy, "'done' => $done" ), 'Privacy erasur
 
 he_test_assert( false !== strpos( $operations, "status='dead-letter'" ) && false !== strpos( $operations, "status IN ('pending','retry')" ), 'Operational health does not reflect actual outbox/dead-letter states.' );
 he_test_assert( false !== strpos( $rest_guard, 'HE_V22_Operations::health()' ), 'REST health does not use corrected operational evidence.' );
+he_test_assert( false !== strpos( $operations, 'HE_V22_Governance::repair' ) && false !== strpos( $operations, 'admin_post_he_v2_repair' ), 'wp-admin repair is not routed through bounded v2.2 repair.' );
+he_test_assert( false !== strpos( $operations, "'evidence_query'] = array( __CLASS__, 'assurance_evidence' )" ), 'File 24 assurance evidence is not routed to corrected v2.2 evidence.' );
 
 he_test_assert( false !== strpos( $css, '--he-primary:var(--sabri-color-primary,var(--sabri-primary,#087A4E))' ), 'File 06 does not consume File 25/shared primary token with a safe fallback.' );
 he_test_assert( false === strpos( $css, '--sabri-primary:#' ), 'File 06 still declares global Sabri primary token ownership.' );
@@ -143,6 +150,7 @@ he_test_assert( false !== strpos( $js, 'aria-busy' ), 'Accessible loading state 
 
 he_test_assert( false !== strpos( $builder, "default='06-homeopathy-encyclopedia-foundation'" ), 'Canonical package top-level folder does not match the new File 06 plan.' );
 he_test_assert( false !== strpos( $governance, 'BATCH_SIZE = 50' ) && false !== strpos( $governance, 'migration_quarantine' ) && false !== strpos( $governance, 'reconcile_outbox' ), 'Bounded migration/reconciliation/repair controls are incomplete.' );
+he_test_assert( false !== strpos( $uninstall, "'migration_quarantine'" ) && false !== strpos( $uninstall, "'he_v22_extension_version'" ), 'Destructive uninstall does not clean v2.2 extension state when explicitly authorized.' );
 
 $all_php = '';
 foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $plugin ) ) as $file ) {
