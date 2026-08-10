@@ -43,12 +43,13 @@ require_once HE_DIR . 'includes/class-he-v22-consumers.php';
 require_once HE_DIR . 'includes/class-he-v22-operations.php';
 require_once HE_DIR . 'includes/class-he-v23-future.php';
 require_once HE_DIR . 'includes/class-he-v24-future-schema.php';
+require_once HE_DIR . 'includes/class-he-v24-migration-safety.php';
 require_once HE_DIR . 'includes/class-he-v24-future-api.php';
 require_once HE_DIR . 'includes/class-he-v24-future-privacy.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_activation_hook( HE_FILE, array( 'HE_V23_Future', 'activate' ) );
-register_activation_hook( HE_FILE, array( 'HE_V24_Future_Schema', 'activate' ) );
+register_activation_hook( HE_FILE, array( 'HE_V24_Migration_Safety', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V24_Future_Schema', 'deactivate' ) );
 
@@ -84,7 +85,7 @@ function he_contract_descriptor() {
 		'future_hardening_version' => '2.4',
 		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
-		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true ),
+		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
 	);
@@ -97,7 +98,7 @@ function he_start_v2() {
 	try {
 		HE_V22_Governance::maybe_upgrade();
 		HE_V23_Future::maybe_upgrade();
-		HE_V24_Future_Schema::maybe_upgrade();
+		HE_V24_Migration_Safety::maybe_upgrade();
 	} catch ( Throwable $error ) {
 		HE_V2_Schema::record_runtime_failure( 'schema_upgrade_failed', $error->getMessage() );
 	}
