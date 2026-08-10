@@ -3,6 +3,11 @@
 defined( 'ABSPATH' ) || exit;
 
 final class HE_V24_Migration_Safety {
+	const BATCH = 100;
+	const OPTION_PROVENANCE_CURSOR = 'he_v24_provenance_migration_cursor';
+	const OPTION_IMPACT_CURSOR = 'he_v24_impact_migration_cursor';
+	const OPTION_PENDING = 'he_v24_migration_pending';
+
 	public static function table_exists( $table ) {
 		global $wpdb;
 		return $table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
@@ -20,6 +25,10 @@ final class HE_V24_Migration_Safety {
 		return (bool) $wpdb->get_var( $wpdb->prepare( "SHOW INDEX FROM `{$table}` WHERE Key_name=%s", $index ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
+	/**
+	 * Advance at most one bounded migration batch per legacy table.
+	 * Returns true only when every destructive/schema-sensitive preflight is complete.
+	 */
 	public static function preflight() {
 		global $wpdb;
 		$external = HE_V24_Future_Schema::table( 'external_records' );
@@ -27,6 +36,7 @@ final class HE_V24_Migration_Safety {
 			$wpdb->query( "ALTER TABLE `{$external}` DROP INDEX `provider_external`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
 
+		$provenance_done = true;
 		$provenance = HE_V24_Future_Schema::table( 'provenance' );
 		if ( self::table_exists( $provenance ) ) {
 			if ( ! self::column_exists( $provenance, 'parent_hash' ) ) {
@@ -35,29 +45,40 @@ final class HE_V24_Migration_Safety {
 			if ( ! self::column_exists( $provenance, 'record_hash' ) ) {
 				$wpdb->query( "ALTER TABLE `{$provenance}` ADD COLUMN `record_hash` char(64) NOT NULL DEFAULT '' AFTER `parent_hash`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			}
-			self::backfill_provenance();
+			$provenance_done = self::backfill_provenance_batch();
 		}
 
+		$impact_done = true;
 		$impact = HE_V24_Future_Schema::table( 'impact_queue' );
 		if ( self::table_exists( $impact ) ) {
 			if ( ! self::column_exists( $impact, 'dedupe_key' ) ) {
 				$wpdb->query( "ALTER TABLE `{$impact}` ADD COLUMN `dedupe_key` char(64) NULL AFTER `consumer_file`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			}
-			$rows = $wpdb->get_results( "SELECT id,source_type,source_id,event_name,consumer_file,payload_json FROM `{$impact}` WHERE dedupe_key IS NULL OR dedupe_key='' ORDER BY id ASC", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			foreach ( $rows as $row ) {
-				$key = hash( 'sha256', 'legacy-v23|' . $row['id'] . '|' . $row['source_type'] . '|' . $row['source_id'] . '|' . $row['event_name'] . '|' . $row['consumer_file'] . '|' . $row['payload_json'] );
-				$wpdb->update( $impact, array( 'dedupe_key' => $key ), array( 'id' => (int) $row['id'] ) );
-			}
+			$impact_done = self::backfill_impact_batch();
 		}
+		return $provenance_done && $impact_done;
 	}
 
-	private static function backfill_provenance() {
+	/** Rebuild the legacy provenance chain deterministically in bounded, resumable ID order. */
+	private static function backfill_provenance_batch() {
 		global $wpdb;
 		$table = HE_V24_Future_Schema::table( 'provenance' );
-		$rows = $wpdb->get_results( "SELECT * FROM `{$table}` ORDER BY id ASC", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$cursor = absint( get_option( self::OPTION_PROVENANCE_CURSOR, 0 ) );
 		$parent = '';
+		if ( $cursor ) {
+			$parent = (string) $wpdb->get_var( $wpdb->prepare( "SELECT record_hash FROM `{$table}` WHERE id=%d", $cursor ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			if ( '' === $parent ) {
+				/* Lost/partial cursor state: safely restart and overwrite the chain from the beginning. */
+				$cursor = 0;
+				delete_option( self::OPTION_PROVENANCE_CURSOR );
+			}
+		}
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM `{$table}` WHERE id>%d ORDER BY id ASC LIMIT %d", $cursor, self::BATCH ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( ! $rows ) {
+			delete_option( self::OPTION_PROVENANCE_CURSOR );
+			return true;
+		}
 		foreach ( $rows as $row ) {
-			if ( ! empty( $row['record_hash'] ) ) { $parent = $row['record_hash']; continue; }
 			$payload = wp_json_encode( array(
 				'parent_hash' => $parent,
 				'object_type' => sanitize_key( $row['object_type'] ),
@@ -70,9 +91,47 @@ final class HE_V24_Migration_Safety {
 				'created_at' => (string) $row['created_at'],
 			), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
 			$hash = hash( 'sha256', $payload );
-			$wpdb->update( $table, array( 'parent_hash' => $parent, 'record_hash' => $hash ), array( 'id' => (int) $row['id'] ) );
+			$updated = $wpdb->update( $table, array( 'parent_hash' => $parent, 'record_hash' => $hash ), array( 'id' => (int) $row['id'] ) );
+			if ( false === $updated ) {
+				throw new RuntimeException( 'File 06 provenance migration write failed at row ' . (int) $row['id'] );
+			}
 			$parent = $hash;
+			$cursor = (int) $row['id'];
 		}
+		$more = (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `{$table}` WHERE id>%d ORDER BY id ASC LIMIT 1", $cursor ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $more ) {
+			update_option( self::OPTION_PROVENANCE_CURSOR, $cursor, false );
+			return false;
+		}
+		delete_option( self::OPTION_PROVENANCE_CURSOR );
+		return true;
+	}
+
+	/** Backfill legacy impact idempotency keys without unbounded table materialization. */
+	private static function backfill_impact_batch() {
+		global $wpdb;
+		$table = HE_V24_Future_Schema::table( 'impact_queue' );
+		$cursor = absint( get_option( self::OPTION_IMPACT_CURSOR, 0 ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id,source_type,source_id,event_name,consumer_file,payload_json FROM `{$table}` WHERE id>%d ORDER BY id ASC LIMIT %d", $cursor, self::BATCH ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( ! $rows ) {
+			delete_option( self::OPTION_IMPACT_CURSOR );
+			return true;
+		}
+		foreach ( $rows as $row ) {
+			$key = hash( 'sha256', 'legacy-v23|' . $row['id'] . '|' . $row['source_type'] . '|' . $row['source_id'] . '|' . $row['event_name'] . '|' . $row['consumer_file'] . '|' . $row['payload_json'] );
+			$updated = $wpdb->update( $table, array( 'dedupe_key' => $key ), array( 'id' => (int) $row['id'] ) );
+			if ( false === $updated ) {
+				throw new RuntimeException( 'File 06 impact migration write failed at row ' . (int) $row['id'] );
+			}
+			$cursor = (int) $row['id'];
+		}
+		$more = (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `{$table}` WHERE id>%d ORDER BY id ASC LIMIT 1", $cursor ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $more ) {
+			update_option( self::OPTION_IMPACT_CURSOR, $cursor, false );
+			return false;
+		}
+		delete_option( self::OPTION_IMPACT_CURSOR );
+		return true;
 	}
 
 	public static function postflight() {
@@ -91,15 +150,30 @@ final class HE_V24_Migration_Safety {
 		}
 	}
 
+	/**
+	 * Advance a bounded upgrade step. A large legacy dataset keeps Future-18
+	 * fail-closed until later requests finish the resumable migration.
+	 */
 	public static function activate() {
-		self::preflight();
+		if ( ! self::preflight() ) {
+			update_option( self::OPTION_PENDING, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 migration is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+			return false;
+		}
 		HE_V24_Future_Schema::install();
 		self::postflight();
+		delete_option( self::OPTION_PENDING );
+		$failure = get_option( HE_V2_Schema::OPTION_FAILURE, array() );
+		if ( is_array( $failure ) && 'future_migration_pending' === ( $failure['code'] ?? '' ) ) {
+			delete_option( HE_V2_Schema::OPTION_FAILURE );
+		}
+		return true;
 	}
 
 	public static function maybe_upgrade() {
 		if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) {
-			self::activate();
+			return self::activate();
 		}
+		return true;
 	}
 }
