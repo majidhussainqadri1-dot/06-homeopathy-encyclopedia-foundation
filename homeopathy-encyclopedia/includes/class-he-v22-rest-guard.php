@@ -49,7 +49,7 @@ final class HE_V22_REST_Guard {
 			return $allowed;
 		}
 		if ( $enhanced_health ) {
-			$result = rest_ensure_response( HE_V22_Governance::health() );
+			$result = rest_ensure_response( HE_V22_Operations::health() );
 			$result->header( 'Cache-Control', 'no-store, private, max-age=0' );
 			return $result;
 		}
