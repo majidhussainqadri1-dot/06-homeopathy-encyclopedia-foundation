@@ -32,7 +32,7 @@ fut_assert( false !== strpos( $f, "delivery_owner'=>'file-19'" ), 'File 19 deliv
 fut_assert( false !== strpos( $f, "visual_owner'=>'file-25'" ), 'File 25 graph visual ownership' );
 fut_assert( false !== strpos( $f, "assurance_owner'=>'file-24'" ), 'File 24 assurance ownership' );
 fut_assert( false !== strpos( $f, "'file-26'" ), 'File 26 consumer boundary' );
-fut_assert( false !== strpos( $f, 'review_required'=>true ) || false !== strpos( $f, "'review_required'=>true" ), 'external metadata human review gate' );
+fut_assert( false !== strpos( $f, "'review_required'=>true" ) || false !== strpos( $f, "'review_required' => true" ), 'external metadata human review gate' );
 fut_assert( false !== strpos( $f, "status'=>'draft'" ), 'translation human-review draft gate' );
 fut_assert( false !== strpos( $f, "state'=>'candidate'" ), 'duplicate candidates are advisory' );
 
