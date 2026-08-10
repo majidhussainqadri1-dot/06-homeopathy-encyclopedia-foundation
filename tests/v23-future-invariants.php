@@ -42,8 +42,8 @@ f06v23_assert( false !== strpos( $future, 'outdated' ) && false !== strpos( $fut
 f06v23_assert( false !== strpos( $future, 'urgent-review' ) && false !== strpos( $future, 'priority_score' ), 'Living freshness/research-priority engine is missing.' );
 f06v23_assert( false !== strpos( $future, "'RIS'" ) && false !== strpos( $future, "'BibTeX'" ) && false !== strpos( $future, "'Citeproc JSON'" ) && false !== strpos( $future, 'https://schema.org' ), 'Citation laboratory export formats are incomplete.' );
 f06v23_assert( false !== strpos( $future, 'claims_without_evidence' ) && false !== strpos( $future, 'impact_dead_letter' ) && false !== strpos( $future, 'translation_outdated' ), 'Integrity command center is incomplete.' );
-f06v23_assert( false !== strpos( $future, 'Idempotency-Key' ) && false !== strpos( $future, 'X-WP-Nonce' ), 'Future mutations lack security/idempotency guards.' );
-f06v23_assert( false !== strpos( $future, "'external_auto_publish'=>false" ) || false !== strpos( $future, "'external_content_auto_publish' => false" ), 'External evidence must never auto-publish.' );
+f06v23_assert( false !== strpos( $future, 'Idempotency-Key' ) && false !== strpos( $future, 'HE_V2_Auth::require_nonce' ) && false !== strpos( $future, 'he_invalid_nonce' ), 'Future mutations lack delegated nonce/security and idempotency guards.' );
+f06v23_assert( false !== strpos( $future, "'external_auto_publish'=>false" ) || false !== strpos( $bootstrap, "'external_content_auto_publish' => false" ), 'External evidence must never auto-publish.' );
 f06v23_assert( false === strpos( $future, 'wp_remote_get( $_' ), 'Unsafe unvalidated outbound request found.' );
 
 if ( $failures ) {
