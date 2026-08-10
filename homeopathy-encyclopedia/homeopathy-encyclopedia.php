@@ -46,6 +46,7 @@ require_once HE_DIR . 'includes/class-he-v24-future-schema.php';
 require_once HE_DIR . 'includes/class-he-v24-migration-safety.php';
 require_once HE_DIR . 'includes/class-he-v24-future-api.php';
 require_once HE_DIR . 'includes/class-he-v24-future-privacy.php';
+require_once HE_DIR . 'includes/class-he-v24-future-review-guard.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_activation_hook( HE_FILE, array( 'HE_V23_Future', 'activate' ) );
@@ -77,7 +78,7 @@ function he_contract_descriptor() {
 		'notification_owner'=> 'file-19',
 		'canonical_routes'  => array( '/encyclopedia/', '/encyclopedia/{type}/', '/encyclopedia/entry/{canonical_slug}/', '/research/', '/research/{permanent_id}/', '/knowledge/editor/' ),
 		'queries'           => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research', 'health', 'get_type_schemas', 'get_claim_graph', 'get_provenance', 'get_time_machine', 'get_freshness', 'get_research_gaps', 'get_integrity_command_center' ),
-		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'transition_integrity_action', 'bounded_reindex', 'stage_external_metadata', 'scan_duplicate_candidates', 'queue_consumer_revalidation', 'save_governed_translation', 'review_governed_translation', 'publish_governed_translation', 'manage_watchlist', 'map_researcher_orcid' ),
+		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'transition_integrity_action', 'bounded_reindex', 'stage_external_metadata', 'review_external_metadata', 'scan_duplicate_candidates', 'queue_consumer_revalidation', 'save_governed_translation', 'review_governed_translation', 'publish_governed_translation', 'manage_watchlist', 'map_researcher_orcid' ),
 		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
 		'fixed_type_count'  => count( HE_V22_Type_Schemas::schemas() ),
@@ -121,13 +122,19 @@ function he_start_v2() {
 	HE_V22_Consumers::hooks();
 	HE_V22_Operations::hooks();
 	HE_V23_Future::hooks();
-	HE_V24_Future_Schema::hooks();
-	HE_V24_Future_API::hooks();
-	HE_V24_Future_Privacy::hooks();
 
-	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
+	$future_v24_ready = (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) >= HE_V24_Future_Schema::VERSION;
+	if ( $future_v24_ready ) {
+		HE_V24_Future_Schema::hooks();
+		HE_V24_Future_API::hooks();
+		HE_V24_Future_Privacy::hooks();
+		HE_V24_Future_Review_Guard::hooks();
+	}
+
+	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
 		$contracts['file-06'] = he_contract_descriptor();
+		$contracts['file-06']['future_v24_ready'] = (bool) $future_v24_ready;
 		return $contracts;
 	} );
 }
