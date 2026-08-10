@@ -21,7 +21,12 @@ if ( is_multisite() ) {
 function he_v2_purge_site() {
 	global $wpdb;
 	wp_clear_scheduled_hook( 'he_v2_maintenance' );
-	foreach ( array( 'concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','search_index','bookmarks','feedback','audit_log','metrics','rate_limits','migration_quarantine' ) as $suffix ) {
+	wp_clear_scheduled_hook( 'he_v23_future_maintenance' );
+	wp_clear_scheduled_hook( 'he_v24_future_maintenance' );
+	foreach ( array(
+		'concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','search_index','bookmarks','feedback','audit_log','metrics','rate_limits','migration_quarantine',
+		'claims','claim_evidence','provenance','external_records','concept_mappings','similarity','freshness','impact_queue','research_gaps','watchlists','translations'
+	) as $suffix ) {
 		$table = $wpdb->prefix . 'he_' . $suffix;
 		$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
@@ -36,7 +41,8 @@ function he_v2_purge_site() {
 	}
 	foreach ( array(
 		'he_schema_version','he_v2_runtime_failure','he_v2_safe_mode','he_v2_migration_lock','he_v2_legacy_migrated','he_allow_destructive_uninstall','he_page_map','he_legacy_system_migration',
-		'he_v22_extension_version','he_v22_upgrade_lock','he_v22_legacy_cursor','he_v22_legacy_done','he_v22_reindex_cursor','he_v22_reindex_required'
+		'he_v22_extension_version','he_v22_upgrade_lock','he_v22_legacy_cursor','he_v22_legacy_done','he_v22_reindex_cursor','he_v22_reindex_required',
+		'he_v23_future_version','he_v24_future_version','he_v24_freshness_cursor','he_v24_gap_cursor','he_v24_retraction_cursor'
 	) as $option ) {
 		delete_option( $option );
 	}
