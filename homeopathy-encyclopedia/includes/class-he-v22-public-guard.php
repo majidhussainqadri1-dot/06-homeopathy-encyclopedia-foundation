@@ -8,6 +8,7 @@ final class HE_V22_Public_Guard {
 		add_filter( 'the_title', array( __CLASS__, 'research_title' ), 98, 2 );
 		add_filter( 'get_the_excerpt', array( __CLASS__, 'research_excerpt' ), 98, 2 );
 		add_filter( 'wp_robots', array( __CLASS__, 'robots' ), 99 );
+		add_action( 'wp_head', array( __CLASS__, 'research_head' ), 25 );
 		add_filter( 'sabri_search_connectors', array( __CLASS__, 'search_events' ), 110 );
 	}
 
@@ -53,9 +54,12 @@ final class HE_V22_Public_Guard {
 		?>
 		<article class="he-v2 he-v2__entry he-v2__research-record" data-he-research-id="<?php echo esc_attr( $row['public_id'] ); ?>">
 			<header class="he-v2__entry-header">
-				<div class="he-v2__meta"><span><?php echo esc_html( $row['record_type'] ); ?></span><span><?php echo esc_html( $row['status'] ); ?></span><?php if ( $row['case_tag'] ) : ?><span><?php echo esc_html( $row['case_tag'] ); ?></span><?php endif; ?></div>
+				<div class="he-v2__meta"><span><?php echo esc_html( $row['record_type'] ); ?></span><span><?php echo esc_html( $row['status'] ); ?></span><span><?php echo esc_html( sprintf( __( 'Version %d', 'homeopathy-encyclopedia' ), (int) $row['row_version'] ) ); ?></span><?php if ( $row['case_tag'] ) : ?><span><?php echo esc_html( $row['case_tag'] ); ?></span><?php endif; ?></div>
 				<p class="he-v2__summary"><?php echo esc_html( $row['question'] ); ?></p>
 			</header>
+			<?php if ( 'corrected' === $row['status'] ) : ?>
+				<aside class="he-v2__notice he-v2__notice--integrity" role="note"><strong><?php esc_html_e( 'Corrected research record.', 'homeopathy-encyclopedia' ); ?></strong> <?php esc_html_e( 'This page reflects the current corrected research metadata. Earlier audit history remains preserved.', 'homeopathy-encyclopedia' ); ?></aside>
+			<?php endif; ?>
 			<?php if ( 'retracted' === $row['status'] ) : ?>
 				<aside class="he-v2__notice he-v2__notice--danger" role="alert"><strong><?php esc_html_e( 'Retracted research record.', 'homeopathy-encyclopedia' ); ?></strong> <?php esc_html_e( 'Metadata remains visible for correction and citation integrity; the protocol is not presented as current evidence.', 'homeopathy-encyclopedia' ); ?></aside>
 			<?php elseif ( 'public' === $row['data_class'] ) : ?>
@@ -77,7 +81,55 @@ final class HE_V22_Public_Guard {
 			$robots['nofollow'] = true;
 			$robots['noarchive'] = true;
 		}
+		if ( is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {
+			global $post;
+			$row = $post ? self::row_for_post( $post->ID ) : null;
+			if ( $row && in_array( $row['status'], array( 'published', 'corrected' ), true ) ) {
+				unset( $robots['noindex'], $robots['nofollow'] );
+			}
+			if ( $row && 'retracted' === $row['status'] ) {
+				$robots['noindex'] = true;
+				$robots['follow'] = true;
+			}
+		}
 		return $robots;
+	}
+
+	public static function research_head() {
+		if ( ! is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {
+			return;
+		}
+		global $post;
+		$row = $post ? self::row_for_post( $post->ID ) : null;
+		if ( ! self::is_public_row( $row ) ) {
+			return;
+		}
+		$url = home_url( '/research/' . rawurlencode( $row['public_id'] ) . '/' );
+		$type = 'Dataset' === $row['record_type'] ? 'Dataset' : ( in_array( $row['record_type'], array( 'publication', 'successful-case' ), true ) ? 'ScholarlyArticle' : 'CreativeWork' );
+		if ( 'dataset' === $row['record_type'] ) {
+			$type = 'Dataset';
+		}
+		$graph = array(
+			'@context' => 'https://schema.org',
+			'@type' => $type,
+			'@id' => $url . '#research',
+			'url' => $url,
+			'name' => $row['title'],
+			'description' => $row['question'],
+			'version' => (string) $row['row_version'],
+			'dateCreated' => gmdate( 'c', strtotime( $row['created_at'] ) ),
+			'dateModified' => gmdate( 'c', strtotime( $row['updated_at'] ) ),
+			'isPartOf' => array( '@type' => 'WebSite', 'name' => 'Sabri Social Homeopathy Platform', 'url' => home_url( '/' ) ),
+			'additionalProperty' => array(
+				array( '@type' => 'PropertyValue', 'name' => 'Record status', 'value' => $row['status'] ),
+				array( '@type' => 'PropertyValue', 'name' => 'Data class', 'value' => $row['data_class'] ),
+			),
+		);
+		if ( $row['case_tag'] ) {
+			$graph['keywords'] = array( $row['case_tag'] );
+		}
+		echo '<link rel="canonical" href="' . esc_url( $url ) . '">' . "\n";
+		echo '<script type="application/ld+json">' . wp_json_encode( $graph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
 	}
 
 	public static function search_events( $connectors ) {
