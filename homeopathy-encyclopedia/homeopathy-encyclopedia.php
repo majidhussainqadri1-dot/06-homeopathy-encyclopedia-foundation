@@ -36,6 +36,7 @@ require_once HE_DIR . 'includes/class-he-v22-integrity.php';
 require_once HE_DIR . 'includes/class-he-v22-rest-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-schedule.php';
 require_once HE_DIR . 'includes/class-he-v22-search.php';
+require_once HE_DIR . 'includes/class-he-v22-type-schemas.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
@@ -58,10 +59,11 @@ function he_contract_descriptor() {
 		'search_owner'      => 'file-26',
 		'assurance_owner'   => 'file-24',
 		'canonical_routes'  => array( '/encyclopedia/', '/encyclopedia/{type}/', '/encyclopedia/entry/{canonical_slug}/', '/research/', '/research/{permanent_id}/', '/knowledge/editor/' ),
-		'queries'           => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research', 'health' ),
+		'queries'           => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research', 'health', 'get_type_schemas' ),
 		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'transition_integrity_action', 'bounded_reindex' ),
 		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
+		'fixed_type_count'  => count( HE_V22_Type_Schemas::schemas() ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100 ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true ),
@@ -91,6 +93,7 @@ function he_start_v2() {
 	HE_V22_Public_Guard::hooks();
 	HE_V22_Integrity::hooks();
 	HE_V22_Schedule::hooks();
+	HE_V22_Type_Schemas::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
