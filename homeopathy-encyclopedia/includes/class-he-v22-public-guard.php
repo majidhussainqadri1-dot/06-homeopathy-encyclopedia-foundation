@@ -1,0 +1,92 @@
+<?php
+/** Public-surface guardrails: immutable entry/research presentation only. */
+defined( 'ABSPATH' ) || exit;
+
+final class HE_V22_Public_Guard {
+	public static function hooks() {
+		add_filter( 'the_content', array( __CLASS__, 'research_content' ), 99 );
+		add_filter( 'the_title', array( __CLASS__, 'research_title' ), 98, 2 );
+		add_filter( 'get_the_excerpt', array( __CLASS__, 'research_excerpt' ), 98, 2 );
+		add_filter( 'wp_robots', array( __CLASS__, 'robots' ), 99 );
+		add_filter( 'sabri_search_connectors', array( __CLASS__, 'search_events' ), 110 );
+	}
+
+	private static function row_for_post( $post_id ) {
+		global $wpdb;
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE post_id=%d', absint( $post_id ) ), ARRAY_A );
+	}
+
+	private static function is_public_row( $row ) {
+		return is_array( $row ) && in_array( $row['status'], array( 'published', 'corrected', 'retracted' ), true );
+	}
+
+	public static function research_title( $title, $post_id = 0 ) {
+		if ( ! $post_id || HE_V2_Domain::RESEARCH_TYPE !== get_post_type( $post_id ) || ! is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {
+			return $title;
+		}
+		$row = self::row_for_post( $post_id );
+		return self::is_public_row( $row ) ? (string) $row['title'] : $title;
+	}
+
+	public static function research_excerpt( $excerpt, $post = null ) {
+		$post = is_object( $post ) ? $post : get_post( $post );
+		if ( ! $post || HE_V2_Domain::RESEARCH_TYPE !== $post->post_type || ! is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {
+			return $excerpt;
+		}
+		$row = self::row_for_post( $post->ID );
+		return self::is_public_row( $row ) ? (string) $row['question'] : $excerpt;
+	}
+
+	public static function research_content( $content ) {
+		if ( ! is_singular( HE_V2_Domain::RESEARCH_TYPE ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
+		}
+		global $post;
+		$row = $post ? self::row_for_post( $post->ID ) : null;
+		if ( ! self::is_public_row( $row ) ) {
+			return '<div class="he-v2 he-v2__notice he-v2__notice--restricted" role="alert">' . esc_html__( 'This research record is not publicly available.', 'homeopathy-encyclopedia' ) . '</div>';
+		}
+
+		$case = 'successful-case' === $row['record_type'] ? json_decode( (string) $row['case_json'], true ) : array();
+		$dataset = 'dataset' === $row['record_type'] ? json_decode( (string) $row['metadata_json'], true ) : array();
+		ob_start();
+		?>
+		<article class="he-v2 he-v2__entry he-v2__research-record" data-he-research-id="<?php echo esc_attr( $row['public_id'] ); ?>">
+			<header class="he-v2__entry-header">
+				<div class="he-v2__meta"><span><?php echo esc_html( $row['record_type'] ); ?></span><span><?php echo esc_html( $row['status'] ); ?></span><?php if ( $row['case_tag'] ) : ?><span><?php echo esc_html( $row['case_tag'] ); ?></span><?php endif; ?></div>
+				<p class="he-v2__summary"><?php echo esc_html( $row['question'] ); ?></p>
+			</header>
+			<?php if ( 'retracted' === $row['status'] ) : ?>
+				<aside class="he-v2__notice he-v2__notice--danger" role="alert"><strong><?php esc_html_e( 'Retracted research record.', 'homeopathy-encyclopedia' ); ?></strong> <?php esc_html_e( 'Metadata remains visible for correction and citation integrity; the protocol is not presented as current evidence.', 'homeopathy-encyclopedia' ); ?></aside>
+			<?php elseif ( 'public' === $row['data_class'] ) : ?>
+				<section class="he-v2__body"><h2><?php esc_html_e( 'Protocol', 'homeopathy-encyclopedia' ); ?></h2><?php echo wp_kses_post( wpautop( $row['protocol'] ) ); ?></section>
+			<?php else : ?>
+				<aside class="he-v2__notice he-v2__notice--restricted" role="note"><?php esc_html_e( 'The protocol or underlying data is restricted. Only approved public metadata is displayed.', 'homeopathy-encyclopedia' ); ?></aside>
+			<?php endif; ?>
+			<?php if ( $case ) : ?><section class="he-v2__panel"><h2><?php echo esc_html( $row['case_tag'] ?: __( 'Successful case observation', 'homeopathy-encyclopedia' ) ); ?></h2><?php foreach ( array( 'observation_label', 'baseline', 'intervention', 'follow_up', 'adverse_events', 'limitations' ) as $key ) : if ( ! empty( $case[ $key ] ) ) : ?><h3><?php echo esc_html( ucwords( str_replace( '_', ' ', $key ) ) ); ?></h3><?php echo wp_kses_post( wpautop( (string) $case[ $key ] ) ); ?><?php endif; endforeach; ?></section><?php endif; ?>
+			<?php if ( $dataset ) : ?><section class="he-v2__panel"><h2><?php esc_html_e( 'Dataset governance metadata', 'homeopathy-encyclopedia' ); ?></h2><?php foreach ( array( 'description', 'de_identification', 'lawful_basis', 'access_policy' ) as $key ) : if ( ! empty( $dataset[ $key ] ) ) : ?><h3><?php echo esc_html( ucwords( str_replace( '_', ' ', $key ) ) ); ?></h3><p><?php echo esc_html( (string) $dataset[ $key ] ); ?></p><?php endif; endforeach; ?></section><?php endif; ?>
+			<footer class="he-v2__footer"><p><?php esc_html_e( 'Research observations and successful cases are not automatic proof of efficacy and do not replace individualized professional care.', 'homeopathy-encyclopedia' ); ?></p></footer>
+		</article>
+		<?php
+		return ob_get_clean();
+	}
+
+	public static function robots( $robots ) {
+		if ( get_query_var( 'he_v22_editor' ) ) {
+			$robots['noindex'] = true;
+			$robots['nofollow'] = true;
+			$robots['noarchive'] = true;
+		}
+		return $robots;
+	}
+
+	public static function search_events( $connectors ) {
+		$connectors = is_array( $connectors ) ? $connectors : array();
+		if ( isset( $connectors['file-06'] ) ) {
+			$events = isset( $connectors['file-06']['events'] ) ? (array) $connectors['file-06']['events'] : array();
+			$events[] = 'ResearchPublicationCorrected.v1';
+			$connectors['file-06']['events'] = array_values( array_unique( $events ) );
+		}
+		return $connectors;
+	}
+}
