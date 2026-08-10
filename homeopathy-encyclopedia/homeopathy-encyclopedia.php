@@ -37,6 +37,7 @@ require_once HE_DIR . 'includes/class-he-v22-rest-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-schedule.php';
 require_once HE_DIR . 'includes/class-he-v22-search.php';
 require_once HE_DIR . 'includes/class-he-v22-type-schemas.php';
+require_once HE_DIR . 'includes/class-he-v22-research-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-consumers.php';
 require_once HE_DIR . 'includes/class-he-v22-operations.php';
 
@@ -97,6 +98,7 @@ function he_start_v2() {
 	HE_V22_Integrity::hooks();
 	HE_V22_Schedule::hooks();
 	HE_V22_Type_Schemas::hooks();
+	HE_V22_Research_Guard::hooks();
 	HE_V22_Consumers::hooks();
 	HE_V22_Operations::hooks();
 
