@@ -37,6 +37,8 @@ require_once HE_DIR . 'includes/class-he-v22-rest-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-schedule.php';
 require_once HE_DIR . 'includes/class-he-v22-search.php';
 require_once HE_DIR . 'includes/class-he-v22-type-schemas.php';
+require_once HE_DIR . 'includes/class-he-v22-consumers.php';
+require_once HE_DIR . 'includes/class-he-v22-operations.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
@@ -64,6 +66,7 @@ function he_contract_descriptor() {
 		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
 		'fixed_type_count'  => count( HE_V22_Type_Schemas::schemas() ),
+		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100 ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true ),
@@ -94,6 +97,8 @@ function he_start_v2() {
 	HE_V22_Integrity::hooks();
 	HE_V22_Schedule::hooks();
 	HE_V22_Type_Schemas::hooks();
+	HE_V22_Consumers::hooks();
+	HE_V22_Operations::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
