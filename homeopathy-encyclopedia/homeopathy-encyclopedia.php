@@ -47,6 +47,12 @@ register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_activation_hook( HE_FILE, array( 'HE_V23_Future', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
 
+/** Deactivation must clear every File 06 scheduled job, including Future-18 maintenance. */
+function he_deactivate_future_runtime() {
+	wp_clear_scheduled_hook( HE_V23_Future::CRON );
+}
+register_deactivation_hook( HE_FILE, 'he_deactivate_future_runtime' );
+
 /** Public, stable provider descriptor for platform discovery. */
 function he_contract_descriptor() {
 	$events = HE_V2_Integrations::published_events();
