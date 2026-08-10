@@ -18,8 +18,10 @@ final class HE_V22_REST_Guard {
 		}
 
 		$cap = '';
+		$enhanced_health = false;
 		if ( $prefix . '/health' === $route ) {
 			$cap = HE_V2_Auth::CAP_REPAIR;
+			$enhanced_health = true;
 		} elseif ( $prefix . '/duplicates' === $route || $prefix . '/merge' === $route ) {
 			$cap = HE_V2_Auth::CAP_TAXONOMY;
 		} elseif ( $prefix . '/repair' === $route || $prefix . '/operations/reindex' === $route ) {
@@ -30,12 +32,27 @@ final class HE_V22_REST_Guard {
 			$cap = false !== strpos( $route, '/transition' ) ? HE_V2_Auth::CAP_REVIEW : HE_V2_Auth::CAP_PUBLISH;
 		} elseif ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research/\\d+/review$#', $route ) ) {
 			$cap = HE_V2_Auth::CAP_REVIEW;
+		} elseif ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research/\\d+/transition$#', $route ) ) {
+			$state = sanitize_key( $request->get_param( 'state' ) );
+			if ( 'approved' === $state ) {
+				$cap = HE_V2_Auth::CAP_REVIEW;
+			} elseif ( 'published' === $state ) {
+				$cap = HE_V2_Auth::CAP_PUBLISH;
+			}
 		}
 
 		if ( ! $cap ) {
 			return $response;
 		}
 		$allowed = HE_V2_Auth::rest_permission( $cap );
-		return is_wp_error( $allowed ) ? $allowed : $response;
+		if ( is_wp_error( $allowed ) ) {
+			return $allowed;
+		}
+		if ( $enhanced_health ) {
+			$result = rest_ensure_response( HE_V22_Governance::health() );
+			$result->header( 'Cache-Control', 'no-store, private, max-age=0' );
+			return $result;
+		}
+		return $response;
 	}
 }
