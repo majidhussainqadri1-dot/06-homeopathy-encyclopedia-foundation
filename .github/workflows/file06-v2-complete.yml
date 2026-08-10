@@ -69,6 +69,7 @@ jobs:
               assert 'class-he-v24-migration-safety.php' in bootstrap
               assert 'class-he-v24-future-api.php' in bootstrap
               assert 'class-he-v24-future-privacy.php' in bootstrap
+              assert 'class-he-v24-future-review-guard.php' in bootstrap
           print('PACKAGE_SHA256=' + hashlib.sha256(path.read_bytes()).hexdigest())
           PY
           python3 scripts/source-tree-hash.py homeopathy-encyclopedia
