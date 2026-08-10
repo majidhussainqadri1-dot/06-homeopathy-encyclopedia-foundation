@@ -1,5 +1,5 @@
 <?php
-/** Public provenance policy: canonical public IDs only, no internal-object enumeration. */
+/** Public identifier/provenance policy: canonical public IDs only, no internal-object enumeration or private source URI leakage. */
 defined( 'ABSPATH' ) || exit;
 
 final class HE_V24_Public_Provenance {
@@ -16,11 +16,21 @@ final class HE_V24_Public_Provenance {
 		return '#^/' . preg_quote( HE_V2_API::NS, '#' ) . '/future/provenance/([^/]+)/([^/]+)$#';
 	}
 
+	private static function is_legacy_internal_public_read( $route ) {
+		$base = '/' . preg_quote( HE_V2_API::NS, '#' ) . '/future/';
+		if ( preg_match( '#^' . $base . 'claims$#', $route ) ) { return true; }
+		return (bool) preg_match( '#^' . $base . '(?:graph|time-machine|freshness|translations)/\d+$#', $route )
+			|| (bool) preg_match( '#^' . $base . 'citations/\d+/[a-z0-9_-]+$#', $route );
+	}
+
 	public static function before_callbacks( $response, $handler, $request ) {
 		if ( null !== $response || ! $request instanceof WP_REST_Request || 'GET' !== $request->get_method() ) {
 			return $response;
 		}
 		$route = $request->get_route();
+		if ( self::is_legacy_internal_public_read( $route ) ) {
+			return new WP_Error( 'he_canonical_public_id_required', __( 'Public Future-18 reads require the canonical public-ID route. Internal numeric identifiers are not a public API.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		}
 		if ( ! preg_match( self::any_provenance_pattern(), $route ) ) {
 			return $response;
 		}
@@ -65,6 +75,7 @@ final class HE_V24_Public_Provenance {
 			foreach ( $data['@graph'] as &$node ) {
 				if ( ! is_array( $node ) ) { continue; }
 				$node['prov:specializationOf'] = $type . ':' . $public_id;
+				unset( $node['he:source'] );
 				$node = self::strip_internal_ids( $node );
 			}
 			$response->set_data( $data );
@@ -75,6 +86,7 @@ final class HE_V24_Public_Provenance {
 				if ( ! is_array( $row ) ) { continue; }
 				$row['object_type'] = $type;
 				$row['object_id'] = $public_id;
+				unset( $row['source_uri'] );
 				if ( isset( $row['metadata'] ) ) {
 					$row['metadata'] = self::strip_internal_ids( $row['metadata'] );
 				}
