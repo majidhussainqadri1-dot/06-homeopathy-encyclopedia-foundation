@@ -1,24 +1,24 @@
-# File 06 Status — 2.2.0 New-Plans Completion Candidate
+# File 06 Status — 2.3.0 Future Knowledge Intelligence 18
 
 | Status | Evidence |
 |---|---|
-| Specified | Complete against the newly rewritten consolidated central governing plan and SSH-F06-PLAN-2026-v1.0; F06-FR-001..019 and F06-NFR-001..010 traced |
-| Coded | **Yes — source-level candidate complete.** Frozen plugin coding head: `a245bff73dac1877e0b859f81725f6396b543031`; runtime `2.2.0`, schema `8`, contract `2.2` |
-| Source review | Two separate fresh post-coding review passes recorded in `docs/REVIEW-v2.2-ROUND-1.md` and `docs/REVIEW-v2.2-ROUND-2.md`; no new repository-owned blocker/critical source defect found |
-| Requirement traceability | `docs/REQUIREMENTS-TRACEABILITY-v2.2.0.md`: 19/19 FR + 10/10 NFR = 29/29 primary source requirements implemented/traced |
-| Packaged | Deterministic canonical package builder implemented; required top-level folder is `06-homeopathy-encyclopedia-foundation`. **Exact v2.2 package checksum/byte evidence has not yet been freshly executed/observed for the frozen coding head.** |
-| Automated QA | Exact-head workflow exists (`File 06 v2.2 Dual-Plan Integrity`) with PHP 7.4/8.3 lint, source/security/privacy invariants, JS/Python syntax and double deterministic build. **No completed workflow/check run is currently observable on the frozen coding head through the connected GitHub evidence, so Automated-QA Green is not claimed yet.** |
-| Staging accepted | **No / pending.** Requires actual target Hostinger/WordPress evidence |
-| Live deployed | **No / not performed by this repository task** |
-| Operational | **No / pending post-deployment monitoring, backup/support/incident evidence** |
+| Specified | Original File 06 FR-001–019 and NFR-001–010 plus F06-FUT-001–018 are mapped |
+| Coded | Complete v2.3 source tree on `codex/file-06-new-plans-completion-v2.2.0` |
+| Reviewed | Existing v2.2 post-coding review records plus Future-18 source invariants; no live/staging claim |
+| Packaged | Deterministic double build PASS at exact head `2703de4c27fe122157488ba5183ea614d7891eae` |
+| Automated QA | GitHub Actions run 31412056622 PASS: PHP 7.4 lint, PHP 8.3 lint, Future-18 invariants, source invariants, JS/Python checks, reproducible package |
+| Package SHA-256 | `48f07aa43d5524178c51fbc333049be11b72d19f1782a9c5dd67a0565ca0e45b` |
+| Package bytes | `99914` |
+| Source tree SHA-256 | `cd072dfe5072372df0853324d3bbea6c94530a9883c6c687f005fb4acdd2c3e8` |
+| Staging accepted | Requires target Hostinger/WordPress staging evidence |
+| Live deployed | Not performed from this repository task |
+| Operational | Not accepted until live verification, monitoring, backup/restore and rollback evidence |
 
-## Repository truth
+## Runtime contract
 
-- Repository: `majidhussainqadri1-dot/06-homeopathy-encyclopedia-foundation`
-- Default `main` remains the old governance-only baseline until a controlled merge is authorized.
-- New completion PR: Draft PR #4 from `codex/file-06-new-plans-completion-v2.2.0` to `main`.
-- Repository state, staging state and live deployed state are separate realities.
+- Plugin: `2.3.0`
+- Schema: `9`
+- Contract: `2.3`
+- Future requirement count: `18`
 
-## External acceptance still required
-
-Fresh install and every supported upgrade path; real File 00/05/12/15/16/20/21/22/23/24/25/26 provider versions; real roles and authorization/IDOR journeys; browser/device/screen-reader/RTL/zoom/contrast execution; LiteSpeed/cache behavior; measured performance/load/provider-failure tests; backup restore; rollback rehearsal; Founder acceptance; controlled production deployment and live smoke verification.
+Repository, staging and live remain separate realities. A green CI/package is not evidence of staging or live deployment.
