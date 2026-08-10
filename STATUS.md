@@ -1,24 +1,34 @@
-# File 06 Status — 2.2.0 New-Plans Completion Candidate
+# File 06 Status — 2.3.0 Future Knowledge Intelligence 18 Candidate
 
 | Status | Evidence |
 |---|---|
-| Specified | Complete against the newly rewritten consolidated central governing plan and SSH-F06-PLAN-2026-v1.0; F06-FR-001..019 and F06-NFR-001..010 traced |
-| Coded | **Yes — source-level candidate complete.** Frozen plugin coding head: `a245bff73dac1877e0b859f81725f6396b543031`; runtime `2.2.0`, schema `8`, contract `2.2` |
-| Source review | Two separate fresh post-coding review passes recorded in `docs/REVIEW-v2.2-ROUND-1.md` and `docs/REVIEW-v2.2-ROUND-2.md`; no new repository-owned blocker/critical source defect found |
-| Requirement traceability | `docs/REQUIREMENTS-TRACEABILITY-v2.2.0.md`: 19/19 FR + 10/10 NFR = 29/29 primary source requirements implemented/traced |
-| Packaged | Deterministic canonical package builder implemented; required top-level folder is `06-homeopathy-encyclopedia-foundation`. **Exact v2.2 package checksum/byte evidence has not yet been freshly executed/observed for the frozen coding head.** |
-| Automated QA | Exact-head workflow exists (`File 06 v2.2 Dual-Plan Integrity`) with PHP 7.4/8.3 lint, source/security/privacy invariants, JS/Python syntax and double deterministic build. **No completed workflow/check run is currently observable on the frozen coding head through the connected GitHub evidence, so Automated-QA Green is not claimed yet.** |
-| Staging accepted | **No / pending.** Requires actual target Hostinger/WordPress evidence |
-| Live deployed | **No / not performed by this repository task** |
-| Operational | **No / pending post-deployment monitoring, backup/support/incident evidence** |
+| Specified | Existing F06-FR-001..019 + F06-NFR-001..010 preserved; additive F06-FUT-001..018 defined in `docs/FUTURE-18-TRACEABILITY-v2.3.0.md` and the amended File 06 governing plan |
+| Coded | **Yes — repository source candidate.** Functional Future-18 coding head: `759dccad88e29e48a92bb450c221f71e327cfca1`; runtime `2.3.0`, schema `9`, contract `2.3` |
+| Source review | Two fresh post-coding reviews: `docs/REVIEW-v2.3-FUTURE18-ROUND-1.md` and `docs/REVIEW-v2.3-FUTURE18-ROUND-2.md`; zero known unresolved blocker/critical repository-source defects in the reviewed scope |
+| Requirement traceability | `docs/FUTURE-18-TRACEABILITY-v2.3.0.md`: F06-FUT-001..018 = 18/18 implementation mappings, in addition to the existing 29 primary FR/NFR mappings |
+| Packaged | **Yes — exact deterministic package evidence.** Exact CI-tested descendant `de46ce4bba5c04423415041720732d447b532320`; bytes `99887`; SHA-256 `4411dbf2899bda47745c7796c842da233d9415be9faab05b15f2c6668032fdf1`; source-tree SHA-256 `8083a242e6f998e059293a77c679725e8eb0b53258fecf6e90fd1430050e5c9e` |
+| Automated QA | **Green on exact tested descendant.** GitHub Actions run `31402694660`: PHP 7.4 PASS, PHP 8.3 PASS, Future-18/source/security/privacy/ownership invariants PASS, deterministic double build PASS |
+| Staging accepted | **No / pending.** Requires actual Hostinger/WordPress install, upgrade/migration, real-role and provider journeys, browser/a11y, cache, backup and rollback evidence |
+| Live deployed | **No / unverified.** Exact deployed code has not been proven equal to this repository candidate |
+| Operational | **No / pending.** Requires live monitoring, support, backup, incident and service-level evidence |
+
+## Future-18 ownership boundaries
+
+- File 00 remains identity/authorization authority.
+- File 19 remains notification preferences/delivery/transport owner; File 06 emits knowledge events only.
+- File 24 remains security/privacy assurance owner.
+- File 25 remains public visual/component rendering owner, including the graph visualization.
+- File 26 remains global search/discovery owner; File 06 exposes canonical read contracts/projections.
+- External Crossref/PubMed/ClinicalTrials/ORCID/DataCite/MeSH integrations are adapters/mappings only. External data cannot automatically publish or elevate canonical evidence.
+- Semantic duplicate intelligence only proposes candidates; canonical merges remain governed human decisions.
 
 ## Repository truth
 
 - Repository: `majidhussainqadri1-dot/06-homeopathy-encyclopedia-foundation`
-- Default `main` remains the old governance-only baseline until a controlled merge is authorized.
-- New completion PR: Draft PR #4 from `codex/file-06-new-plans-completion-v2.2.0` to `main`.
-- Repository state, staging state and live deployed state are separate realities.
+- Future-18 branch: `codex/file-06-future-18-v2.3.0`
+- Default `main` remains a separate reality until controlled promotion/merge.
+- Repository, staging and live deployment states must never be treated as interchangeable.
 
 ## External acceptance still required
 
-Fresh install and every supported upgrade path; real File 00/05/12/15/16/20/21/22/23/24/25/26 provider versions; real roles and authorization/IDOR journeys; browser/device/screen-reader/RTL/zoom/contrast execution; LiteSpeed/cache behavior; measured performance/load/provider-failure tests; backup restore; rollback rehearsal; Founder acceptance; controlled production deployment and live smoke verification.
+Fresh install and supported upgrades; deployed DB/schema verification; real File 00/05/12/15/16/19/20/21/24/25/26 contracts; real external-provider adapters/credentials where configured; object/field/IDOR journeys; provider degraded/retraction flows; browser/device/screen-reader/RTL/zoom/contrast; LiteSpeed/cache; measured performance; backup restore; rollback rehearsal; Founder staging acceptance; controlled production deployment and live smoke verification.
