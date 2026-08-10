@@ -31,10 +31,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Verify source, security, privacy, dual-plan and future-intelligence architecture
+      - name: Verify baseline, security, privacy, dual-plan and future-intelligence architecture
         run: |
           set -euo pipefail
-          php tests/v2-invariants.php
+          php tests/v23-regression-invariants.php
           php tests/v23-future-invariants.php
           bash tests/v2-source-invariants.sh
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
