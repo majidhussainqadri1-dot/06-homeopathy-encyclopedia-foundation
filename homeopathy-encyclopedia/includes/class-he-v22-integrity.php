@@ -88,13 +88,74 @@ final class HE_V22_Integrity {
 		return self::finish( $reservation, array( 'id' => (int) $row['id'], 'status' => $to, 'row_version' => $expected + 1 ) );
 	}
 
+	private static function apply_entry_atomic( WP_REST_Request $request, $action_id ) {
+		$allowed = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH );
+		if ( is_wp_error( $allowed ) ) {
+			return $allowed;
+		}
+		$reservation = self::mutation_guard( $request, 'secure-apply-entry-' . absint( $action_id ) );
+		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
+			return self::finish( $reservation, null );
+		}
+		global $wpdb;
+		$data = (array) $request->get_json_params();
+		$expected = absint( $data['expected_version'] ?? 0 );
+		$actions = HE_V2_Schema::table( 'integrity_actions' );
+		$concepts = HE_V2_Schema::table( 'concepts' );
+		$wpdb->query( 'START TRANSACTION' );
+		try {
+			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$actions} WHERE id=%d FOR UPDATE", absint( $action_id ) ), ARRAY_A );
+			if ( ! $action || 'concept' !== $action['object_type'] || 'accepted' !== $action['status'] || (int) $action['row_version'] !== $expected ) {
+				throw new RuntimeException( 'integrity-version-conflict' );
+			}
+			if ( ! in_array( $action['action_type'], array( 'correction', 'retraction' ), true ) ) {
+				throw new RuntimeException( 'unsupported-action' );
+			}
+			$concept = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$concepts} WHERE id=%d FOR UPDATE", (int) $action['object_id'] ), ARRAY_A );
+			if ( ! $concept || ! in_array( $concept['status'], array( 'published', 'corrected', 'retracted' ), true ) ) {
+				throw new RuntimeException( 'concept-unavailable' );
+			}
+			$version_id = 0;
+			if ( 'correction' === $action['action_type'] ) {
+				$validation = HE_V2_Domain::validate_for_review( (int) $concept['id'] );
+				if ( is_wp_error( $validation ) ) {
+					throw new RuntimeException( 'corrected-content-invalid' );
+				}
+				$version_id = HE_V2_Domain::snapshot_version( (int) $concept['id'], $action['reason'], 'corrected', get_current_user_id() );
+				if ( ! $version_id ) {
+					throw new RuntimeException( 'snapshot-failed' );
+				}
+				$concept_updated = $wpdb->query( $wpdb->prepare( "UPDATE {$concepts} SET status='published',current_version=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $version_id, (int) $concept['id'], (int) $concept['row_version'] ) );
+			} else {
+				$concept_updated = $wpdb->query( $wpdb->prepare( "UPDATE {$concepts} SET status='retracted',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $concept['id'], (int) $concept['row_version'] ) );
+			}
+			$action_updated = $wpdb->query( $wpdb->prepare( "UPDATE {$actions} SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", get_current_user_id(), (int) $action['id'], $expected ) );
+			if ( 1 !== (int) $concept_updated || 1 !== (int) $action_updated ) {
+				throw new RuntimeException( 'version-conflict' );
+			}
+			$wpdb->query( 'COMMIT' );
+			HE_V22_Governance::reindex_concept_secure( (int) $concept['id'] );
+			$event = 'retraction' === $action['action_type'] ? 'EncyclopediaEntryRetracted.v1' : 'EncyclopediaEntryCorrected.v1';
+			HE_V2_Domain::emit_event( $event, 'concept', (int) $concept['id'], array( 'integrity_action' => $action['public_id'], 'reason' => $action['reason'], 'replacement_id' => (int) $action['replacement_object_id'], 'version_id' => $version_id ) );
+			return self::finish( $reservation, array( 'applied' => true, 'action_id' => $action['public_id'], 'concept_id' => $concept['public_id'], 'version_id' => $version_id, 'record_status' => 'retraction' === $action['action_type'] ? 'retracted' : 'published' ) );
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			$code = 'unsupported-action' === $error->getMessage() ? 'he_integrity_action_unsupported' : 'he_integrity_apply_conflict';
+			$status = 'unsupported-action' === $error->getMessage() ? 422 : 409;
+			return self::finish( $reservation, new WP_Error( $code, __( 'The accepted integrity action could not be applied safely to the current record.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) ) );
+		}
+	}
+
 	public static function enforce_apply_gate( $response, $handler, $request ) {
 		if ( null !== $response || ! $request instanceof WP_REST_Request ) {
 			return $response;
 		}
 		$prefix = '/' . HE_V2_API::NS;
 		$route = $request->get_route();
-		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/(?:integrity|research-integrity)/(\\d+)/apply$#', $route, $m ) ) {
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/integrity/(\\d+)/apply$#', $route, $m ) ) {
+			return self::apply_entry_atomic( $request, absint( $m[1] ) );
+		}
+		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research-integrity/(\\d+)/apply$#', $route, $m ) ) {
 			return $response;
 		}
 		global $wpdb;
