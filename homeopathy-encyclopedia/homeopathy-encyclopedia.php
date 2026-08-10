@@ -35,6 +35,7 @@ require_once HE_DIR . 'includes/class-he-v22-public-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-integrity.php';
 require_once HE_DIR . 'includes/class-he-v22-rest-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-schedule.php';
+require_once HE_DIR . 'includes/class-he-v22-search.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
@@ -61,6 +62,7 @@ function he_contract_descriptor() {
 		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'transition_integrity_action', 'bounded_reindex' ),
 		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
+		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100 ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
@@ -83,6 +85,7 @@ function he_start_v2() {
 	( new HE_V2_Admin() )->hooks();
 	( new HE_V2_Integrations() )->hooks();
 	( new HE_V2_Privacy() )->hooks();
+	HE_V22_Search::hooks();
 	HE_V22_REST_Guard::hooks();
 	HE_V22_Governance::hooks();
 	HE_V22_Public_Guard::hooks();
