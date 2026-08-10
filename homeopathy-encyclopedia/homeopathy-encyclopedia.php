@@ -33,6 +33,7 @@ require_once HE_DIR . 'includes/class-he-v2-privacy.php';
 require_once HE_DIR . 'includes/class-he-v22-governance.php';
 require_once HE_DIR . 'includes/class-he-v22-public-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-integrity.php';
+require_once HE_DIR . 'includes/class-he-v22-rest-guard.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
@@ -80,6 +81,7 @@ function he_start_v2() {
 	( new HE_V2_Admin() )->hooks();
 	( new HE_V2_Integrations() )->hooks();
 	( new HE_V2_Privacy() )->hooks();
+	HE_V22_REST_Guard::hooks();
 	HE_V22_Governance::hooks();
 	HE_V22_Public_Guard::hooks();
 	HE_V22_Integrity::hooks();
