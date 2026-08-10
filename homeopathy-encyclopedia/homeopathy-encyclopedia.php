@@ -34,6 +34,7 @@ require_once HE_DIR . 'includes/class-he-v22-governance.php';
 require_once HE_DIR . 'includes/class-he-v22-public-guard.php';
 require_once HE_DIR . 'includes/class-he-v22-integrity.php';
 require_once HE_DIR . 'includes/class-he-v22-rest-guard.php';
+require_once HE_DIR . 'includes/class-he-v22-schedule.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
@@ -43,6 +44,7 @@ function he_contract_descriptor() {
 	$events = HE_V2_Integrations::published_events();
 	$events[] = 'ResearchPublicationCorrected.v1';
 	$events[] = 'File06IntegrityStateChanged.v1';
+	$events[] = 'EncyclopediaEntryScheduleInvalidated.v1';
 	return array(
 		'owner'             => 'file-06',
 		'contract_version'  => HE_CONTRACT_VERSION,
@@ -60,7 +62,7 @@ function he_contract_descriptor() {
 		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100 ),
-		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true ),
+		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
 	);
 }
@@ -85,6 +87,7 @@ function he_start_v2() {
 	HE_V22_Governance::hooks();
 	HE_V22_Public_Guard::hooks();
 	HE_V22_Integrity::hooks();
+	HE_V22_Schedule::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
