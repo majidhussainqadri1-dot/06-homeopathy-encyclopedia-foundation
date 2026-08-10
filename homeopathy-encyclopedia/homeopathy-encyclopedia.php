@@ -47,6 +47,7 @@ require_once HE_DIR . 'includes/class-he-v24-migration-safety.php';
 require_once HE_DIR . 'includes/class-he-v24-future-api.php';
 require_once HE_DIR . 'includes/class-he-v24-future-privacy.php';
 require_once HE_DIR . 'includes/class-he-v24-future-review-guard.php';
+require_once HE_DIR . 'includes/class-he-v24-public-provenance.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_activation_hook( HE_FILE, array( 'HE_V23_Future', 'activate' ) );
@@ -88,6 +89,7 @@ function he_contract_descriptor() {
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true ),
+		'public_api'        => array( 'canonical_public_ids_only' => true, 'internal_ids_exposed' => false, 'public_provenance_types' => array( 'concept', 'claim' ) ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
 	);
 }
@@ -129,6 +131,7 @@ function he_start_v2() {
 		HE_V24_Future_API::hooks();
 		HE_V24_Future_Privacy::hooks();
 		HE_V24_Future_Review_Guard::hooks();
+		HE_V24_Public_Provenance::hooks();
 	}
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) {
