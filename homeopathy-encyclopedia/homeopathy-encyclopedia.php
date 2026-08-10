@@ -31,12 +31,15 @@ require_once HE_DIR . 'includes/class-he-v2-admin.php';
 require_once HE_DIR . 'includes/class-he-v2-integrations.php';
 require_once HE_DIR . 'includes/class-he-v2-privacy.php';
 require_once HE_DIR . 'includes/class-he-v22-governance.php';
+require_once HE_DIR . 'includes/class-he-v22-public-guard.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
 
 /** Public, stable provider descriptor for platform discovery. */
 function he_contract_descriptor() {
+	$events = HE_V2_Integrations::published_events();
+	$events[] = 'ResearchPublicationCorrected.v1';
 	return array(
 		'owner'             => 'file-06',
 		'contract_version'  => HE_CONTRACT_VERSION,
@@ -51,7 +54,7 @@ function he_contract_descriptor() {
 		'canonical_routes'  => array( '/encyclopedia/', '/encyclopedia/{type}/', '/encyclopedia/entry/{canonical_slug}/', '/research/', '/research/{permanent_id}/', '/knowledge/editor/' ),
 		'queries'           => array( 'search_knowledge', 'get_entry', 'get_related_graph', 'browse_research', 'health' ),
 		'commands'          => array( 'create_entry_draft', 'submit_entry_review', 'publish_entry_version', 'merge_concepts', 'submit_research', 'submit_research_review', 'submit_integrity_action', 'bounded_reindex' ),
-		'events'            => HE_V2_Integrations::published_events(),
+		'events'            => array_values( array_unique( $events ) ),
 		'privacy_class'     => 'mixed-public-restricted',
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100 ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'outbox_reconciliation' => true ),
@@ -76,6 +79,7 @@ function he_start_v2() {
 	( new HE_V2_Integrations() )->hooks();
 	( new HE_V2_Privacy() )->hooks();
 	HE_V22_Governance::hooks();
+	HE_V22_Public_Guard::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
