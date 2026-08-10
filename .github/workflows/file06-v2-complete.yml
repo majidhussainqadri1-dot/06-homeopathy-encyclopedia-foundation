@@ -1,7 +1,7 @@
-name: File 06 v2.2 Dual-Plan Integrity
+name: File 06 v2.3 Future-18 Integrity
 on:
   push:
-    branches: [ codex/file-06-new-plans-completion-v2.2.0 ]
+    branches: [ codex/file-06-future-18-v2.3.0 ]
   pull_request:
     branches: [ main ]
 permissions:
@@ -31,11 +31,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Verify source, security, privacy and dual-plan architecture
+      - name: Verify source, Future-18, security, privacy and ownership boundaries
         run: |
           set -euo pipefail
-          php tests/v2-invariants.php
           bash tests/v2-source-invariants.sh
+          php tests/v23-future-invariants.php
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
           python3 -m py_compile scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
   reproducible-package:
@@ -46,22 +46,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/06-homeopathy-encyclopedia-foundation-2.2.0-a.zip
-          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/06-homeopathy-encyclopedia-foundation-2.2.0-b.zip
-          cmp -s /tmp/06-homeopathy-encyclopedia-foundation-2.2.0-a.zip /tmp/06-homeopathy-encyclopedia-foundation-2.2.0-b.zip
-          sha256sum /tmp/06-homeopathy-encyclopedia-foundation-2.2.0-a.zip
-          stat -c 'PACKAGE_BYTES=%s' /tmp/06-homeopathy-encyclopedia-foundation-2.2.0-a.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/06-homeopathy-encyclopedia-foundation-2.3.0-a.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/06-homeopathy-encyclopedia-foundation-2.3.0-b.zip
+          cmp -s /tmp/06-homeopathy-encyclopedia-foundation-2.3.0-a.zip /tmp/06-homeopathy-encyclopedia-foundation-2.3.0-b.zip
+          stat -c 'PACKAGE_BYTES=%s' /tmp/06-homeopathy-encyclopedia-foundation-2.3.0-a.zip
           python3 - <<'PY'
-          import re, zipfile, hashlib
+          import zipfile, hashlib
           from pathlib import Path
-          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.2.0-a.zip')
+          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.3.0-a.zip')
           with zipfile.ZipFile(path) as z:
               names=z.namelist()
               assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names), names[:5]
               bootstrap=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode('utf-8')
-              assert "define( 'HE_VERSION', '2.2.0' )" in bootstrap
-              assert "define( 'HE_SCHEMA_VERSION', 8 )" in bootstrap
-              assert "define( 'HE_CONTRACT_VERSION', '2.2' )" in bootstrap
+              assert "define( 'HE_VERSION', '2.3.0' )" in bootstrap
+              assert "define( 'HE_SCHEMA_VERSION', 9 )" in bootstrap
+              assert "define( 'HE_CONTRACT_VERSION', '2.3' )" in bootstrap
+              assert 'class-he-v23-future-intelligence.php' in bootstrap
           print('PACKAGE_SHA256=' + hashlib.sha256(path.read_bytes()).hexdigest())
           PY
           python3 scripts/source-tree-hash.py homeopathy-encyclopedia
