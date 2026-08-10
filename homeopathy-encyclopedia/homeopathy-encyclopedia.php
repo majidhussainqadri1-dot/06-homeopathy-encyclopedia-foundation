@@ -43,11 +43,17 @@ require_once HE_DIR . 'includes/class-he-v22-consumers.php';
 require_once HE_DIR . 'includes/class-he-v22-operations.php';
 require_once HE_DIR . 'includes/class-he-v23-future.php';
 require_once HE_DIR . 'includes/class-he-v24-audit80-hardening.php';
+require_once HE_DIR . 'includes/class-he-v24-final-guard.php';
 
 register_activation_hook( HE_FILE, array( 'HE_V22_Governance', 'activate' ) );
 register_activation_hook( HE_FILE, array( 'HE_V23_Future', 'activate' ) );
 register_activation_hook( HE_FILE, array( 'HE_V24_Audit80_Hardening', 'activate' ) );
 register_deactivation_hook( HE_FILE, array( 'HE_V2_Schema', 'deactivate' ) );
+
+function he_v24_deactivate() {
+	wp_clear_scheduled_hook( HE_V23_Future::CRON );
+}
+register_deactivation_hook( HE_FILE, 'he_v24_deactivate' );
 
 /** Public, stable provider descriptor for platform discovery. */
 function he_contract_descriptor() {
@@ -118,6 +124,7 @@ function he_start_v2() {
 	HE_V22_Operations::hooks();
 	HE_V23_Future::hooks();
 	HE_V24_Audit80_Hardening::hooks();
+	HE_V24_Final_Guard::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
