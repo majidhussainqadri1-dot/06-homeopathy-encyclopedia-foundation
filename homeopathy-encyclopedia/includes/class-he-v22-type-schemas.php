@@ -7,10 +7,10 @@ final class HE_V22_Type_Schemas {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ), 60 );
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'validate_transition' ), 88, 3 );
 		add_filter( 'sabri_composer_content_types', array( __CLASS__, 'composer_schema' ), 120 );
+		add_action( 'save_post_' . HE_V2_Domain::ENTRY_TYPE, array( __CLASS__, 'save_entry_meta' ), 45, 2 );
 	}
 
 	public static function schemas() {
-		$common = array( 'source', 'key_points', 'symptoms', 'causes', 'modalities', 'red_flags', 'safety', 'limitations', 'emergency_boundary', 'evidence_summary' );
 		return array(
 			'remedy' => array( 'required' => array( 'source', 'key_points', 'modalities', 'safety', 'limitations', 'emergency_boundary' ), 'optional' => array( 'symptoms', 'causes', 'red_flags', 'evidence_summary' ), 'body_system_required' => false ),
 			'symptom' => array( 'required' => array( 'source', 'key_points' ), 'optional' => array( 'symptoms', 'causes', 'modalities', 'red_flags', 'safety', 'limitations', 'emergency_boundary', 'evidence_summary' ), 'body_system_required' => true ),
@@ -76,6 +76,29 @@ final class HE_V22_Type_Schemas {
 			return new WP_Error( 'he_type_schema_validation_failed', __( 'Required fields for this knowledge type are incomplete.', 'homeopathy-encyclopedia' ), array( 'status' => 422, 'fields' => array_values( array_unique( $missing ) ), 'type' => $row['type_slug'] ) );
 		}
 		return true;
+	}
+
+	/** The inherited admin callback runs before concept materialization on a first save; repeat safely after priority 30. */
+	public static function save_entry_meta( $post_id, $post ) {
+		if ( ! isset( $_POST['he_v2_entry_meta_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['he_v2_entry_meta_nonce'] ) ), 'he_v2_entry_meta' ) ) {
+			return;
+		}
+		if ( ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT, $post_id, 'entry-admin-save' ) ) {
+			return;
+		}
+		$fields = array();
+		foreach ( array( 'source','key_points','symptoms','causes','modalities','red_flags','safety','limitations','emergency_boundary','evidence_summary' ) as $field ) {
+			$fields[ $field ] = sanitize_textarea_field( wp_unslash( $_POST[ 'he_' . $field ] ?? '' ) );
+		}
+		update_post_meta( $post_id, '_he_structured', $fields );
+		$safety = sanitize_key( wp_unslash( $_POST['he_safety_status'] ?? 'pending' ) );
+		update_post_meta( $post_id, '_he_safety_status', in_array( $safety, array( 'pending','approved','restricted' ), true ) ? $safety : 'pending' );
+		global $wpdb;
+		$concept_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $post_id ) ) );
+		if ( $concept_id ) {
+			$wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . ' SET row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d', $concept_id ) );
+			HE_V22_Governance::reindex_concept_secure( $concept_id );
+		}
 	}
 
 	public static function validate_transition( $response, $handler, $request ) {
