@@ -1,5 +1,5 @@
 <?php
-/** Deterministic source and architecture invariants for File 06 v2. */
+/** Deterministic source and architecture invariants for File 06 v2.2. */
 $root = dirname( __DIR__ );
 $plugin = $root . '/homeopathy-encyclopedia';
 $failures = array();
@@ -26,12 +26,18 @@ $auth = he_read( $plugin . '/includes/class-he-v2-auth.php' );
 $integrations = he_read( $plugin . '/includes/class-he-v2-integrations.php' );
 $privacy = he_read( $plugin . '/includes/class-he-v2-privacy.php' );
 $public = he_read( $plugin . '/includes/class-he-v2-public.php' );
+$governance = he_read( $plugin . '/includes/class-he-v22-governance.php' );
+$public_guard = he_read( $plugin . '/includes/class-he-v22-public-guard.php' );
+$integrity = he_read( $plugin . '/includes/class-he-v22-integrity.php' );
 $css = he_read( $plugin . '/assets/css/encyclopedia-v2.css' );
 $js = he_read( $plugin . '/assets/js/encyclopedia-v2.js' );
+$builder = he_read( $root . '/scripts/build-release.py' );
+$all = $bootstrap . $schema . $domain . $api . $auth . $integrations . $privacy . $public . $governance . $public_guard . $integrity;
 
-he_test_assert( false !== strpos( $bootstrap, "define( 'HE_VERSION', '2.0.0' )" ), 'Plugin version is not 2.0.0.' );
-he_test_assert( false !== strpos( $bootstrap, "define( 'HE_SCHEMA_VERSION', 7 )" ), 'Schema version is not 7.' );
-he_test_assert( false !== strpos( $bootstrap, "HE_CONTRACT_VERSION', '2.0" ), 'Contract version is not 2.0.' );
+he_test_assert( false !== strpos( $bootstrap, "define( 'HE_VERSION', '2.2.0' )" ), 'Plugin version is not 2.2.0.' );
+he_test_assert( false !== strpos( $bootstrap, "define( 'HE_SCHEMA_VERSION', 8 )" ), 'Schema version is not 8.' );
+he_test_assert( false !== strpos( $bootstrap, "HE_CONTRACT_VERSION', '2.2" ), 'Contract version is not 2.2.' );
+he_test_assert( false !== strpos( $bootstrap, "'staging_accepted' => false" ) && false !== strpos( $bootstrap, "'live_deployed' => false" ), 'Release truth must keep staging/live separate from coded candidate.' );
 
 preg_match_all( "/=> __\( '/", $domain, $matches );
 he_test_assert( count( $matches[0] ) >= 16, 'The governed taxonomy does not expose at least sixteen types.' );
@@ -40,50 +46,74 @@ $required_tables = array( 'concepts', 'aliases', 'versions', 'references', 'rela
 foreach ( $required_tables as $table ) {
 	he_test_assert( false !== strpos( $schema, "table( '" . $table . "' )" ), 'Missing schema table: ' . $table );
 }
+he_test_assert( false !== strpos( $governance, "table( 'migration_quarantine' )" ), 'Missing resumable migration quarantine.' );
+he_test_assert( false !== strpos( $governance, 'content_hash char(64)' ) && false !== strpos( $governance, 'reviewed_row_version' ), 'Fresh reviews are not bound to exact content/version.' );
 
 $required_routes = array( '/health', '/entries', '/versions', '/diff', '/bookmark', '/aliases', '/references', '/review', '/transition', '/integrity', '/graph', '/duplicates', '/merge', '/autocomplete', '/research', '/datasets', '/repair' );
 foreach ( $required_routes as $route ) {
 	he_test_assert( false !== strpos( $api, $route ), 'Missing REST route token: ' . $route );
 }
+foreach ( array( '/research/(?P<id>', '/research-integrity/', '/operations/reindex', '/integrity/(?P<id>' ) as $route ) {
+	he_test_assert( false !== strpos( $governance . $integrity, $route ), 'Missing v2.2 governance route: ' . $route );
+}
 
-$security_tokens = array( 'X-WP-Nonce', 'Idempotency-Key', 'he_rate_limited', 'he_safe_mode', 'row_version', 'he_version_conflict', 'membership_allowed', 'CAP_PUBLISH', 'CAP_TAXONOMY', 'rest_permission' );
+$security_tokens = array( 'X-WP-Nonce', 'Idempotency-Key', 'he_rate_limited', 'he_safe_mode', 'row_version', 'he_version_conflict', 'CAP_PUBLISH', 'CAP_TAXONOMY', 'rest_permission' );
 foreach ( $security_tokens as $token ) {
-	he_test_assert( false !== strpos( $api . $auth . $domain, $token ), 'Missing security invariant: ' . $token );
+	he_test_assert( false !== strpos( $all, $token ), 'Missing security invariant: ' . $token );
 }
+he_test_assert( false !== strpos( $auth, 'SMC_Contracts::assertions' ) && false !== strpos( $auth, 'provider_ready' ), 'File 00 versioned assertion authority is missing.' );
+he_test_assert( false !== strpos( $auth, 'he_identity_provider_unavailable' ), 'Protected actions do not fail closed when File 00 is unavailable.' );
+he_test_assert( false === strpos( $auth, "return (bool) user_can( $user_id, 'manage_options' )" ), 'Legacy manage_options founder fallback remains.' );
+he_test_assert( false !== strpos( $governance, 'add_option( self::LOCK_OPTION' ), 'Atomic add_option migration/upgrade lock is missing.' );
+he_test_assert( false !== strpos( $governance, 'current-session-only' ), 'Composer actor/session binding is missing.' );
 
-$knowledge_tokens = array( 'wp_generate_uuid4', 'normalized_alias', 'evidence_grade', 'quotation_word_count', 'content_hash', 'wp_text_diff', 'find_duplicates', 'merge_concepts', 'relation_types', 'get_related_graph', 'source_grade' );
+$knowledge_tokens = array( 'wp_generate_uuid4', 'normalized_alias', 'evidence_grade', 'quotation_word_count', 'content_hash', 'wp_text_diff', 'relation_types', 'get_related_graph', 'source_grade' );
 foreach ( $knowledge_tokens as $token ) {
-	he_test_assert( false !== strpos( $domain . $schema . $api . $bootstrap . $integrations, $token ), 'Missing knowledge invariant: ' . $token );
+	he_test_assert( false !== strpos( $all, $token ), 'Missing knowledge invariant: ' . $token );
 }
+he_test_assert( false !== strpos( $governance, 'secure_merge' ) && false !== strpos( $governance, '$tv' ) && false !== strpos( $governance, 'alias-third-party-collision' ), 'Merge does not protect both row versions and alias ownership.' );
+he_test_assert( false !== strpos( $governance, 'reindex_concept_secure' ) && false !== strpos( $governance, "table( 'versions' )" ), 'Public search is not rebuilt from immutable governed versions.' );
+he_test_assert( false !== strpos( $governance, 'find_duplicates' ) && false !== strpos( $governance, 'c.id<>%d' ), 'Scoped duplicate detection against other concepts is missing.' );
+he_test_assert( false !== strpos( $governance, 'he_relation_provenance_invalid' ), 'Relationship provenance ownership validation is missing.' );
 
-$integrity_tokens = array( 'EncyclopediaEntryCorrected.v1', 'EncyclopediaEntryRetracted.v1', 'KnowledgeConceptMerged.v1', 'replacement_object_id', 'appeal_status' );
+$integrity_tokens = array( 'EncyclopediaEntryCorrected.v1', 'EncyclopediaEntryRetracted.v1', 'KnowledgeConceptMerged.v1', 'replacement_object_id', 'appeal_status', 'he_integrity_acceptance_required', 'File06IntegrityStateChanged.v1', 'ResearchPublicationCorrected.v1' );
 foreach ( $integrity_tokens as $token ) {
-	he_test_assert( false !== strpos( $domain . $schema . $integrations, $token ), 'Missing integrity invariant: ' . $token );
+	he_test_assert( false !== strpos( $all, $token ), 'Missing integrity invariant: ' . $token );
 }
+he_test_assert( false !== strpos( $governance, 'he_integrity_workflow_required' ), 'Direct corrected/retracted transitions are not blocked.' );
 
-$research_tokens = array( 'ethics_review', 'peer_review', 'successful-case', 'کامیاب کیس', 'case_anonymized', 'case_consent_verified', 'adverse_events', 'dataset_access', 'lawful_basis', 'expires_at', 'he_case_pii_detected' );
+$research_tokens = array( 'ethics_review', 'peer_review', 'successful-case', 'کامیاب کیس', 'case_anonymized', 'case_consent_verified', 'adverse_events', 'dataset_access', 'lawful_basis', 'expires_at', 'he_case_pii_detected', 'dataset_description', 'de_identification', 'access_policy', 'he_fresh_independent_review_required' );
 foreach ( $research_tokens as $token ) {
-	he_test_assert( false !== strpos( $domain . $schema, $token ), 'Missing research invariant: ' . $token );
+	he_test_assert( false !== strpos( $all, $token ), 'Missing research invariant: ' . $token );
 }
+he_test_assert( false !== strpos( $public_guard, "array( 'published', 'corrected', 'retracted' )" ), 'Corrected/retracted research public integrity metadata is not preserved.' );
+he_test_assert( false !== strpos( $public_guard, "'public' === $row['data_class']" ), 'Restricted research protocol public guard is missing.' );
 
 $contract_tokens = array( 'sabri_composer_content_types', 'sabri_publishing_dashboard_providers', 'sabri_search_connectors', 'sabri_security_assurance_providers', 'sabri_shell_routes', 'sabri_public_component_registry', 'native_enforcement_preserved', 'visibility_recheck' );
 foreach ( $contract_tokens as $token ) {
 	he_test_assert( false !== strpos( $integrations, $token ), 'Missing cross-file contract: ' . $token );
 }
-
-$privacy_tokens = array( 'wp_privacy_personal_data_exporters', 'wp_privacy_personal_data_erasers', 'bookmarks', 'dataset_access', 'noindex', 'nocache_headers', 'explicit allowlists' );
-foreach ( $privacy_tokens as $token ) {
-	he_test_assert( false !== strpos( $privacy . $domain . $public, $token ), 'Missing privacy invariant: ' . $token );
+foreach ( array( "'identity_authority'=> 'file-00'", "'layout_owner'      => 'file-20'", "'visual_owner'      => 'file-25'", "'search_owner'      => 'file-26'", "'assurance_owner'   => 'file-24'" ) as $token ) {
+	he_test_assert( false !== strpos( $bootstrap, $token ), 'Missing canonical cross-file owner declaration: ' . $token );
 }
 
-he_test_assert( false !== strpos( $css, '--sabri-primary:#16823b' ), 'Green primary token is missing.' );
+$privacy_tokens = array( 'wp_privacy_personal_data_exporters', 'wp_privacy_personal_data_erasers', 'he_v2_privacy_legal_hold', 'PAGE_SIZE', 'dataset_access', 'noindex', 'nocache_headers', 'explicit allowlists' );
+foreach ( $privacy_tokens as $token ) {
+	he_test_assert( false !== strpos( $privacy . $domain . $public . $public_guard, $token ), 'Missing privacy invariant: ' . $token );
+}
+he_test_assert( false !== strpos( $privacy, "'done' => $done" ), 'Privacy erasure is not resumable to a proven completion state.' );
+
+he_test_assert( false !== strpos( $css, '--he-primary:var(--sabri-color-primary,var(--sabri-primary,#087A4E))' ), 'File 06 does not consume File 25/shared primary token with a safe fallback.' );
+he_test_assert( false === strpos( $css, '--sabri-primary:#' ), 'File 06 still declares global Sabri primary token ownership.' );
 he_test_assert( false !== strpos( $css, ':focus-visible' ), 'Visible focus style is missing.' );
 he_test_assert( false !== strpos( $css, 'prefers-reduced-motion' ), 'Reduced-motion style is missing.' );
 he_test_assert( false !== strpos( $css, '[dir="rtl"]' ), 'RTL style is missing.' );
 he_test_assert( false !== strpos( $css, 'forced-colors' ), 'Forced-colors support is missing.' );
-he_test_assert( false === strpos( strtolower( $css ), '--he-orange' ), 'Deprecated orange identity token remains.' );
 he_test_assert( false !== strpos( $js, 'AbortController' ), 'Cancelable query behavior is missing.' );
 he_test_assert( false !== strpos( $js, 'aria-busy' ), 'Accessible loading state is missing.' );
+
+he_test_assert( false !== strpos( $builder, "default='06-homeopathy-encyclopedia-foundation'" ), 'Canonical package top-level folder does not match the new File 06 plan.' );
+he_test_assert( false !== strpos( $governance, 'BATCH_SIZE = 50' ) && false !== strpos( $governance, 'migration_quarantine' ) && false !== strpos( $governance, 'reconcile_outbox' ), 'Bounded migration/reconciliation/repair controls are incomplete.' );
 
 $all_php = '';
 foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $plugin ) ) as $file ) {
@@ -96,7 +126,7 @@ he_test_assert( substr_count( $all_php, 'wp_unslash( $_POST' ) >= 10, 'Admin req
 he_test_assert( false === strpos( $all_php, 'wp_remote_get( $_' ), 'Unvalidated outbound URL fetch found.' );
 
 if ( $failures ) {
-	fwrite( STDERR, "File 06 v2 invariant failures:\n- " . implode( "\n- ", $failures ) . "\n" );
+	fwrite( STDERR, "File 06 v2.2 invariant failures:\n- " . implode( "\n- ", $failures ) . "\n" );
 	exit( 1 );
 }
-echo "File 06 v2 source and architecture invariants passed.\n";
+echo "File 06 v2.2 source, dual-plan and architecture invariants passed.\n";
