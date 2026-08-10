@@ -28,7 +28,7 @@ f06_reg_assert( false !== strpos( $bootstrap, "define( 'HE_SCHEMA_VERSION', 9 )"
 f06_reg_assert( false !== strpos( $bootstrap, "HE_CONTRACT_VERSION', '2.3" ), 'Contract mismatch.' );
 f06_reg_assert( false !== strpos( $bootstrap, "'staging_accepted' => false" ) && false !== strpos( $bootstrap, "'live_deployed' => false" ), 'Repository truth is incorrectly promoted to staging/live.' );
 f06_reg_assert( false !== strpos( $auth, 'SMC_Contracts::assertions' ) && false !== strpos( $auth, 'he_identity_provider_unavailable' ), 'File 00 fail-closed authority regressed.' );
-f06_reg_assert( false === strpos( $auth, "return (bool) user_can( $user_id, 'manage_options' )" ), 'Legacy founder bypass returned.' );
+f06_reg_assert( false === strpos( $auth, 'return (bool) user_can( $user_id, \'manage_options\' )' ), 'Legacy founder bypass returned.' );
 f06_reg_assert( false !== strpos( $governance, 'migration_quarantine' ) && false !== strpos( $governance, 'add_option( self::LOCK_OPTION' ), 'Migration safety regressed.' );
 f06_reg_assert( false !== strpos( $integrity, 'he_integrity_acceptance_required' ) && false !== strpos( $integrity, 'START TRANSACTION' ), 'Integrity workflow regressed.' );
 f06_reg_assert( false !== strpos( $schedule, 'content-or-review-changed-before-publication' ), 'Scheduled publication revalidation regressed.' );
@@ -40,7 +40,7 @@ f06_reg_assert( false !== strpos( $operations, "status='dead-letter'" ), 'Operat
 f06_reg_assert( false !== strpos( $privacy, 'wp_privacy_personal_data_exporters' ) && false !== strpos( $privacy, 'wp_privacy_personal_data_erasers' ), 'Privacy lifecycle regressed.' );
 f06_reg_assert( false !== strpos( $css, ':focus-visible' ) && false !== strpos( $css, 'prefers-reduced-motion' ) && false !== strpos( $css, '[dir="rtl"]' ), 'Accessibility/RTL regressed.' );
 f06_reg_assert( false !== strpos( $future, 'F06-FUT-001' ) && false !== strpos( $future, 'F06-FUT-018' ), 'Future intelligence is not loaded end-to-end.' );
-f06_reg_assert( false === preg_match( '/\b(eval|create_function)\s*\(/i', $all ), 'Unsafe dynamic execution found.' );
+f06_reg_assert( 0 === preg_match( '/\b(eval|create_function)\s*\(/i', $all ), 'Unsafe dynamic execution found.' );
 f06_reg_assert( false === strpos( $all, 'wp_remote_get( $_' ), 'Unvalidated outbound request found.' );
 
 if ( $failures ) { fwrite( STDERR, "File 06 v2.3 regression failures:\n- " . implode( "\n- ", $failures ) . "\n" ); exit( 1 ); }
