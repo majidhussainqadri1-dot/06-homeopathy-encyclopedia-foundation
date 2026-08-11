@@ -238,11 +238,12 @@ final class HE_V2_Domain {
 	}
 
 	public static function on_save_entry( $post_id, $post, $update ) {
-		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
-			return;
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) { return; }
+		$concept_id = self::ensure_concept_for_post( $post_id );
+		if ( ! $concept_id || ! self::reindex_concept_by_post( $post_id ) ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'entry_save_projection_failed', 'A WordPress entry save could not be reconciled with its canonical File 06 projection/search index; mutations were paused.' );
 		}
-		self::ensure_concept_for_post( $post_id );
-		self::reindex_concept_by_post( $post_id );
 	}
 
 	public static function on_save_research( $post_id, $post, $update ) {
@@ -339,10 +340,14 @@ final class HE_V2_Domain {
 		$type = self::taxonomy_slug( $post_id, self::TAX_TYPE );
 		$language = get_post_meta( $post_id, '_he_language', true ) ?: 'en-US';
 		if ( $existing ) {
-			if ( ! $type || ! isset( self::types()[ $type ] ) ) {
-				$type = 'clinical-terminology';
+			if ( ! $type || ! isset( self::types()[ $type ] ) ) { $type = 'clinical-terminology'; }
+			$updated = $wpdb->update( $table, array( 'type_slug' => $type, 'language' => $language, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => $existing ), array( '%s','%s','%s' ), array( '%d' ) );
+			$persisted = $wpdb->get_row( $wpdb->prepare( "SELECT type_slug,language FROM {$table} WHERE id=%d", $existing ), ARRAY_A );
+			if ( false === $updated || ! $persisted || (string) $persisted['type_slug'] !== (string) $type || (string) $persisted['language'] !== (string) $language ) {
+				update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+				HE_V2_Schema::record_runtime_failure( 'entry_projection_update_failed', 'File 06 could not verify entry type/language projection persistence.' );
+				return 0;
 			}
-			$wpdb->update( $table, array( 'type_slug' => $type, 'language' => $language, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => $existing ), array( '%s','%s','%s' ), array( '%d' ) );
 			return $existing;
 		}
 
@@ -1610,17 +1615,15 @@ final class HE_V2_Domain {
 	public static function reindex_concept_by_post( $post_id ) {
 		global $wpdb;
 		$id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $post_id ) ) );
-		if ( $id ) {
-			self::reindex_concept( $id );
-		}
+		return $id ? self::reindex_concept( $id ) : false;
 	}
 
 	public static function reindex_concept( $concept_id ) {
 		global $wpdb;
 		$row = self::concept_by_id( $concept_id, true );
 		if ( ! $row || ! self::is_public_concept( $row ) || ! $row['current_version'] ) {
-			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => absint( $concept_id ) ), array( '%d' ) );
-			return false;
+			$deleted = $wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => absint( $concept_id ) ), array( '%d' ) );
+			return false !== $deleted;
 		}
 		$post = get_post( (int) $row['post_id'] );
 		$aliases = $wpdb->get_col( $wpdb->prepare( 'SELECT alias FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d', $row['id'] ) );
