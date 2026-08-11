@@ -1,15 +1,15 @@
-# File 06 Status — 2.4.2 Third Fresh 80-Round Candidate
+# File 06 Status — 2.4.4 Fifth Fresh Ten-Round Candidate
 
 | Status | Evidence |
 |---|---|
 | Specified | Current File 06 v1.1: FR-001–019 + NFR-001–010 + F06-FUT-001–018, plus later ten-language public-publishing constitution where applicable |
-| Coded | `audit/file-06-third-80-round-v2.4.2` |
-| Reviewed | Third fresh 80-round review/fix cycle completed; two separate post-final-code reviews are recorded in `docs/REVIEW-V242-ROUND-1.md` and `docs/REVIEW-V242-ROUND-2.md` |
-| Packaged | Deterministic double build PASS |
-| Automated QA | GitHub Actions run `31454206508`: PHP 7.4 PASS, PHP 8.3 PASS, core/first-80/Future-18/second-80/third-80 invariants PASS, reproducible package PASS, WordPress 7.0.1 + PHP 8.3 fresh-install/plugin-lifecycle smoke PASS |
-| Package SHA-256 | `b031e5bfec3130713fe812cf14614a83c43d35ed92c130f02e98b0c98fd7975a` |
-| Package bytes | `183423` |
-| Source-tree SHA-256 | `4e36b9f8ecd6346861b17f44b5eded0fa0d2210bbb16178030d8ff111100829a` |
+| Coded | `audit/file-06-fifth-ten-round-v2.4.4` — exact final HEAD pending round 10 |
+| Reviewed | Fifth fresh ten-round corrective cycle in progress; rounds 1–9 completed, final QA round pending |
+| Packaged | Pending round-10 exact-head deterministic double build |
+| Automated QA | Per-round source validation/regression suites green; final exact-head matrix pending round 10 |
+| Package SHA-256 | Pending round 10 |
+| Package bytes | Pending round 10 |
+| Source-tree SHA-256 | Pending round 10 |
 | Third-cycle defect rounds | `4, 5, 7, 11, 17, 18, 19, 20, 21, 22, 28, 29, 30, 31, 32, 38, 39, 58, 61, 72, 73, 74, 75, 78` |
 | Clean rounds | `56 / 80` |
 | Staging accepted | **No / unverified** — target Hostinger/WordPress evidence still required |
@@ -18,9 +18,9 @@
 
 ## Runtime contract
 
-- Plugin: `2.4.2`
+- Plugin: `2.4.4`
 - Schema: `10`
-- Contract: `2.4.2`
+- Contract: `2.4.4`
 - Future requirement count: `18`
 - Identity/current-claim authority: File 00
 - Notification delivery: File 19

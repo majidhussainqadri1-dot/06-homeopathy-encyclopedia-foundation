@@ -3,7 +3,7 @@
  * Plugin Name: Homeopathy Encyclopedia Foundation
  * Plugin URI: https://www.sabrihomeopathy.com/
  * Description: Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
- * Version: 2.4.3
+ * Version: 2.4.4
  * Requires at least: 6.1
  * Requires PHP: 7.4
  * Author: Dr. Allama Majid Hussain Sabri
@@ -14,13 +14,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HE_VERSION', '2.4.3' );
+define( 'HE_VERSION', '2.4.4' );
 define( 'HE_SCHEMA_VERSION', 10 );
 define( 'HE_FILE', __FILE__ );
 define( 'HE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HE_URL', plugin_dir_url( __FILE__ ) );
 define( 'HE_BASENAME', plugin_basename( __FILE__ ) );
-define( 'HE_CONTRACT_VERSION', '2.4.3' );
+define( 'HE_CONTRACT_VERSION', '2.4.4' );
 
 require_once HE_DIR . 'includes/class-he-v2-auth.php';
 require_once HE_DIR . 'includes/class-he-v2-schema.php';

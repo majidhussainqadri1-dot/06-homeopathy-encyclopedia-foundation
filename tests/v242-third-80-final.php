@@ -9,7 +9,7 @@ foreach(array(
 't242'=>'includes/class-he-v242-third-audit.php','rc242'=>'includes/class-he-v242-runtime-corrections.php','ml242'=>'includes/class-he-v242-multilingual.php','rb242'=>'includes/class-he-v242-research-browse.php','ra242'=>'includes/class-he-v242-research-authoring.php','ls242'=>'includes/class-he-v242-language-surfaces.php','wl242'=>'includes/class-he-v242-watchlist.php','ref242'=>'includes/class-he-v242-reference-graph.php','ri242'=>'includes/class-he-v242-research-immutability.php','pt242'=>'includes/class-he-v242-public-translation-guard.php','lm242'=>'includes/class-he-v242-language-migration.php','css'=>'assets/css/encyclopedia-v2.css','un'=>'uninstall.php') as $k=>$v){$F[$k]=file_get_contents($P.'/'.$v);}
 $F['wf']=file_get_contents($R.'/.github/workflows/file06-v2-complete.yml');$bad=array();$n=0;
 function H($k,$x){global $F;return false!==strpos($F[$k],$x);}function Q($round,$ok,$name){global $bad,$n;$n++;if(!$ok)$bad[]=sprintf('Round %02d — %s',$round,$name);}
-Q(1,H('b',"HE_VERSION', '2.4.3")&&H('b',"HE_CONTRACT_VERSION', '2.4.3"),'exact version/contract');
+Q(1,H('b',"HE_VERSION', '2.4.4")&&H('b',"HE_CONTRACT_VERSION', '2.4.4"),'exact version/contract');
 Q(2,H('b',"HE_SCHEMA_VERSION', 10"),'schema 10');
 Q(3,preg_match("/'staging_accepted'\s*=>\s*false/",$F['b'])&&preg_match("/'live_deployed'\s*=>\s*false/",$F['b'])&&preg_match("/'operational'\s*=>\s*false/",$F['b']),'release truth');
 Q(4,H('t242','repair_canonical_alias_language')&&H('lm242',"canonical_locale' => 'ur'"),'canonical language/alias');
@@ -89,4 +89,4 @@ Q(77,H('css','--he-primary:var(--sabri-color-primary')&&H('css','[dir="rtl"]'),'
 Q(78,H('wf','reproducible-package')&&H('wf','source-tree-hash.py')&&H('wf','wordpress-smoke'),'package + runtime smoke evidence');
 Q(79,is_file($R.'/docs/REVIEW-V242-ROUND-1.md'),'fresh review 1');
 Q(80,is_file($R.'/docs/REVIEW-V242-ROUND-2.md'),'fresh review 2');
-if($n!==80)$bad[]='matrix count '.$n;if($bad){fwrite(STDERR,"File 06 v2.4.3 corrected third-80 matrix FAILED:\n- ".implode("\n- ",$bad)."\n");exit(1);}echo "File 06 v2.4.3 corrected third fresh 80-round matrix passed (80/80).\n";
+if($n!==80)$bad[]='matrix count '.$n;if($bad){fwrite(STDERR,"File 06 v2.4.4 inherited third-80 matrix FAILED:\n- ".implode("\n- ",$bad)."\n");exit(1);}echo "File 06 v2.4.4 inherited third fresh 80-round matrix passed (80/80).\n";

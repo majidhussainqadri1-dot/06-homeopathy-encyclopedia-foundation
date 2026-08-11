@@ -1,6 +1,6 @@
-# File 06 — Homeopathy Encyclopedia 2.4.2
+# File 06 — Homeopathy Encyclopedia 2.4.4
 
-This branch is the third fresh 80-round review/fix candidate for the File 06 v1.1 **Future Knowledge Intelligence 18** governing plan. It also applies the later ten-language public-publishing constitution to governed knowledge translations. Repository evidence is not staging or live evidence.
+This branch is the fifth fresh ten-round review/fix candidate for the File 06 v1.1 **Future Knowledge Intelligence 18** governing plan. It also applies the later ten-language public-publishing constitution to governed knowledge translations. Repository evidence is not staging or live evidence.
 
 ## Canonical ownership
 
@@ -9,9 +9,9 @@ File 06 owns permanent canonical knowledge concepts/IDs, the fixed sixteen-type 
 ## Runtime candidate
 
 - Plugin folder: `homeopathy-encyclopedia`
-- Plugin version: `2.4.2`
+- Plugin version: `2.4.4`
 - Schema: `10`
-- Contract: `2.4.2`
+- Contract: `2.4.4`
 - REST namespace: `sabri/v2/file-06`
 - PHP: `7.4+`
 - Target revalidation baseline: WordPress `7.0.1`, PHP `8.3`
@@ -40,15 +40,10 @@ Run:
 
 ```bash
 bash tests/run-all.sh
-python3 scripts/build-release.py --source homeopathy-encyclopedia --output dist/06-homeopathy-encyclopedia-foundation-2.4.2.zip
+python3 scripts/build-release.py --source homeopathy-encyclopedia --output dist/06-homeopathy-encyclopedia-foundation-2.4.4.zip
 ```
 
-Final reviewed package evidence:
-
-- GitHub Actions run: `31454206508`
-- ZIP SHA-256: `b031e5bfec3130713fe812cf14614a83c43d35ed92c130f02e98b0c98fd7975a`
-- ZIP bytes: `183423`
-- Source-tree SHA-256: `4e36b9f8ecd6346861b17f44b5eded0fa0d2210bbb16178030d8ff111100829a`
+Final reviewed package evidence: **pending the round-10 exact-head reproducible-package gate.**
 
 ## Release truth
 
