@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.15 — Sixteenth fresh twenty-round corrected candidate
+- Twenty sequential review/fix/retest rounds completed; product/repository defects corrected in rounds 1–19 and release-truth drift corrected in round 20; every round produced an actionable correction.
+- Hardened canonical identifiers, opaque pagination, WordPress/domain projection parity, migration/reindex/repair failure propagation, complete health checks, authoritative post binding, hard-delete confirmation and secure scheduled-publication ownership.
+- Repository candidate only; staging/live/operational evidence remains unverified.
+
 ## 2.4.11 — Twelfth fresh ten-round corrected candidate
 - Ten sequential review/fix/retest rounds completed; defects corrected in rounds 1–10.
 - Unified nuanced research public eligibility, privacy erasure object de-identification, research admin CAS, investigator compatibility, language canonicalization and public translation identifier hygiene.
