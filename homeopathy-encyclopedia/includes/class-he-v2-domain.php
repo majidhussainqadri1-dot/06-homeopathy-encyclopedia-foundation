@@ -1130,13 +1130,33 @@ final class HE_V2_Domain {
 				return new WP_Error( 'he_ethics_gate_failed', __( 'Ethics approval and required consent must be documented.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
 		}
+		if ( 'published' === $to_state ) {
+			if ( empty( $row['post_id'] ) ) {
+				return new WP_Error( 'he_research_publish_post_missing', __( 'The research record has no governed WordPress publication object.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+			}
+			if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+				HE_V2_Schema::record_runtime_failure( 'research_publish_transaction_start_failed', 'File 06 could not start the research publication transaction.' );
+				return new WP_Error( 'he_research_publish_failed', __( 'Research publication could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
+			try {
+				$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='published',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $row['id'], absint( $expected_version ) ) );
+				if ( 1 !== (int) $result ) { throw new RuntimeException( 'research-version-conflict' ); }
+				$post_result = wp_update_post( array( 'ID' => (int) $row['post_id'], 'post_status' => 'publish' ), true );
+				if ( is_wp_error( $post_result ) || ! $post_result ) { throw new RuntimeException( 'research-wordpress-publish-failed' ); }
+				if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'research-commit-failed' ); }
+			} catch ( Throwable $error ) {
+				$wpdb->query( 'ROLLBACK' );
+				$code = 'research-version-conflict' === $error->getMessage() ? 'he_version_conflict' : 'he_research_publish_failed';
+				$status = 'research-version-conflict' === $error->getMessage() ? 409 : 503;
+				HE_V2_Schema::record_runtime_failure( 'research_publish_atomic_failed', 'File 06 rolled back research publication because domain state, WordPress publication, or transaction commit could not complete atomically.' );
+				return new WP_Error( $code, __( 'Research publication could not be completed atomically.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) );
+			}
+			self::emit_event( 'ResearchPublicationPublished.v1', 'research', $row['id'], array( 'record_type' => $row['record_type'] ) );
+			return self::research_dto( $row['id'], true );
+		}
 		$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $to_state, $row['id'], absint( $expected_version ) ) );
 		if ( 1 !== (int) $result ) {
 			return new WP_Error( 'he_version_conflict', __( 'The research record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-		}
-		if ( 'published' === $to_state && $row['post_id'] ) {
-			wp_update_post( array( 'ID' => (int) $row['post_id'], 'post_status' => 'publish' ) );
-			self::emit_event( 'ResearchPublicationPublished.v1', 'research', $row['id'], array( 'record_type' => $row['record_type'] ) );
 		}
 		if ( 'retracted' === $to_state ) {
 			self::emit_event( 'ResearchRecordRetracted.v1', 'research', $row['id'], array( 'reason' => sanitize_textarea_field( $note ) ) );
