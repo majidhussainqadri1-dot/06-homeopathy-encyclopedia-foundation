@@ -14,6 +14,20 @@ final class HE_V2_Schema {
 		return $wpdb->prefix . 'he_' . sanitize_key( $suffix );
 	}
 
+
+	public static function required_tables() {
+		return array( 'concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','bookmarks','rate_limits','search_index' );
+	}
+
+	public static function schema_complete() {
+		global $wpdb;
+		foreach ( self::required_tables() as $suffix ) {
+			$table = self::table( $suffix );
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) { return false; }
+		}
+		return true;
+	}
+
 	public static function activate() {
 		if ( ! self::acquire_lock() ) {
 			throw new RuntimeException( 'File 06 activation is already running.' );
@@ -392,8 +406,7 @@ final class HE_V2_Schema {
 
 	private static function assert_schema() {
 		global $wpdb;
-		$required = array( 'concepts', 'aliases', 'versions', 'references', 'relations', 'reviews', 'integrity_actions', 'research', 'dataset_access', 'events', 'outbox', 'idempotency', 'bookmarks', 'rate_limits', 'search_index' );
-		foreach ( $required as $suffix ) {
+		foreach ( self::required_tables() as $suffix ) {
 			$table = self::table( $suffix );
 			$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 			if ( $found !== $table ) {
@@ -431,32 +444,27 @@ final class HE_V2_Schema {
 
 	public static function runtime_status() {
 		$failure = get_option( self::OPTION_FAILURE );
-		if ( is_array( $failure ) && ! empty( $failure['code'] ) ) {
-			return 'degraded';
-		}
-		if ( get_option( self::OPTION_SAFE_MODE ) ) {
-			return 'safe-mode';
-		}
-		return (int) get_option( self::OPTION_SCHEMA, 0 ) === HE_SCHEMA_VERSION ? 'active' : 'migration-required';
+		if ( is_array( $failure ) && ! empty( $failure['code'] ) ) { return 'degraded'; }
+		if ( get_option( self::OPTION_SAFE_MODE ) ) { return 'safe-mode'; }
+		if ( (int) get_option( self::OPTION_SCHEMA, 0 ) !== HE_SCHEMA_VERSION ) { return 'migration-required'; }
+		return self::schema_complete() ? 'active' : 'degraded';
 	}
 
 	public static function health() {
 		global $wpdb;
 		$tables = array();
-		foreach ( array( 'concepts', 'aliases', 'versions', 'references', 'relations', 'research', 'outbox', 'bookmarks', 'rate_limits', 'search_index' ) as $suffix ) {
+		foreach ( self::required_tables() as $suffix ) {
 			$table = self::table( $suffix );
-			$tables[ $suffix ] = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+			$tables[ $suffix ] = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
 		}
+		$complete = ! in_array( false, $tables, true );
 		return array(
-			'status' => self::runtime_status(),
-			'plugin_version' => HE_VERSION,
-			'schema_version' => (int) get_option( self::OPTION_SCHEMA, 0 ),
-			'expected_schema' => HE_SCHEMA_VERSION,
-			'tables' => $tables,
-			'file00' => function_exists( 'smc_user_status' ),
-			'file20' => defined( 'SABRI_SHELL_VERSION' ),
+			'status' => $complete ? self::runtime_status() : 'degraded',
+			'plugin_version' => HE_VERSION, 'schema_version' => (int) get_option( self::OPTION_SCHEMA, 0 ), 'expected_schema' => HE_SCHEMA_VERSION,
+			'schema_complete' => $complete, 'tables' => $tables,
+			'file00' => function_exists( 'smc_user_status' ), 'file20' => defined( 'SABRI_SHELL_VERSION' ),
 			'cron' => (bool) wp_next_scheduled( 'he_v2_maintenance' ),
-			'pending_outbox' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . self::table( 'outbox' ) . " WHERE status IN ('pending','retry')" ), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			'pending_outbox' => ! empty( $tables['outbox'] ) ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . self::table( 'outbox' ) . " WHERE status IN ('pending','retry')" ) : 0, // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			'failure' => get_option( self::OPTION_FAILURE, array() ),
 		);
 	}
