@@ -1,5 +1,5 @@
 <?php
-/** Privacy lifecycle for File 06 v2.4.1 editorial-scope and reviewer-assignment metadata. */
+/** Privacy lifecycle for File 06 v2.4.3 editorial-scope and reviewer-assignment metadata. */
 defined( 'ABSPATH' ) || exit;
 
 final class HE_V241_Governance_Privacy {
@@ -85,13 +85,13 @@ final class HE_V241_Governance_Privacy {
 		if ( apply_filters( 'he_v2_privacy_legal_hold', false, $uid ) ) {
 			return array( 'items_removed' => false, 'items_retained' => true, 'messages' => array( __( 'A documented legal or research-integrity hold is active.', 'homeopathy-encyclopedia' ) ), 'done' => true );
 		}
-		$page = max( 1, absint( $page ) );
 		$removed = false;
-		if ( 1 === $page && metadata_exists( 'user', $uid, HE_V241_Governance::META_EDITOR_TYPES ) ) {
+		if ( metadata_exists( 'user', $uid, HE_V241_Governance::META_EDITOR_TYPES ) ) {
 			delete_user_meta( $uid, HE_V241_Governance::META_EDITOR_TYPES );
 			$removed = true;
 		}
-		$post_ids = self::assigned_posts_page( $page );
+		/* Erasure mutates the qualifying set, so always process the first remaining batch. */
+		$post_ids = self::assigned_posts_page( 1 );
 		foreach ( $post_ids as $post_id ) {
 			$assignments = get_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, true );
 			if ( ! is_array( $assignments ) ) { continue; }
