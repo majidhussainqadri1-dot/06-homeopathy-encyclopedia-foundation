@@ -355,9 +355,14 @@ final class HE_V241_Governance {
 	}
 
 	public static function maintenance_serialized() {
+		global $wpdb;
 		$existing = get_option( self::LEASE_OPTION, array() );
 		if ( is_array( $existing ) && ! empty( $existing['time'] ) && ( time() - absint( $existing['time'] ) ) > self::LEASE_TTL ) {
-			delete_option( self::LEASE_OPTION );
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				self::LEASE_OPTION,
+				maybe_serialize( $existing )
+			) );
 		}
 		$token = wp_generate_uuid4();
 		if ( ! add_option( self::LEASE_OPTION, array( 'token' => $token, 'time' => time() ), '', false ) ) {
