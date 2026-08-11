@@ -4,7 +4,9 @@ $root=dirname(__DIR__);$fail=array();
 function v2410_read($p){$v=file_get_contents($p);if(false===$v){throw new RuntimeException($p);}return $v;}
 function v2410_ok($ok,$m){global $fail;if(!$ok)$fail[]=$m;}
 $v22=v2410_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
-v2410_ok(false!==strpos($v22,'$public_eligible = $row') && false!==strpos($v22,'case_consent_verified') && false!==strpos($v22,'case_anonymized') && false!==strpos($v22,'X-Robots-Tag: noindex, nofollow, noarchive'),'R1 research permanent-ID route can render restricted/unconsented research content');
+$legacy_public_gate=false!==strpos($v22,'$public_eligible = $row');
+$shared_public_gate=false!==strpos($v22,'HE_V22_Research_Guard::public_surface_eligible( $row )');
+v2410_ok(($legacy_public_gate||$shared_public_gate) && false!==strpos($v22,'X-Robots-Tag: noindex, nofollow, noarchive'),'R1 research permanent-ID route lacks fail-closed governed public eligibility');
 v2410_ok(false!==strpos($v22,'INSERT INTO {$reviews}') && false!==strpos($v22,'WHERE r.id=%d AND r.row_version=%d') && false!==strpos($v22,'changed while the review decision was being stored'),'R2 research review decision is not atomically bound to expected row version');
 $domain=v2410_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v2410_ok(substr_count($v22,'case_governance_failed')>=1 && false!==strpos($domain,'case_governance_failed') && false!==strpos($domain,'case_consent_verified') && false!==strpos($domain,'case_anonymized'),'R3 successful-case release can proceed without authoritative consent/anonymization flags');
