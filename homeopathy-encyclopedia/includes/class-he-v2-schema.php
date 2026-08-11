@@ -472,14 +472,27 @@ final class HE_V2_Schema {
 	public static function repair( $dry_run = true ) {
 		$before = self::health();
 		$result = array( 'dry_run' => (bool) $dry_run, 'before' => $before, 'actions' => array() );
-		if ( ! $dry_run ) {
-			self::install();
-			HE_V2_Domain::reindex_all();
-			delete_option( self::OPTION_FAILURE );
-			$result['actions'][] = 'schema-verified';
-			$result['actions'][] = 'search-index-rebuilt';
-			$result['after'] = self::health();
+		if ( $dry_run ) { return $result; }
+		try { self::install(); } catch ( Throwable $error ) {
+			self::record_runtime_failure( 'repair_schema_failed', 'File 06 repair could not verify/install the canonical schema.' );
+			return new WP_Error( 'he_repair_failed', __( 'File 06 schema repair could not be completed safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
 		}
+		$reindexed = HE_V2_Domain::reindex_all();
+		if ( is_wp_error( $reindexed ) ) { return $reindexed; }
+		if ( ! self::schema_complete() ) {
+			self::record_runtime_failure( 'repair_verification_failed', 'File 06 repair completed writes but the required schema is still incomplete.' );
+			return new WP_Error( 'he_repair_failed', __( 'File 06 repair could not verify a complete schema.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+		}
+		delete_option( self::OPTION_FAILURE );
+		delete_option( self::OPTION_SAFE_MODE );
+		$after = self::health();
+		if ( 'active' !== $after['status'] || empty( $after['schema_complete'] ) ) {
+			update_option( self::OPTION_SAFE_MODE, 1, false );
+			self::record_runtime_failure( 'repair_final_health_failed', 'File 06 repair could not establish an active verified final health state.' );
+			return new WP_Error( 'he_repair_failed', __( 'File 06 repair could not establish a healthy final state.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+		}
+		$result['actions'][] = 'schema-verified'; $result['actions'][] = 'search-index-rebuilt'; $result['actions'][] = 'safe-mode-cleared-after-verification'; $result['after'] = $after;
 		return $result;
 	}
+
 }
