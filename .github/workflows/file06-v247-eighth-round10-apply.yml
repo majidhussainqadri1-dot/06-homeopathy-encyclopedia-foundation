@@ -1,0 +1,40 @@
+name: File 06 v2.4.7 Eighth Review Round 10 Apply
+on:
+  push:
+    branches: [audit/file-06-eighth-ten-round-v2.4.7]
+    paths: [.github/workflows/file06-v247-eighth-round10-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-eighth-ten-round-v2.4.7
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Round 10 - align v2.4.7 release and aggregate truth
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-round10.py
+          php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          php -l tests/v247-eighth-ten-round-regressions.php
+          python3 -m json.tool SBOM.json >/dev/null
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+      - name: Commit Round 10 correction
+        run: |
+          set -euo pipefail
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests/v2-invariants.php tests/v2-source-invariants.sh tests/v23-future-invariants.php tests/v24-80-round-invariants.php tests/v241-second-80-invariants.php tests/v242-third-80-final.php tests/v246-seventh-ten-round-regressions.php tests/v247-eighth-ten-round-regressions.php tests/run-all.sh README.md STATUS.md CHANGELOG.md SBOM.json docs/RELEASE-NOTES.md docs/TEST-REPORT.md docs/RELEASE-SIGNOFF.md
+          git commit -m 'fix(file-06): align v2.4.7 release and aggregate QA truth'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
