@@ -628,43 +628,27 @@ final class HE_V2_Domain {
 	}
 
 	private static function rollback_new_entry( $concept_id, $post_id ) {
-		global $wpdb;
-		$concept_id = absint( $concept_id );
-		$post_id = absint( $post_id );
-		$ok = false;
-		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
-			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'entry_create_compensation_start_failed', 'File 06 could not start entry-create compensation safely.' );
-			return false;
-		}
+		global $wpdb; $concept_id = absint( $concept_id ); $post_id = absint( $post_id );
+		$delete_guard = array( 'HE_V242_Third_Audit', 'guard_hard_delete' ); $domain_pre = array( __CLASS__, 'pre_delete_post' ); $domain_done = array( __CLASS__, 'on_deleted_post' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false ); HE_V2_Schema::record_runtime_failure( 'entry_create_compensation_start_failed', 'File 06 could not start entry-create compensation.' ); return false; }
+		remove_filter( 'pre_delete_post', $delete_guard, 1 ); remove_filter( 'pre_delete_post', $domain_pre, 10 ); remove_action( 'deleted_post', $domain_done, 10 );
 		try {
-			foreach ( array( 'aliases', 'references', 'relations', 'reviews', 'versions', 'search_index' ) as $suffix ) {
-				$table = HE_V2_Schema::table( $suffix );
-				if ( 'relations' === $suffix ) {
-					$result = $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE source_concept_id=%d OR target_concept_id=%d", $concept_id, $concept_id ) );
-				} elseif ( 'reviews' === $suffix ) {
-					$result = $wpdb->delete( $table, array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s', '%d' ) );
-				} else {
-					$result = $wpdb->delete( $table, array( 'concept_id' => $concept_id ), array( '%d' ) );
-				}
-				if ( false === $result ) { throw new RuntimeException( 'entry-child-delete-failed-' . $suffix ); }
+			if ( $post_id && get_post( $post_id ) && ! wp_delete_post( $post_id, true ) ) { throw new RuntimeException( 'entry-post-delete-failed' ); }
+			if ( $concept_id ) {
+				if ( false === $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . HE_V2_Schema::table( 'relations' ) . ' WHERE source_concept_id=%d OR target_concept_id=%d', $concept_id, $concept_id ) ) ) { throw new RuntimeException( 'entry-relation-delete-failed' ); }
+				foreach ( array( 'aliases','references','versions','search_index','bookmarks' ) as $suffix ) { if ( false === $wpdb->delete( HE_V2_Schema::table( $suffix ), array( 'concept_id' => $concept_id ), array( '%d' ) ) ) { throw new RuntimeException( 'entry-child-delete-failed' ); } }
+				if ( false === $wpdb->delete( HE_V2_Schema::table( 'reviews' ), array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s','%d' ) ) ) { throw new RuntimeException( 'entry-review-delete-failed' ); }
+				if ( false === $wpdb->delete( HE_V2_Schema::table( 'integrity_actions' ), array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s','%d' ) ) ) { throw new RuntimeException( 'entry-integrity-delete-failed' ); }
+				if ( 1 !== (int) $wpdb->delete( HE_V2_Schema::table( 'concepts' ), array( 'id' => $concept_id ), array( '%d' ) ) ) { throw new RuntimeException( 'entry-concept-delete-failed' ); }
 			}
-			$deleted = $wpdb->delete( HE_V2_Schema::table( 'concepts' ), array( 'id' => $concept_id ), array( '%d' ) );
-			if ( 1 !== (int) $deleted ) { throw new RuntimeException( 'entry-concept-delete-failed' ); }
-			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'entry-create-compensation-commit-failed' ); }
-			$ok = true;
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'entry-compensation-commit-failed' ); }
 		} catch ( Throwable $error ) {
-			$wpdb->query( 'ROLLBACK' );
-			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'entry_create_compensation_failed', 'File 06 could not fully compensate a failed entry create operation; mutations were paused.' );
-			return false;
+			$wpdb->query( 'ROLLBACK' ); if ( $post_id ) { clean_post_cache( $post_id ); }
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false ); HE_V2_Schema::record_runtime_failure( 'entry_create_compensation_failed', 'File 06 rolled back a failed entry-create compensation because WordPress/domain cleanup could not complete atomically.' ); return false;
+		} finally {
+			add_filter( 'pre_delete_post', $delete_guard, 1, 3 ); add_filter( 'pre_delete_post', $domain_pre, 10, 3 ); add_action( 'deleted_post', $domain_done, 10, 2 );
 		}
-		if ( $post_id && get_post( $post_id ) && ! wp_delete_post( $post_id, true ) ) {
-			$ok = false;
-			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'entry_create_post_compensation_failed', 'File 06 removed the failed canonical entry graph but could not remove its WordPress draft; mutations were paused.' );
-		}
-		return $ok;
+		return true;
 	}
 
 	public static function add_alias( $concept_id, $alias, $language, $type, $primary, $actor_id ) {
@@ -1249,20 +1233,25 @@ final class HE_V2_Domain {
 	}
 
 	private static function rollback_new_research( $research_id, $post_id ) {
-		global $wpdb;
-		$ok = true;
-		$research_id = absint( $research_id );
-		$post_id = absint( $post_id );
-		if ( $research_id ) {
-			$deleted = $wpdb->delete( HE_V2_Schema::table( 'research' ), array( 'id' => $research_id ), array( '%d' ) );
-			if ( false === $deleted ) { $ok = false; }
+		global $wpdb; $research_id = absint( $research_id ); $post_id = absint( $post_id );
+		$delete_guard = array( 'HE_V242_Third_Audit', 'guard_hard_delete' ); $domain_pre = array( __CLASS__, 'pre_delete_post' ); $domain_done = array( __CLASS__, 'on_deleted_post' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false ); HE_V2_Schema::record_runtime_failure( 'research_create_compensation_start_failed', 'File 06 could not start research-create compensation.' ); return false; }
+		remove_filter( 'pre_delete_post', $delete_guard, 1 ); remove_filter( 'pre_delete_post', $domain_pre, 10 ); remove_action( 'deleted_post', $domain_done, 10 );
+		try {
+			if ( $post_id && get_post( $post_id ) && ! wp_delete_post( $post_id, true ) ) { throw new RuntimeException( 'research-post-delete-failed' ); }
+			if ( $research_id ) {
+				foreach ( array( 'reviews','integrity_actions' ) as $suffix ) { if ( false === $wpdb->delete( HE_V2_Schema::table( $suffix ), array( 'object_type' => 'research', 'object_id' => $research_id ), array( '%s','%d' ) ) ) { throw new RuntimeException( 'research-child-delete-failed' ); } }
+				if ( false === $wpdb->delete( HE_V2_Schema::table( 'dataset_access' ), array( 'research_id' => $research_id ), array( '%d' ) ) ) { throw new RuntimeException( 'research-access-delete-failed' ); }
+				if ( 1 !== (int) $wpdb->delete( HE_V2_Schema::table( 'research' ), array( 'id' => $research_id ), array( '%d' ) ) ) { throw new RuntimeException( 'research-row-delete-failed' ); }
+			}
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'research-compensation-commit-failed' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' ); if ( $post_id ) { clean_post_cache( $post_id ); }
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false ); HE_V2_Schema::record_runtime_failure( 'research_create_compensation_failed', 'File 06 rolled back a failed research-create compensation because WordPress/domain cleanup could not complete atomically.' ); return false;
+		} finally {
+			add_filter( 'pre_delete_post', $delete_guard, 1, 3 ); add_filter( 'pre_delete_post', $domain_pre, 10, 3 ); add_action( 'deleted_post', $domain_done, 10, 2 );
 		}
-		if ( $ok && $post_id && get_post( $post_id ) && ! wp_delete_post( $post_id, true ) ) { $ok = false; }
-		if ( ! $ok ) {
-			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'research_create_compensation_failed', 'File 06 could not fully compensate a failed research create operation; mutations were paused.' );
-		}
-		return $ok;
+		return true;
 	}
 
 	private static function contains_direct_identifiers( $text ) {

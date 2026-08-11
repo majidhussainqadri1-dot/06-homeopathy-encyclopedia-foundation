@@ -8,3 +8,4 @@ Repository-only corrective record. Staging/live/operational status is not establ
 4. **DEFECT** — The admin safe-mode toggle could clear protection without verified schema/index repair. Disabling safe mode now requires successful bounded repair and a healthy schema check.
 5. **DEFECT** — Entry wp-admin editing displayed an expected row version but did not enforce or advance it. A stale-form preflight and CAS row-version/review invalidation now fence content/meta changes.
 6. **DEFECT** — The legacy research admin writer used a freshly re-read row version, leaving a race after stale-form preflight. Its CAS now binds to the version loaded into the editor form.
+7. **DEFECT** — Create compensation committed canonical-row deletion before WordPress object deletion, allowing a split orphan state. Entry/research compensation now performs both sides in one transaction with lifecycle guards narrowly suppressed and restored.
