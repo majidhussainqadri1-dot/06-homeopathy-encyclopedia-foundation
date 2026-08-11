@@ -24,6 +24,8 @@ v246_ok(false!==strpos($public_guard,"Research record unavailable"),'R6 non-publ
 v246_ok(false!==strpos($public_guard,"if ( ! self::is_public_row( \$row ) )") && false!==strpos($public_guard,"['noarchive'] = true"),'R6 non-public research robots fail-closed gate missing');
 $dto=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v241-public-dto-guard.php');
 v246_ok(substr_count($dto,"status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0")>=2,'R7 public DTO concept lookups are not publication-gated');
+$future_privacy=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-privacy.php');
+v246_ok(false!==strpos($future_privacy,"he_v2_privacy_legal_hold") && false!==strpos($future_privacy,"DELETE FROM") && false!==strpos($future_privacy,"deidentify"),'R8 Future privacy lifecycle controls missing');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("
