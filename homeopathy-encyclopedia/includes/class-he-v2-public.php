@@ -38,6 +38,23 @@ final class HE_V2_Public {
 		) );
 	}
 
+	private function structured_html( $value, $depth = 0 ) {
+		if ( $depth > 6 ) { return ''; }
+		if ( is_array( $value ) ) {
+			$items = array();
+			foreach ( $value as $key => $item ) {
+				$child = $this->structured_html( $item, $depth + 1 );
+				if ( '' === $child ) { continue; }
+				$label = is_int( $key ) ? '' : '<strong>' . esc_html( ucwords( str_replace( array( '_','-' ), ' ', (string) $key ) ) ) . ':</strong> ';
+				$items[] = '<li>' . $label . $child . '</li>';
+			}
+			return $items ? '<ul class="he-v2__structured-list">' . implode( '', $items ) . '</ul>' : '';
+		}
+		if ( is_bool( $value ) ) { return esc_html( $value ? __( 'Yes', 'homeopathy-encyclopedia' ) : __( 'No', 'homeopathy-encyclopedia' ) ); }
+		if ( null === $value || ! is_scalar( $value ) ) { return ''; }
+		return wp_kses_post( wpautop( (string) $value ) );
+	}
+
 	private function icon( $name ) {
 		$paths = array(
 			'search' => '<path d="m21 21-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/>',
@@ -113,10 +130,10 @@ final class HE_V2_Public {
 			<?php if ( 'retracted' === $dto['record_status'] ) : ?><aside class="he-v2__notice he-v2__notice--danger" role="alert"><strong><?php esc_html_e( 'Retracted knowledge record.', 'homeopathy-encyclopedia' ); ?></strong> <?php esc_html_e( 'This page is retained only to preserve citation and correction history. Do not rely on it as current guidance.', 'homeopathy-encyclopedia' ); ?></aside><?php endif; ?>
 			<?php if ( $dto['is_historical'] ) : ?><aside class="he-v2__notice he-v2__notice--warning" role="note"><?php echo esc_html( sprintf( __( 'You are reading historical version %1$d. The current version is %2$d.', 'homeopathy-encyclopedia' ), $dto['version'], $dto['current_version'] ) ); ?></aside><?php endif; ?>
 			<?php foreach ( $dto['integrity_notices'] as $notice ) : ?><aside class="he-v2__notice he-v2__notice--integrity" role="note"><strong><?php echo esc_html( ucfirst( $notice['action_type'] ) ); ?>:</strong> <?php echo esc_html( $notice['reason'] ); ?></aside><?php endforeach; ?>
-			<?php if ( ! empty( $dto['fields']['red_flags'] ) ) : ?><aside class="he-v2__notice he-v2__notice--danger"><h2><?php esc_html_e( 'Medical red flags', 'homeopathy-encyclopedia' ); ?></h2><?php echo wp_kses_post( wpautop( $dto['fields']['red_flags'] ) ); ?></aside><?php endif; ?>
-			<?php if ( ! empty( $dto['fields']['emergency_boundary'] ) ) : ?><aside class="he-v2__notice he-v2__notice--warning"><h2><?php esc_html_e( 'Urgent-care boundary', 'homeopathy-encyclopedia' ); ?></h2><?php echo wp_kses_post( wpautop( $dto['fields']['emergency_boundary'] ) ); ?></aside><?php endif; ?>
+			<?php if ( ! empty( $dto['fields']['red_flags'] ) ) : ?><aside class="he-v2__notice he-v2__notice--danger"><h2><?php esc_html_e( 'Medical red flags', 'homeopathy-encyclopedia' ); ?></h2><?php echo $this->structured_html( $dto['fields']['red_flags'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></aside><?php endif; ?>
+			<?php if ( ! empty( $dto['fields']['emergency_boundary'] ) ) : ?><aside class="he-v2__notice he-v2__notice--warning"><h2><?php esc_html_e( 'Urgent-care boundary', 'homeopathy-encyclopedia' ); ?></h2><?php echo $this->structured_html( $dto['fields']['emergency_boundary'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></aside><?php endif; ?>
 			<div class="he-v2__body"><?php echo wp_kses_post( $dto['body'] ); ?></div>
-			<?php foreach ( $dto['fields'] as $key => $value ) : if ( in_array( $key, array( 'red_flags', 'emergency_boundary' ), true ) ) { continue; } ?><section class="he-v2__panel"><h2><?php echo esc_html( ucwords( str_replace( '_', ' ', $key ) ) ); ?></h2><?php echo wp_kses_post( wpautop( is_array( $value ) ? implode( "\n", $value ) : $value ) ); ?></section><?php endforeach; ?>
+			<?php foreach ( $dto['fields'] as $key => $value ) : if ( in_array( $key, array( 'red_flags', 'emergency_boundary' ), true ) ) { continue; } ?><section class="he-v2__panel"><h2><?php echo esc_html( ucwords( str_replace( '_', ' ', $key ) ) ); ?></h2><?php echo $this->structured_html( $value ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></section><?php endforeach; ?>
 			<section class="he-v2__panel"><h2><?php echo $this->icon( 'link' ); ?><?php esc_html_e( 'Sources and evidence', 'homeopathy-encyclopedia' ); ?></h2><?php if ( $dto['references'] ) : ?><ol class="he-v2__references"><?php foreach ( $dto['references'] as $ref ) : ?><li><strong><?php echo esc_html( $ref['author'] ? $ref['author'] . ', ' . $ref['title'] : $ref['title'] ); ?></strong><?php echo $ref['edition'] ? ' — ' . esc_html( $ref['edition'] ) : ''; ?><?php echo $ref['volume'] ? ', ' . esc_html( $ref['volume'] ) : ''; ?><?php echo $ref['page_locator'] ? ', ' . esc_html( $ref['page_locator'] ) : ''; ?> <span class="he-v2__grade"><?php echo esc_html( $ref['evidence_grade'] ); ?></span><?php if ( $ref['url'] ) : ?> <a href="<?php echo esc_url( $ref['url'] ); ?>" rel="nofollow noopener noreferrer"><?php esc_html_e( 'Source', 'homeopathy-encyclopedia' ); ?></a><?php endif; ?></li><?php endforeach; ?></ol><?php else : ?><p><?php esc_html_e( 'No public references are available for this version.', 'homeopathy-encyclopedia' ); ?></p><?php endif; ?></section>
 			<footer class="he-v2__footer"><p><?php esc_html_e( 'This encyclopedia is educational. It does not diagnose, prescribe, guarantee cure or replace urgent professional assessment.', 'homeopathy-encyclopedia' ); ?></p><?php if ( is_user_logged_in() ) : ?><button class="he-v2__button he-v2__button--secondary" type="button" data-he-correction><?php esc_html_e( 'Suggest a sourced correction', 'homeopathy-encyclopedia' ); ?></button><?php endif; ?></footer>
 		</article>
