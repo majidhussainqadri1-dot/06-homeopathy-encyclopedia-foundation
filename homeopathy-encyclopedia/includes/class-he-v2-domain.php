@@ -1358,14 +1358,22 @@ final class HE_V2_Domain {
 		$payload['occurred_at'] = gmdate( 'c' );
 		$json = wp_json_encode( $payload );
 		$now = current_time( 'mysql', true );
-		$wpdb->insert( HE_V2_Schema::table( 'events' ), array(
+		$already_in_transaction = (bool) $wpdb->get_var( 'SELECT @@session.in_transaction' ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( ! $already_in_transaction ) { $wpdb->query( 'START TRANSACTION' ); }
+		$event_ok = $wpdb->insert( HE_V2_Schema::table( 'events' ), array(
 			'event_id' => $event_id, 'event_name' => sanitize_text_field( $name ), 'object_type' => sanitize_key( $object_type ), 'object_id' => absint( $object_id ),
 			'actor_id' => get_current_user_id(), 'trace_id' => $trace_id, 'payload_json' => $json, 'created_at' => $now,
 		), array( '%s','%s','%s','%d','%d','%s','%s','%s' ) );
-		$wpdb->insert( HE_V2_Schema::table( 'outbox' ), array(
+		$outbox_ok = $wpdb->insert( HE_V2_Schema::table( 'outbox' ), array(
 			'event_id' => $event_id, 'event_name' => sanitize_text_field( $name ), 'payload_json' => $json, 'status' => 'pending', 'attempts' => 0,
 			'next_attempt_at' => $now, 'last_error' => '', 'created_at' => $now, 'updated_at' => $now,
 		), array( '%s','%s','%s','%s','%d','%s','%s','%s','%s' ) );
+		if ( ! $event_ok || ! $outbox_ok ) {
+			if ( ! $already_in_transaction ) { $wpdb->query( 'ROLLBACK' ); }
+			HE_V2_Schema::record_runtime_failure( 'event_outbox_atomic_write_failed', 'A File 06 domain event and its outbox record could not be persisted as one atomic unit.' );
+			throw new RuntimeException( 'File 06 event/outbox atomic persistence failed.' );
+		}
+		if ( ! $already_in_transaction ) { $wpdb->query( 'COMMIT' ); }
 		do_action( 'he_v2_event', $name, $payload, $event_id, $trace_id );
 		return array( 'event_id' => $event_id, 'trace_id' => $trace_id );
 	}
