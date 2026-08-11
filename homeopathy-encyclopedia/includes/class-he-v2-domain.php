@@ -363,7 +363,12 @@ final class HE_V2_Domain {
 			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE public_id=%s OR canonical_slug=%s", $value, sanitize_title( $value ) ), ARRAY_A );
 			if ( ! $row ) {
 				$normalized = self::normalize( $value );
-				$row = $wpdb->get_row( $wpdb->prepare( "SELECT c.* FROM {$table} c INNER JOIN " . HE_V2_Schema::table( 'aliases' ) . " a ON a.concept_id=c.id WHERE a.normalized_alias=%s LIMIT 1", $normalized ), ARRAY_A );
+				$matches = $wpdb->get_results( $wpdb->prepare( "SELECT DISTINCT c.* FROM {$table} c INNER JOIN " . HE_V2_Schema::table( 'aliases' ) . " a ON a.concept_id=c.id WHERE a.normalized_alias=%s ORDER BY c.id ASC LIMIT 2", $normalized ), ARRAY_A );
+				if ( is_array( $matches ) && 1 === count( $matches ) ) {
+					$row = $matches[0];
+				} elseif ( is_array( $matches ) && count( $matches ) > 1 ) {
+					return null;
+				}
 			}
 		}
 		if ( ! $row ) {
