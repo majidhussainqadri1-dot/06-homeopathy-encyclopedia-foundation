@@ -38,8 +38,8 @@ jobs:
           x = t.read_text()
           needle = 'echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
           block = "$watch = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v242-watchlist.php');\n"
-          block += "f06_v245_assert(strpos($watch, \"rest_sanitize_boolean( $data['active'] )\") !== false, 'Round 7 explicit watchlist false normalization missing');\n"
-          block += "f06_v245_assert(strpos($watch, \"! empty( $data['active'] )\") === false, 'Round 7 truthy-string watchlist activation bug remains');\n"
+          block += "f06_v245_assert(strpos($watch, 'rest_sanitize_boolean') !== false, 'Round 7 explicit watchlist false normalization missing');\n"
+          block += "f06_v245_assert(strpos($watch, '! empty( $data') === false, 'Round 7 truthy-string watchlist activation bug remains');\n"
           if 'Round 7 explicit watchlist false normalization missing' not in x:
               if needle not in x:
                   raise SystemExit('test marker missing')
@@ -47,6 +47,7 @@ jobs:
           t.write_text(x)
           PY
           php -l homeopathy-encyclopedia/includes/class-he-v242-watchlist.php
+          php -l tests/test-file06-v245-sixth-ten-round-regressions.php
           php tests/test-file06-v245-sixth-ten-round-regressions.php
           git diff --check
       - name: Commit Round 7 correction
