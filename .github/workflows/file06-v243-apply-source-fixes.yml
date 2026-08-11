@@ -47,12 +47,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git checkout -- .github/workflows/file06-v2-complete.yml
           if git diff --quiet; then
             echo 'No source changes produced.'
             exit 1
           fi
           git config user.name 'majidhussainqadri1-dot'
           git config user.email 'majidhussainqadri1@gmail.com'
-          git add homeopathy-encyclopedia tests .github/workflows/file06-v2-complete.yml
+          git add homeopathy-encyclopedia tests
           git commit -m 'fix(file-06): apply fourth-cycle root-cause hardening'
           git push origin HEAD:audit/file-06-fourth-80-round-v2.4.3
