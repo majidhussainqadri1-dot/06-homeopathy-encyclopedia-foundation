@@ -57,17 +57,25 @@ final class HE_V2_Integrations {
 	}
 
 	public static function composer_create_draft( $payload, $context = array() ) {
-		$actor_id = isset( $context['actor_id'] ) ? absint( $context['actor_id'] ) : get_current_user_id();
-		if ( ! $actor_id || ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT ) ) {
-			return new WP_Error( 'he_composer_forbidden', __( 'File 06 creation is not authorized.', 'homeopathy-encyclopedia' ) );
+		$current_id = get_current_user_id();
+		$actor_id = isset( $context['actor_id'] ) ? absint( $context['actor_id'] ) : $current_id;
+		if ( ! $current_id || ! $actor_id || $actor_id !== $current_id ) {
+			return new WP_Error( 'he_composer_actor_mismatch', __( 'Composer actor attribution must match the authenticated user.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
+		}
+		if ( ! HE_V2_Auth::provider_ready() || ! HE_V2_Auth::membership_allowed( $actor_id ) || ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT, 0, 'file06-composer-create-entry', $actor_id ) ) {
+			return new WP_Error( 'he_composer_forbidden', __( 'File 06 creation is not authorized.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
 		}
 		return HE_V2_Domain::create_entry( is_array( $payload ) ? $payload : array(), $actor_id );
 	}
 
 	public static function composer_create_research( $payload, $context = array() ) {
-		$actor_id = isset( $context['actor_id'] ) ? absint( $context['actor_id'] ) : get_current_user_id();
-		if ( ! $actor_id || ! HE_V2_Auth::can( HE_V2_Auth::CAP_RESEARCH ) ) {
-			return new WP_Error( 'he_composer_forbidden', __( 'File 06 research creation is not authorized.', 'homeopathy-encyclopedia' ) );
+		$current_id = get_current_user_id();
+		$actor_id = isset( $context['actor_id'] ) ? absint( $context['actor_id'] ) : $current_id;
+		if ( ! $current_id || ! $actor_id || $actor_id !== $current_id ) {
+			return new WP_Error( 'he_composer_actor_mismatch', __( 'Composer actor attribution must match the authenticated user.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
+		}
+		if ( ! HE_V2_Auth::provider_ready() || ! HE_V2_Auth::membership_allowed( $actor_id ) || ! HE_V2_Auth::can( HE_V2_Auth::CAP_RESEARCH, 0, 'file06-composer-create-research', $actor_id ) ) {
+			return new WP_Error( 'he_composer_forbidden', __( 'File 06 research creation is not authorized.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
 		}
 		return HE_V2_Domain::create_research( is_array( $payload ) ? $payload : array(), $actor_id );
 	}
