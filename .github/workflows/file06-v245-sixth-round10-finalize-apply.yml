@@ -1,0 +1,171 @@
+name: File 06 v2.4.5 Sixth Review Round 10 Finalize Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - .github/workflows/file06-v245-sixth-round10-finalize-apply.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply Round 10 release truth and inherited QA corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def read(path):
+              return Path(path).read_text()
+          def write(path, data):
+              Path(path).write_text(data)
+
+          # Current runtime and contract truth.
+          path='homeopathy-encyclopedia/homeopathy-encyclopedia.php'
+          s=read(path).replace('2.4.4','2.4.5')
+          old="'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim'))"
+          new="'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','canonical_future_read_routes'=>array('/future/public/claims/{canonical_public_id}','/future/public/graph/{canonical_public_id}','/future/public/time-machine/{canonical_public_id}','/future/public/freshness/{canonical_public_id}','/future/public/citations/{canonical_public_id}/{format}'),'legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim'))"
+          if old not in s: raise SystemExit('bootstrap public API contract marker missing')
+          write(path,s.replace(old,new,1))
+
+          # Plugin readme current candidate/language truth.
+          path='homeopathy-encyclopedia/readme.txt'; s=read(path)
+          s=s.replace('Stable tag: 2.4.4','Stable tag: 2.4.5',1)
+          s=s.replace('The 2.4.4 candidate','The 2.4.5 candidate',1)
+          s=s.replace('* English (US), Urdu and Arabic/RTL-ready data and presentation.','* Dynamic source-language identity plus nine governed translation targets, with RTL support where applicable.',1)
+          marker='== Changelog ==\n\n'
+          entry="= 2.4.5 =\n* Sixth ten-round corrective candidate: canonical UUID Future reads, stable/recoverable idempotency reservations, V24-owned serialized Future maintenance, CAS-safe core leases, progressive reviewer privacy erasure, normalized watchlist booleans, retry-safe retraction cursors, and exact release/QA truth alignment.\n\n"
+          if '= 2.4.5 =' not in s:
+              if marker not in s: raise SystemExit('plugin readme changelog marker missing')
+              s=s.replace(marker,marker+entry,1)
+          write(path,s)
+
+          # Aggregate runner: current suite + current package labels.
+          path='tests/run-all.sh'; s=read(path)
+          marker='php "$root/tests/v244-ten-round-regressions.php"\n'
+          if 'test-file06-v245-sixth-ten-round-regressions.php' not in s:
+              if marker not in s: raise SystemExit('run-all v244 marker missing')
+              s=s.replace(marker,marker+'php "$root/tests/test-file06-v245-sixth-ten-round-regressions.php"\n',1)
+          s=s.replace('file06-v2.4.4-a.zip','file06-v2.4.5-a.zip').replace('file06-v2.4.4-b.zip','file06-v2.4.5-b.zip')
+          s=s.replace('All File 06 v2.4.4 automated checks, inherited review matrices, fifth ten-round regressions and deterministic package comparison passed.','All File 06 v2.4.5 automated checks, inherited review matrices, sixth ten-round regressions and deterministic package comparison passed.')
+          write(path,s)
+
+          # Current core invariant must follow the mutable candidate version.
+          path='tests/v2-invariants.php'; write(path,read(path).replace('2.4.4','2.4.5'))
+
+          # Source-tree invariant: current version and sole V24 Future maintenance ownership.
+          path='tests/v2-source-invariants.sh'; s=read(path).replace('2.4.4','2.4.5')
+          old='grep -q "maintenance_serialized" "$plugin/includes/class-he-v241-governance.php"'
+          new='! grep -q "maintenance_serialized" "$plugin/includes/class-he-v241-governance.php"\ngrep -q "OPTION_MAINTENANCE_LEASE" "$plugin/includes/class-he-v24-future-schema.php"\ngrep -q "acquire_maintenance_lease" "$plugin/includes/class-he-v24-future-schema.php"'
+          if old not in s: raise SystemExit('source invariant old V241 Future worker marker missing')
+          write(path,s.replace(old,new,1))
+
+          # Baseline/first-80 invariants retain semantics but follow current release identity.
+          for path in ('tests/v23-future-invariants.php','tests/v24-80-round-invariants.php'):
+              write(path,read(path).replace('2.4.4','2.4.5'))
+
+          # Second-80 inherited test: V241 no longer owns Future maintenance after Round 6.
+          path='tests/v241-second-80-invariants.php'; s=read(path).replace('2.4.4','2.4.5')
+          old="'file06-future-claim-edit','file06-future-translation-edit','maintenance_serialized','LEASE_OPTION'"
+          new="'file06-future-claim-edit','file06-future-translation-edit'"
+          if old not in s: raise SystemExit('v241 inherited obsolete Future lease markers missing')
+          write(path,s.replace(old,new,1))
+
+          # Third-80 inherited test: current release identity + V24 Future lease ownership.
+          path='tests/v242-third-80-final.php'; s=read(path).replace('2.4.4','2.4.5')
+          old="Q(54,H('g241','LEASE_OPTION')&&H('g241','maintenance_serialized'),'Future maintenance lease');"
+          new="Q(54,H('f24s','OPTION_MAINTENANCE_LEASE')&&H('f24s','acquire_maintenance_lease')&&H('f24s','release_maintenance_lease'),'Future maintenance lease');"
+          if old not in s: raise SystemExit('v242 inherited obsolete Future lease assertion missing')
+          write(path,s.replace(old,new,1))
+
+          # v2.4.3 historical regressions must recognize later safer ownership/progress corrections.
+          path='tests/v243-ten-round-regressions.php'; s=read(path)
+          old="""$governance = $read( 'homeopathy-encyclopedia/includes/class-he-v241-governance.php' );
+          $has( $governance, 'option_value=%s', 'maintenance stale lease uses compare-and-delete' );
+          $has( $governance, 'maybe_serialize( $existing )', 'maintenance stale lease compares exact serialized owner' );"""
+          new="""$future_schema = $read( 'homeopathy-encyclopedia/includes/class-he-v24-future-schema.php' );
+          $has( $future_schema, 'OPTION_MAINTENANCE_LEASE', 'Future maintenance lease remains explicitly owned' );
+          $has( $future_schema, 'option_value=%s', 'Future maintenance stale lease uses compare-and-delete' );
+          $has( $future_schema, 'maybe_serialize( $existing )', 'Future maintenance stale lease compares exact serialized owner' );"""
+          if old not in s: raise SystemExit('v243 obsolete maintenance ownership block missing')
+          s=s.replace(old,new,1)
+          old="$has( $privacy, 'assigned_posts_page( 1 )', 'mutating erasure always consumes first remaining batch' );"
+          new="$has( $privacy, 'assigned_posts_after', 'privacy erasure progresses by immutable post ID' );\n$has( $privacy, 'erasure_cursor_option', 'privacy erasure persists per-user progress' );\n$not( $privacy, 'assigned_posts_page( 1 )', 'privacy erasure no longer stalls on unrelated first-batch rows' );"
+          if old not in s: raise SystemExit('v243 obsolete privacy eraser assertion missing')
+          write(path,s.replace(old,new,1))
+
+          # v2.4.4 historical regressions: preserve behavior, not a mutable current label.
+          path='tests/v244-ten-round-regressions.php'; s=read(path)
+          replacements=[
+              ("$has( $bootstrap, ' * Version: 2.4.4', 'round 9 plugin header version' );","$has( $bootstrap, ' * Version:', 'round 9 plugin header version remains declared' );"),
+              ("$has( $bootstrap, \"define( 'HE_VERSION', '2.4.4' );\", 'round 9 runtime version' );","$has( $bootstrap, \"define( 'HE_VERSION',\", 'round 9 runtime version remains declared' );"),
+              ("$has( $bootstrap, \"define( 'HE_CONTRACT_VERSION', '2.4.4' );\", 'round 9 contract version' );","$has( $bootstrap, \"define( 'HE_CONTRACT_VERSION',\", 'round 9 contract version remains declared' );"),
+              ("$has( $plugin_readme, 'Stable tag: 2.4.4', 'round 9 stable tag' );","$has( $plugin_readme, 'Stable tag:', 'round 9 stable tag remains declared' );"),
+              ("$has( $repository_readme, '# File 06 — Homeopathy Encyclopedia 2.4.4', 'round 9 repository candidate label' );","$has( $repository_readme, '# File 06 — Homeopathy Encyclopedia', 'round 9 repository candidate label remains declared' );"),
+              ("$has( $status, '# File 06 Status — 2.4.4 Fifth Fresh Ten-Round Candidate', 'round 9 status label' );","$has( $status, '# File 06 Status —', 'round 9 status label remains declared' );"),
+              ("$has( $bootstrap, \"'future_hardening_version'=>'2.4.4'\", 'round 10 contract hardening version aligned' );","$has( $bootstrap, \"'future_hardening_version'=>\", 'round 10 contract hardening version remains declared' );"),
+              ("$has( $run_all, 'file06-v2.4.4-a.zip', 'round 10 deterministic package label A' );","$has( $run_all, '-a.zip', 'round 10 deterministic package label A' );"),
+              ("$has( $run_all, 'file06-v2.4.4-b.zip', 'round 10 deterministic package label B' );","$has( $run_all, '-b.zip', 'round 10 deterministic package label B' );"),
+          ]
+          for old,new in replacements:
+              if old not in s: raise SystemExit('v244 historical marker missing: '+old)
+              s=s.replace(old,new,1)
+          write(path,s)
+
+          # Sixth-cycle suite owns exact current identity and precise Round 9 cursor semantics.
+          path='tests/test-file06-v245-sixth-ten-round-regressions.php'; s=read(path)
+          old="f06_v245_assert(strpos($schema, \"end( $rows )['id']\") === false, 'Round 9 batch-end cursor can still skip failed rows');"
+          new="f06_v245_assert(strpos($schema, \"update_option( 'he_v24_retraction_cursor', (int) end( \\$rows )['id'], false )\") === false, 'Round 9 retraction cursor still advances to batch end');"
+          if old in s: s=s.replace(old,new,1)
+          needle='echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          block="$bootstrap = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/homeopathy-encyclopedia.php');\n"
+          block+="f06_v245_assert(strpos($bootstrap, ' * Version: 2.4.5') !== false, 'Round 10 plugin header version not 2.4.5');\n"
+          block+="f06_v245_assert(strpos($bootstrap, \"define( 'HE_VERSION', '2.4.5' );\") !== false, 'Round 10 runtime version not 2.4.5');\n"
+          block+="f06_v245_assert(strpos($bootstrap, \"define( 'HE_CONTRACT_VERSION', '2.4.5' );\") !== false, 'Round 10 contract version not 2.4.5');\n"
+          block+="f06_v245_assert(strpos($bootstrap, \"'future_hardening_version'=>'2.4.5'\") !== false, 'Round 10 hardening version not 2.4.5');\n"
+          block+="f06_v245_assert(strpos($bootstrap, 'canonical_future_read_routes') !== false, 'Round 10 canonical Future read routes absent from contract descriptor');\n"
+          block+="$runall = file_get_contents(__DIR__ . '/run-all.sh');\n"
+          block+="f06_v245_assert(strpos($runall, 'test-file06-v245-sixth-ten-round-regressions.php') !== false, 'Round 10 sixth-cycle suite missing from aggregate gate');\n"
+          block+="f06_v245_assert(strpos($runall, 'file06-v2.4.5-a.zip') !== false && strpos($runall, 'file06-v2.4.5-b.zip') !== false, 'Round 10 package labels not 2.4.5');\n"
+          if 'Round 10 plugin header version not 2.4.5' not in s:
+              if needle not in s: raise SystemExit('sixth-cycle test marker missing')
+              s=s.replace(needle,block+needle,1)
+          write(path,s)
+          PY
+
+          php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          php -l tests/v2-invariants.php
+          php -l tests/v23-future-invariants.php
+          php -l tests/v24-80-round-invariants.php
+          php -l tests/v241-second-80-invariants.php
+          php -l tests/v242-third-80-final.php
+          php -l tests/v243-ten-round-regressions.php
+          php -l tests/v244-ten-round-regressions.php
+          php -l tests/test-file06-v245-sixth-ten-round-regressions.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          bash -x tests/run-all.sh
+          git diff --check
+      - name: Commit Round 10 corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests/run-all.sh tests/v2-invariants.php tests/v2-source-invariants.sh tests/v23-future-invariants.php tests/v24-80-round-invariants.php tests/v241-second-80-invariants.php tests/v242-third-80-final.php tests/v243-ten-round-regressions.php tests/v244-ten-round-regressions.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): finalize v2.4.5 release truth and inherited QA'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
