@@ -4,7 +4,7 @@ function rr($p){$v=file_get_contents($p);if(false===$v)throw new RuntimeExceptio
 function ok16($x,$m){global $f;if(!$x)$f[]=$m;}
 function has16($s,$n){return false!==strpos($s,$n);}
 $g=rr($inc.'/class-he-v22-governance.php');$t=rr($inc.'/class-he-v242-third-audit.php');$s=rr($inc.'/class-he-v2-schema.php');$a=rr($inc.'/class-he-v2-admin.php');$d=rr($inc.'/class-he-v2-domain.php');$api=rr($inc.'/class-he-v2-api.php');$p=rr($inc.'/class-he-v2-privacy.php');$b=rr($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');$rd=rr($root.'/homeopathy-encyclopedia/readme.txt');$review=rr($root.'/docs/FILE-06-v2.4.16-SEVENTEENTH-TWENTY-ROUND-REVIEW.md');
-if($r>=1){ok16(has16($g,"$uuid = '[0-9a-fA-F]{8}-")&&!has16($g,"/research/(?P<id>\\d+)/review")&&has16($g,'WHERE public_id=%s')&&has16($g,"'id' => $action_public_id"),'R1 canonical research governance identifiers');}
+if($r>=1){ok16(has16($g,'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-')&&!has16($g,'/research/(?P<id>\\d+)/review')&&has16($g,'WHERE public_id=%s')&&has16($g,'action_public_id'),'R1 canonical research governance identifiers');}
 if($r>=2){ok16(has16($t,'it must never mutate state after idempotency finalization'),'R2 post-success verifier');}
 if($r>=3){ok16(has16($s,'public static function required_columns()')&&has16($s,'SHOW COLUMNS FROM')&&has16($s,'self::schema_complete()'),'R3 schema shape');}
 if($r>=4){ok16(has16($a,'Safe mode remains active because verified repair did not establish a healthy runtime.')&&!has16($a,'$enabled ? 1 : 0'),'R4 safe-mode recovery gate');}

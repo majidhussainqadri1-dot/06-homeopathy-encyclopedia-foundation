@@ -318,41 +318,18 @@ final class HE_V242_Third_Audit {
 	}
 
 	public static function after_rest( $response, $handler, $request ) {
-		if ( ! $request instanceof WP_REST_Request || is_wp_error( $response ) || 'POST' !== $request->get_method() ) {
-			return $response;
+		/* Creation already persists canonical conflict disclosure before the callback returns. This layer verifies only; it must never mutate state after idempotency finalization. */
+		if ( ! $request instanceof WP_REST_Request || is_wp_error( $response ) || 'POST' !== $request->get_method() || '/' . HE_V2_API::NS . '/research' !== $request->get_route() || ! $response instanceof WP_REST_Response ) { return $response; }
+		$data = $response->get_data(); $public_id = '';
+		if ( is_array( $data ) && isset( $data['data']['id'] ) ) { $public_id = sanitize_text_field( (string) $data['data']['id'] ); }
+		elseif ( is_array( $data ) && isset( $data['id'] ) ) { $public_id = sanitize_text_field( (string) $data['id'] ); }
+		if ( ! $public_id ) { return $response; }
+		$row = self::research_row( $public_id, true ); $input = (array) $request->get_json_params(); $expected = HE_V2_Domain::normalize_conflicts( $input['conflicts'] ?? array() );
+		$stored = $row ? json_decode( (string) $row['conflicts_json'], true ) : null;
+		if ( ! $row || ! $expected || $stored !== $expected ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'research_conflict_postsuccess_invariant_failed', 'A completed research create response failed canonical conflict verification; no post-success mutation was attempted.' );
 		}
-		$route = $request->get_route();
-		$prefix = '/' . HE_V2_API::NS;
-		if ( $route !== $prefix . '/research' || ! $response instanceof WP_REST_Response ) {
-			return $response;
-		}
-		$data = $response->get_data();
-		$public_id = '';
-		if ( is_array( $data ) && isset( $data['data']['id'] ) ) {
-			$public_id = sanitize_text_field( (string) $data['data']['id'] );
-		} elseif ( is_array( $data ) && isset( $data['id'] ) ) {
-			$public_id = sanitize_text_field( (string) $data['id'] );
-		}
-		if ( ! $public_id ) {
-			return $response;
-		}
-		$row = self::research_row( $public_id, true );
-		if ( ! $row ) {
-			return $response;
-		}
-		$input = (array) $request->get_json_params();
-		$parts = HE_V2_Domain::sanitize_text_list( $input['conflicts'] ?? array() );
-		if ( ! $parts ) {
-			return $response;
-		}
-		$statement = implode( '; ', $parts );
-		$none = (bool) preg_match( '/\b(?:no|none)\s+(?:conflict|conflicts)\b/i', $statement );
-		global $wpdb;
-		$wpdb->update( HE_V2_Schema::table( 'research' ), array(
-			'conflicts_json' => wp_json_encode( array( 'recorded' => true, 'statement' => $statement, 'none_declared' => $none ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'row_version' => (int) $row['row_version'] + 1,
-			'updated_at' => current_time( 'mysql', true ),
-		), array( 'id' => (int) $row['id'], 'row_version' => (int) $row['row_version'] ), array( '%s','%d','%s' ), array( '%d','%d' ) );
 		return $response;
 	}
 
