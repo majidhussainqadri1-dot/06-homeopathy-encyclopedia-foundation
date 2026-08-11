@@ -34,10 +34,22 @@ final class HE_V241_Research_Governance {
 	}
 
 	private static function finish( $reservation, $result, $code=200 ) {
-		if(is_wp_error($reservation))return $reservation;
-		if(!empty($reservation['replay']))return new WP_REST_Response($reservation['body'],$reservation['code']);
-		if(is_wp_error($result)){ $d=$result->get_error_data();$s=is_array($d)&&isset($d['status'])?(int)$d['status']:400;HE_V2_Domain::idempotent_finish($reservation['id'],$s,array('code'=>$result->get_error_code(),'message'=>$result->get_error_message()));return $result; }
-		HE_V2_Domain::idempotent_finish($reservation['id'],$code,$result);return new WP_REST_Response($result,$code);
+		if ( is_wp_error( $reservation ) ) { return $reservation; }
+		if ( ! empty( $reservation['replay'] ) ) { return new WP_REST_Response( $reservation['body'], $reservation['code'] ); }
+		if ( is_wp_error( $result ) ) {
+			$data = $result->get_error_data();
+			$status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 400;
+			$finished = HE_V2_Domain::idempotent_finish( $reservation['id'], $status, array( 'code' => $result->get_error_code(), 'message' => $result->get_error_message() ) );
+			if ( ! $finished ) {
+				return new WP_Error( 'he_idempotency_finalize_failed', __( 'The request outcome could not be recorded safely. Reload the current state before retrying.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
+			return $result;
+		}
+		$finished = HE_V2_Domain::idempotent_finish( $reservation['id'], $code, $result );
+		if ( ! $finished ) {
+			return new WP_Error( 'he_idempotency_finalize_failed', __( 'The request may have completed, but its retry record could not be finalized safely. Reload the current state before retrying.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+		}
+		return new WP_REST_Response( $result, $code );
 	}
 
 	public static function assign( WP_REST_Request $request ) {
