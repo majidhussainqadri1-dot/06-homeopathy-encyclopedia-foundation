@@ -24,4 +24,7 @@ $gprivacy = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/cl
 f06_v245_assert(strpos($gprivacy, 'assigned_posts_after') !== false, 'Round 5 cursor-based governance privacy scan missing');
 f06_v245_assert(strpos($gprivacy, 'he_v241_privacy_assignment_cursor_') !== false, 'Round 5 per-user privacy cursor missing');
 f06_v245_assert(strpos($gprivacy, 'assigned_posts_page( 1 )') === false, 'Round 5 stalling first-batch eraser pattern remains');
+$gov = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v241-governance.php');
+f06_v245_assert(strpos($gov, 'maintenance_serialized') === false, 'Round 6 obsolete outer Future maintenance lease remains');
+f06_v245_assert(strpos($gov, 'he_v241_future_maintenance_lease') === false, 'Round 6 split Future maintenance lease ownership remains');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";

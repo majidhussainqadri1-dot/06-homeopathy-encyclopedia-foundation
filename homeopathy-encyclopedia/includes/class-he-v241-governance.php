@@ -11,16 +11,12 @@ defined( 'ABSPATH' ) || exit;
 final class HE_V241_Governance {
 	const META_EDITOR_TYPES = '_he_editor_type_scope';
 	const META_REVIEW_ASSIGNMENTS = '_he_review_assignments';
-	const LEASE_OPTION = 'he_v241_future_maintenance_lease';
-	const LEASE_TTL = 15 * MINUTE_IN_SECONDS;
 
 	public static function hooks() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ), 320 );
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'before_callbacks' ), 325, 3 );
 
-		/* Replace the unleased Future worker with one serialized owner worker. */
-		remove_action( HE_V24_Future_Schema::CRON, array( 'HE_V24_Future_Schema', 'maintenance' ) );
-		add_action( HE_V24_Future_Schema::CRON, array( __CLASS__, 'maintenance_serialized' ) );
+		/* V24 Future Schema is the sole maintenance owner and serializes itself. */
 	}
 
 	public static function register_routes() {
@@ -354,27 +350,4 @@ final class HE_V241_Governance {
 		return $response;
 	}
 
-	public static function maintenance_serialized() {
-		global $wpdb;
-		$existing = get_option( self::LEASE_OPTION, array() );
-		if ( is_array( $existing ) && ! empty( $existing['time'] ) && ( time() - absint( $existing['time'] ) ) > self::LEASE_TTL ) {
-			$wpdb->query( $wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
-				self::LEASE_OPTION,
-				maybe_serialize( $existing )
-			) );
-		}
-		$token = wp_generate_uuid4();
-		if ( ! add_option( self::LEASE_OPTION, array( 'token' => $token, 'time' => time() ), '', false ) ) {
-			return;
-		}
-		try {
-			HE_V24_Future_Schema::maintenance();
-		} finally {
-			$current = get_option( self::LEASE_OPTION, array() );
-			if ( is_array( $current ) && isset( $current['token'] ) && hash_equals( (string) $current['token'], $token ) ) {
-				delete_option( self::LEASE_OPTION );
-			}
-		}
-	}
 }
