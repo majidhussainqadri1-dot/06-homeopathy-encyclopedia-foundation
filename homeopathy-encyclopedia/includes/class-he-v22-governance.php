@@ -765,7 +765,10 @@ final class HE_V22_Governance {
 		if ( ! $source || ! $target || (int) $source['id'] === (int) $target['id'] ) {
 			return new WP_Error( 'he_invalid_merge', __( 'A valid source and target concept are required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
 		}
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'secure_merge_transaction_start_failed', 'File 06 could not start the governed concept-merge transaction.' );
+			return new WP_Error( 'he_merge_failed', __( 'The concept merge could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+		}
 		try {
 			$source = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id=%d FOR UPDATE', (int) $source['id'] ), ARRAY_A );
 			$target = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id=%d FOR UPDATE', (int) $target['id'] ), ARRAY_A );
@@ -826,12 +829,16 @@ final class HE_V22_Governance {
 				throw new RuntimeException( 'version-conflict' );
 			}
 			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $source['id'] ), array( '%d' ) );
-			$wpdb->query( 'COMMIT' );
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'merge-commit-failed' ); }
 			HE_V2_Domain::emit_event( 'KnowledgeConceptMerged.v1', 'concept', (int) $target['id'], array( 'source_id' => $source['public_id'], 'target_id' => $target['public_id'], 'reason' => sanitize_textarea_field( $data['reason'] ?? '' ) ) );
 			self::reindex_concept_secure( (int) $target['id'] );
 			return HE_V2_Domain::concept_by_id( (int) $target['id'], true );
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
+			if ( 'merge-commit-failed' === $error->getMessage() ) {
+				HE_V2_Schema::record_runtime_failure( 'secure_merge_commit_failed', 'File 06 could not confirm the governed concept-merge commit.' );
+				return new WP_Error( 'he_merge_failed', __( 'The concept merge outcome could not be confirmed safely. Reload state before retrying.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
 			if ( in_array( $error->getMessage(), array( 'relation-provenance-invalid', 'relation-provenance-clone-failed' ), true ) ) {
 				return new WP_Error( 'he_relation_provenance_invalid', __( 'Merged graph edges could not be rebound to valid target-concept provenance.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
