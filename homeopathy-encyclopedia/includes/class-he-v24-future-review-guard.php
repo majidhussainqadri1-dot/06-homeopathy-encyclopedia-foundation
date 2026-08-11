@@ -69,12 +69,18 @@ final class HE_V24_Future_Review_Guard {
 		if ( ! $concept || ! $claim['version_id'] || (int) $claim['version_id'] !== (int) $concept['current_version'] || ! HE_V24_Future_Schema::version_belongs( $claim['concept_id'], $claim['version_id'] ) ) {
 			return new WP_Error( 'he_future_claim_version_gate', __( 'A public claim must be bound to the current governed concept version before approval.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
-		$links = $wpdb->get_results( $wpdb->prepare( "SELECT external_id FROM " . HE_V24_Future_Schema::table( 'claim_evidence' ) . " WHERE claim_id=%d AND external_id<>''", $claim_id ), ARRAY_A );
+		$links = $wpdb->get_results( $wpdb->prepare( 'SELECT reference_id,external_id FROM ' . HE_V24_Future_Schema::table( 'claim_evidence' ) . ' WHERE claim_id=%d ORDER BY id ASC LIMIT 100', $claim_id ), ARRAY_A );
+		if ( ! $links ) { return new WP_Error( 'he_future_claim_evidence_required', __( 'A claim cannot be approved without governed current-version evidence.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
 		foreach ( $links as $link ) {
-			$reviewed = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V24_Future_Schema::table( 'external_records' ) . " WHERE external_id=%s AND concept_id=%d AND status='reviewed' AND review_required=0 ORDER BY id DESC LIMIT 1", $link['external_id'], $claim['concept_id'] ) );
-			if ( ! $reviewed ) {
-				return new WP_Error( 'he_future_external_review_required', __( 'Linked external scholarly metadata must receive human review before the claim can be approved.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			if ( ! empty( $link['reference_id'] ) ) {
+				$valid = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d AND concept_id=%d AND version_id=%d', absint( $link['reference_id'] ), $claim['concept_id'], $claim['version_id'] ) );
+				if ( ! $valid ) { return new WP_Error( 'he_future_reference_version_gate', __( 'Linked internal evidence must belong to the same current concept version as the claim.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+				continue;
 			}
+			$parts = HE_V24_Future_API::external_evidence_token_parts( $link['external_id'] ?? '' );
+			if ( ! $parts ) { return new WP_Error( 'he_future_external_relink_required', __( 'Legacy or ambiguous external evidence must be re-linked with an explicit provider before approval.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+			$reviewed = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V24_Future_Schema::table( 'external_records' ) . " WHERE provider=%s AND external_id=%s AND concept_id=%d AND ((object_type='claim' AND object_id=%d) OR object_type='concept') AND status='reviewed' AND review_required=0 ORDER BY id DESC LIMIT 1", $parts['provider'], $parts['external_id'], $claim['concept_id'], $claim_id ) );
+			if ( ! $reviewed ) { return new WP_Error( 'he_future_external_review_required', __( 'The exact linked external scholarly record must receive human review before the claim can be approved.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
 		}
 		return $response;
 	}

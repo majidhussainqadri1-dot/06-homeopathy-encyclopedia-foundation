@@ -13,6 +13,9 @@ final class HE_V24_Migration_Safety {
 	const OPTION_ORCID_DONE = 'he_v24_orcid_postflight_done';
 	const OPTION_EMITTED_DONE = 'he_v24_emitted_postflight_done';
 	const OPTION_PENDING = 'he_v24_migration_pending';
+	const OPTION_LEASE = 'he_v24_migration_lease';
+	const LEASE_TTL = 15 * MINUTE_IN_SECONDS;
+	private static $lease_token = '';
 
 	public static function table_exists( $table ) {
 		global $wpdb;
@@ -203,24 +206,69 @@ final class HE_V24_Migration_Safety {
 			&& ! get_option( self::OPTION_PENDING );
 	}
 
-	public static function activate() {
-		if ( ! self::preflight() ) {
-			update_option( self::OPTION_PENDING, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 preflight migration is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+	private static function acquire_lease() {
+		global $wpdb;
+		$token = wp_generate_uuid4();
+		$value = array( 'token' => $token, 'time' => time() );
+		if ( add_option( self::OPTION_LEASE, $value, '', false ) ) {
+			self::$lease_token = $token;
+			return true;
+		}
+		$existing = get_option( self::OPTION_LEASE );
+		if ( ! is_array( $existing ) || empty( $existing['time'] ) || time() - (int) $existing['time'] <= self::LEASE_TTL ) {
 			return false;
 		}
-		if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) {
-			HE_V24_Future_Schema::install();
-		}
-		if ( ! self::postflight() ) {
-			update_option( self::OPTION_PENDING, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 postflight reconciliation is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+		$deleted = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+			self::OPTION_LEASE,
+			maybe_serialize( $existing )
+		) );
+		if ( 1 !== (int) $deleted || ! add_option( self::OPTION_LEASE, $value, '', false ) ) {
 			return false;
 		}
-		delete_option( self::OPTION_PENDING );
-		$failure = get_option( HE_V2_Schema::OPTION_FAILURE, array() );
-		if ( is_array( $failure ) && 'future_migration_pending' === ( $failure['code'] ?? '' ) ) { delete_option( HE_V2_Schema::OPTION_FAILURE ); }
+		self::$lease_token = $token;
 		return true;
+	}
+
+	private static function release_lease() {
+		global $wpdb;
+		if ( ! self::$lease_token ) { return; }
+		$current = get_option( self::OPTION_LEASE );
+		if ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], self::$lease_token ) ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				self::OPTION_LEASE,
+				maybe_serialize( $current )
+			) );
+		}
+		self::$lease_token = '';
+	}
+
+	public static function activate() {
+		if ( ! self::acquire_lease() ) {
+			return false;
+		}
+		try {
+			if ( ! self::preflight() ) {
+				update_option( self::OPTION_PENDING, 1, false );
+				HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 preflight migration is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+				return false;
+			}
+			if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) {
+				HE_V24_Future_Schema::install();
+			}
+			if ( ! self::postflight() ) {
+				update_option( self::OPTION_PENDING, 1, false );
+				HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 postflight reconciliation is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+				return false;
+			}
+			delete_option( self::OPTION_PENDING );
+			$failure = get_option( HE_V2_Schema::OPTION_FAILURE, array() );
+			if ( is_array( $failure ) && 'future_migration_pending' === ( $failure['code'] ?? '' ) ) { delete_option( HE_V2_Schema::OPTION_FAILURE ); }
+			return true;
+		} finally {
+			self::release_lease();
+		}
 	}
 
 	public static function maybe_upgrade() {

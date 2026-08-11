@@ -374,7 +374,7 @@ final class HE_V2_Domain {
 			return null;
 		}
 		$aliases = $wpdb->get_results( $wpdb->prepare( 'SELECT alias,language,alias_type FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d ORDER BY is_primary DESC,alias ASC', $row['id'] ), ARRAY_A );
-		$references = $wpdb->get_results( $wpdb->prepare( 'SELECT id,source_type,author,title,edition,volume,page_locator,publisher,year,url,doi,evidence_grade,rights_status,link_status FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND (version_id=0 OR version_id=%d) ORDER BY id ASC', $row['id'], $version['id'] ), ARRAY_A );
+		$references = $wpdb->get_results( $wpdb->prepare( 'SELECT id,source_type,author,title,edition,volume,page_locator,publisher,year,url,doi,evidence_grade,rights_status,link_status FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND version_id=%d ORDER BY id ASC', $row['id'], $version['id'] ), ARRAY_A );
 		$integrity = $wpdb->get_results( $wpdb->prepare( "SELECT public_id,action_type,status,reason,replacement_object_id,updated_at FROM " . HE_V2_Schema::table( 'integrity_actions' ) . " WHERE object_type='concept' AND object_id=%d AND status IN ('accepted','applied') ORDER BY id DESC", $row['id'] ), ARRAY_A );
 		$structured = json_decode( (string) $version['structured_json'], true );
 		$structured = is_array( $structured ) ? $structured : array();
@@ -576,7 +576,7 @@ final class HE_V2_Domain {
 		if ( ! trim( $post->post_title ) || ! trim( $post->post_excerpt ) || ! trim( wp_strip_all_tags( $post->post_content ) ) ) {
 			$errors[] = 'title-summary-body-required';
 		}
-		$references = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d', $row['id'] ) );
+		$references = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND (version_id=0 OR version_id=%d)', $row['id'], (int) $row['current_version'] ) );
 		if ( $references < 1 ) {
 			$errors[] = 'reference-required';
 		}
@@ -685,12 +685,34 @@ final class HE_V2_Domain {
 		return $ok ? (int) $wpdb->insert_id : new WP_Error( 'he_review_write_failed', __( 'Review could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
 	}
 
+	private static function bind_references_to_snapshot( $concept_id, $previous_version_id, $new_version_id, $actor_id ) {
+		global $wpdb;
+		$table = HE_V2_Schema::table( 'references' );
+		$concept_id = absint( $concept_id ); $previous_version_id = absint( $previous_version_id ); $new_version_id = absint( $new_version_id );
+		if ( ! $concept_id || ! $new_version_id ) { return; }
+		/* Pending draft references become immutable members of the new snapshot first. */
+		$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET version_id=%d WHERE concept_id=%d AND version_id=0", $new_version_id, $concept_id ) );
+		if ( ! $previous_version_id || $previous_version_id === $new_version_id ) { return; }
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND version_id=%d ORDER BY id ASC", $concept_id, $previous_version_id ), ARRAY_A );
+		foreach ( $rows as $ref ) {
+			if ( ! is_array( $ref ) ) { continue; }
+			$exists = (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM {$table} WHERE concept_id=%d AND version_id=%d AND source_type=%s AND title=%s AND edition=%s AND page_locator=%s AND url=%s AND doi=%s LIMIT 1",
+				$concept_id, $new_version_id, $ref['source_type'], $ref['title'], $ref['edition'], $ref['page_locator'], $ref['url'], $ref['doi']
+			) );
+			if ( $exists ) { continue; }
+			unset( $ref['id'] );
+			$ref['version_id'] = $new_version_id;
+			$ref['created_by'] = absint( $actor_id );
+			$ref['created_at'] = current_time( 'mysql', true );
+			$wpdb->insert( $table, $ref );
+		}
+	}
+
 	public static function snapshot_version( $concept_id, $reason, $status, $actor_id ) {
 		global $wpdb;
 		$row = self::concept_by_id( $concept_id, true );
-		if ( ! $row ) {
-			return 0;
-		}
+		if ( ! $row ) { return 0; }
 		$post = get_post( (int) $row['post_id'] );
 		$structured = get_post_meta( $post->ID, '_he_structured', true );
 		$structured = is_array( $structured ) ? $structured : array();
@@ -698,20 +720,16 @@ final class HE_V2_Domain {
 		$body = (string) $post->post_content;
 		$hash = hash( 'sha256', wp_json_encode( array( $post->post_title, $post->post_excerpt, $body, $structured ) ) );
 		$ok = $wpdb->insert( HE_V2_Schema::table( 'versions' ), array(
-			'concept_id' => $row['id'],
-			'version_number' => $version_number,
-			'status' => sanitize_key( $status ),
-			'title' => $post->post_title,
-			'summary' => $post->post_excerpt,
-			'body' => $body,
-			'structured_json' => wp_json_encode( $structured ),
-			'content_hash' => $hash,
-			'change_reason' => sanitize_textarea_field( $reason ),
-			'effective_at' => current_time( 'mysql', true ),
-			'created_by' => absint( $actor_id ),
-			'created_at' => current_time( 'mysql', true ),
-		), array( '%d','%d','%s','%s','%s','%s','%s','%s','%s','%d','%s' ) );
-		return $ok ? (int) $wpdb->insert_id : 0;
+			'concept_id' => $row['id'], 'version_number' => $version_number, 'status' => sanitize_key( $status ),
+			'title' => $post->post_title, 'summary' => $post->post_excerpt, 'body' => $body,
+			'structured_json' => wp_json_encode( $structured ), 'content_hash' => $hash,
+			'change_reason' => sanitize_textarea_field( $reason ), 'effective_at' => current_time( 'mysql', true ),
+			'created_by' => absint( $actor_id ), 'created_at' => current_time( 'mysql', true ),
+		) );
+		if ( ! $ok ) { return 0; }
+		$new_version_id = (int) $wpdb->insert_id;
+		self::bind_references_to_snapshot( $row['id'], (int) $row['current_version'], $new_version_id, $actor_id );
+		return $new_version_id;
 	}
 
 	public static function create_integrity_action( $concept_id, $type, $reason, $evidence, $replacement_id, $actor_id ) {
@@ -766,18 +784,27 @@ final class HE_V2_Domain {
 	public static function add_relation( $source_id, $target_id, $type, $reference_id, $actor_id ) {
 		global $wpdb;
 		$type = sanitize_key( $type );
-		if ( ! in_array( $type, self::relation_types(), true ) || absint( $source_id ) === absint( $target_id ) ) {
+		$source_id = absint( $source_id ); $target_id = absint( $target_id ); $reference_id = absint( $reference_id );
+		if ( ! in_array( $type, self::relation_types(), true ) || $source_id === $target_id ) {
 			return new WP_Error( 'he_invalid_relation', __( 'Invalid knowledge relationship.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
 		}
-		if ( ! self::concept_by_id( $source_id, true ) || ! self::concept_by_id( $target_id, true ) ) {
+		$source = self::concept_by_id( $source_id, true ); $target = self::concept_by_id( $target_id, true );
+		if ( ! $source || ! $target ) {
 			return new WP_Error( 'he_relation_target_missing', __( 'Relationship concepts could not be found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		}
+		if ( ! $reference_id ) {
+			return new WP_Error( 'he_relation_provenance_required', __( 'Every knowledge relationship requires source-version provenance.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		}
+		$reference = $wpdb->get_row( $wpdb->prepare( 'SELECT id,concept_id,version_id FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d', $reference_id ), ARRAY_A );
+		if ( ! $reference || (int) $reference['concept_id'] !== $source_id || ( (int) $reference['version_id'] !== 0 && (int) $reference['version_id'] !== (int) $source['current_version'] ) || ( ! $source['current_version'] && (int) $reference['version_id'] !== 0 ) ) {
+			return new WP_Error( 'he_relation_provenance_invalid', __( 'Relationship provenance must be pending for the next source snapshot or bound to the current source version.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
 		$now = current_time( 'mysql', true );
 		$ok = $wpdb->query( $wpdb->prepare(
 			'INSERT INTO ' . HE_V2_Schema::table( 'relations' ) . ' (source_concept_id,target_concept_id,relation_type,owner_file,source_reference_id,status,row_version,created_by,created_at,updated_at) VALUES (%d,%d,%s,%s,%d,%s,1,%d,%s,%s) ON DUPLICATE KEY UPDATE source_reference_id=VALUES(source_reference_id),status=\'active\',row_version=row_version+1,updated_at=VALUES(updated_at)',
-			absint( $source_id ), absint( $target_id ), $type, 'file-06', absint( $reference_id ), 'active', absint( $actor_id ), $now, $now
+			$source_id, $target_id, $type, 'file-06', $reference_id, 'active', absint( $actor_id ), $now, $now
 		) );
-		return false !== $ok;
+		return false !== $ok ? true : new WP_Error( 'he_relation_write_failed', __( 'The knowledge relationship could not be stored.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
 	}
 
 	public static function graph( $concept_id, $depth = 1, $limit = 50 ) {
@@ -804,7 +831,7 @@ final class HE_V2_Domain {
 			if ( $level >= $depth ) {
 				continue;
 			}
-			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'relations' ) . " WHERE status='active' AND (source_concept_id=%d OR target_concept_id=%d) LIMIT %d", $current, $current, $limit ), ARRAY_A );
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT r.* FROM ' . HE_V2_Schema::table( 'relations' ) . ' r INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' sc ON sc.id=r.source_concept_id INNER JOIN ' . HE_V2_Schema::table( 'references' ) . " ref ON ref.id=r.source_reference_id AND ref.concept_id=r.source_concept_id AND ref.version_id=sc.current_version WHERE r.status='active' AND sc.current_version>0 AND (r.source_concept_id=%d OR r.target_concept_id=%d) LIMIT %d", $current, $current, $limit ), ARRAY_A );
 			foreach ( $rows as $edge ) {
 				$other = (int) $edge['source_concept_id'] === $current ? (int) $edge['target_concept_id'] : (int) $edge['source_concept_id'];
 				if ( ! self::concept_by_id( $other ) ) {
@@ -844,7 +871,8 @@ final class HE_V2_Domain {
 				$new_source = (int) $edge['source_concept_id'] === (int) $source['id'] ? (int) $target['id'] : (int) $edge['source_concept_id'];
 				$new_target = (int) $edge['target_concept_id'] === (int) $source['id'] ? (int) $target['id'] : (int) $edge['target_concept_id'];
 				if ( $new_source !== $new_target ) {
-					self::add_relation( $new_source, $new_target, $edge['relation_type'], $edge['source_reference_id'], $actor_id );
+					$relation_result = self::add_relation( $new_source, $new_target, $edge['relation_type'], $edge['source_reference_id'], $actor_id );
+					if ( is_wp_error( $relation_result ) ) { throw new RuntimeException( $relation_result->get_error_message() ); }
 				}
 				$wpdb->delete( HE_V2_Schema::table( 'relations' ), array( 'id' => (int) $edge['id'] ), array( '%d' ) );
 			}

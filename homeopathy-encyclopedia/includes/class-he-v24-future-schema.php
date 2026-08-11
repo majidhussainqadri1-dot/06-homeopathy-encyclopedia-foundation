@@ -287,41 +287,32 @@ final class HE_V24_Future_Schema {
 	public static function public_claims( $concept_id ) {
 		global $wpdb;
 		$concept = self::concept_row( $concept_id, true );
-		if ( ! $concept ) {
-			return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
-		}
+		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT c.public_id,c.claim_key,c.claim_text,c.claim_state,c.evidence_state,c.confidence,c.review_status,c.version_id FROM ' . self::table( 'claims' ) . " c WHERE c.concept_id=%d AND c.claim_state='active' AND c.review_status='approved' AND (c.version_id=0 OR c.version_id=%d) AND EXISTS (SELECT 1 FROM " . self::table( 'claim_evidence' ) . " e WHERE e.claim_id=c.id) ORDER BY c.id ASC LIMIT 300",
+			'SELECT c.id AS internal_claim_id,c.public_id,c.claim_key,c.claim_text,c.claim_state,c.evidence_state,c.confidence,c.review_status,v.version_number FROM ' . self::table( 'claims' ) . ' c INNER JOIN ' . HE_V2_Schema::table( 'versions' ) . " v ON v.id=c.version_id AND v.concept_id=c.concept_id WHERE c.concept_id=%d AND c.claim_state='active' AND c.review_status='approved' AND c.version_id=%d AND EXISTS (SELECT 1 FROM " . self::table( 'claim_evidence' ) . " e WHERE e.claim_id=c.id) ORDER BY c.id ASC LIMIT 300",
 			$concept['id'], $concept['current_version']
 		), ARRAY_A );
 		$out = array();
 		foreach ( $rows as $row ) {
-			$claim_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::table( 'claims' ) . ' WHERE public_id=%s', $row['public_id'] ) );
-			$evidence = $wpdb->get_results( $wpdb->prepare(
-				'SELECT relation,reference_id,external_id,weight,note FROM ' . self::table( 'claim_evidence' ) . ' WHERE claim_id=%d ORDER BY id ASC LIMIT 100',
-				$claim_id
-			), ARRAY_A );
+			$claim_id = (int) $row['internal_claim_id']; unset( $row['internal_claim_id'] );
+			$evidence = $wpdb->get_results( $wpdb->prepare( 'SELECT relation,reference_id,external_id,weight,note FROM ' . self::table( 'claim_evidence' ) . ' WHERE claim_id=%d ORDER BY id ASC LIMIT 100', $claim_id ), ARRAY_A );
 			$safe_evidence = array();
 			foreach ( $evidence as $link ) {
 				$item = array( 'relation' => $link['relation'], 'weight' => (float) $link['weight'] );
 				if ( ! empty( $link['reference_id'] ) ) {
-					$ref = $wpdb->get_row( $wpdb->prepare( 'SELECT source_type,author,title,edition,volume,page_locator,publisher,year,url,doi,evidence_grade,rights_status,link_status FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d AND concept_id=%d', absint( $link['reference_id'] ), $concept['id'] ), ARRAY_A );
-					if ( $ref ) {
-						$item['reference'] = $ref;
-					}
+					$ref = $wpdb->get_row( $wpdb->prepare( 'SELECT source_type,author,title,edition,volume,page_locator,publisher,year,url,doi,evidence_grade,rights_status,link_status FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d AND concept_id=%d AND version_id=%d', absint( $link['reference_id'] ), $concept['id'], $concept['current_version'] ), ARRAY_A );
+					if ( $ref ) { $item['reference'] = $ref; }
 				} elseif ( ! empty( $link['external_id'] ) ) {
-					$item['external_id'] = sanitize_text_field( $link['external_id'] );
+					$parts = HE_V24_Future_API::external_evidence_token_parts( $link['external_id'] );
+					if ( $parts ) {
+						$reviewed = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::table( 'external_records' ) . " WHERE provider=%s AND external_id=%s AND concept_id=%d AND ((object_type='claim' AND object_id=%d) OR object_type='concept') AND status='reviewed' AND review_required=0 ORDER BY id DESC LIMIT 1", $parts['provider'], $parts['external_id'], $concept['id'], $claim_id ) );
+						if ( $reviewed ) { $item['external'] = array( 'provider' => $parts['provider'], 'external_id' => $parts['external_id'] ); }
+					}
 				}
-				if ( ! empty( $item['reference'] ) || ! empty( $item['external_id'] ) ) {
-					$safe_evidence[] = $item;
-				}
+				if ( ! empty( $item['reference'] ) || ! empty( $item['external'] ) ) { $safe_evidence[] = $item; }
 			}
-			if ( ! $safe_evidence ) {
-				continue;
-			}
-			$row['confidence'] = (float) $row['confidence'];
-			$row['evidence'] = $safe_evidence;
-			$out[] = $row;
+			if ( ! $safe_evidence ) { continue; }
+			$row['version_number'] = (int) $row['version_number']; $row['confidence'] = (float) $row['confidence']; $row['evidence'] = $safe_evidence; $out[] = $row;
 		}
 		return $out;
 	}
@@ -329,37 +320,25 @@ final class HE_V24_Future_Schema {
 	public static function append_provenance( $type, $id, $action, $source_uri = '', $metadata = array(), $actor_id = 0 ) {
 		global $wpdb;
 		$table = self::table( 'provenance' );
-		$parent = (string) $wpdb->get_var( "SELECT record_hash FROM {$table} WHERE record_hash<>'' ORDER BY id DESC LIMIT 1" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$created = current_time( 'mysql', true );
-		$source_hash = ! empty( $metadata['source_hash'] ) ? preg_replace( '/[^a-f0-9]/i', '', (string) $metadata['source_hash'] ) : '';
-		$transform = ! empty( $metadata['transform'] ) ? sanitize_key( $metadata['transform'] ) : '';
-		$metadata_json = wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-		$hash_payload = wp_json_encode( array(
-			'parent_hash' => $parent,
-			'object_type' => sanitize_key( $type ),
-			'object_id' => sanitize_text_field( $id ),
-			'action' => sanitize_key( $action ),
-			'source_uri' => esc_url_raw( $source_uri ),
-			'source_hash' => $source_hash,
-			'transform' => $transform,
-			'metadata_json' => $metadata_json,
-			'created_at' => $created,
-		), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-		$record_hash = hash( 'sha256', $hash_payload );
-		$ok = $wpdb->insert( $table, array(
-			'object_type' => sanitize_key( $type ),
-			'object_id' => sanitize_text_field( $id ),
-			'action' => sanitize_key( $action ),
-			'actor_id' => absint( $actor_id ?: get_current_user_id() ),
-			'source_uri' => esc_url_raw( $source_uri ),
-			'source_hash' => $source_hash,
-			'transform' => $transform,
-			'metadata_json' => $metadata_json,
-			'parent_hash' => $parent,
-			'record_hash' => $record_hash,
-			'created_at' => $created,
-		) );
-		return $ok ? $record_hash : false;
+		$lock_name = substr( $wpdb->prefix . 'he_v24_provenance_chain', 0, 64 );
+		$locked = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s,5)', $lock_name ) );
+		if ( 1 !== $locked ) {
+			HE_V2_Schema::record_runtime_failure( 'provenance_chain_busy', 'File 06 could not acquire the provenance-chain serialization lock.' );
+			return false;
+		}
+		try {
+			$parent = (string) $wpdb->get_var( "SELECT record_hash FROM {$table} WHERE record_hash<>'' ORDER BY id DESC LIMIT 1" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$created = current_time( 'mysql', true );
+			$source_hash = ! empty( $metadata['source_hash'] ) ? preg_replace( '/[^a-f0-9]/i', '', (string) $metadata['source_hash'] ) : '';
+			$transform = ! empty( $metadata['transform'] ) ? sanitize_key( $metadata['transform'] ) : '';
+			$metadata_json = wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+			$hash_payload = wp_json_encode( array( 'parent_hash'=>$parent,'object_type'=>sanitize_key($type),'object_id'=>sanitize_text_field($id),'action'=>sanitize_key($action),'source_uri'=>esc_url_raw($source_uri),'source_hash'=>$source_hash,'transform'=>$transform,'metadata_json'=>$metadata_json,'created_at'=>$created ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+			$record_hash = hash( 'sha256', $hash_payload );
+			$ok = $wpdb->insert( $table, array( 'object_type'=>sanitize_key($type),'object_id'=>sanitize_text_field($id),'action'=>sanitize_key($action),'actor_id'=>absint($actor_id ?: get_current_user_id()),'source_uri'=>esc_url_raw($source_uri),'source_hash'=>$source_hash,'transform'=>$transform,'metadata_json'=>$metadata_json,'parent_hash'=>$parent,'record_hash'=>$record_hash,'created_at'=>$created ) );
+			return $ok ? $record_hash : false;
+		} finally {
+			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+		}
 	}
 
 	public static function public_provenance( $type, $id, $format = 'json' ) {
@@ -586,11 +565,12 @@ final class HE_V24_Future_Schema {
 		if ( ! $concept ) {
 			return 0;
 		}
-		$refs = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d', $concept['id'] ) );
-		$broken = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'references' ) . " WHERE concept_id=%d AND link_status IN ('broken','error')", $concept['id'] ) );
-		$claims = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table( 'claims' ) . ' WHERE concept_id=%d', $concept['id'] ) );
-		$without_evidence = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table( 'claims' ) . ' c WHERE c.concept_id=%d AND c.review_status=\'approved\' AND NOT EXISTS (SELECT 1 FROM ' . self::table( 'claim_evidence' ) . ' e WHERE e.claim_id=c.id)', $concept['id'] ) );
-		$contradictions = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . self::table( 'claim_evidence' ) . " e INNER JOIN " . self::table( 'claims' ) . " c ON c.id=e.claim_id WHERE c.concept_id=%d AND e.relation='contradicts'", $concept['id'] ) );
+		$current_version = absint( $concept['current_version'] );
+		$refs = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND version_id=%d', $concept['id'], $current_version ) );
+		$broken = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'references' ) . " WHERE concept_id=%d AND version_id=%d AND link_status IN ('broken','error')", $concept['id'], $current_version ) );
+		$claims = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table( 'claims' ) . ' WHERE concept_id=%d AND version_id=%d', $concept['id'], $current_version ) );
+		$without_evidence = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table( 'claims' ) . ' c WHERE c.concept_id=%d AND c.version_id=%d AND c.review_status=\'approved\' AND NOT EXISTS (SELECT 1 FROM ' . self::table( 'claim_evidence' ) . ' e WHERE e.claim_id=c.id)', $concept['id'], $current_version ) );
+		$contradictions = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . self::table( 'claim_evidence' ) . " e INNER JOIN " . self::table( 'claims' ) . " c ON c.id=e.claim_id WHERE c.concept_id=%d AND c.version_id=%d AND e.relation='contradicts'", $concept['id'], $current_version ) );
 		$validation = HE_V2_Domain::validate_for_review( $concept['id'] );
 		$safety_missing = false;
 		if ( is_wp_error( $validation ) ) {

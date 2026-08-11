@@ -18,8 +18,8 @@ final class HE_V242_Reference_Graph {
 			$source = HE_V2_Domain::concept_by_id( $match[1], true );
 			if ( ! $source ) { return new WP_Error( 'he_not_found', __( 'Source concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 			global $wpdb;
-			$belongs = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d AND concept_id=%d', $reference_id, (int) $source['id'] ) );
-			if ( ! $belongs ) { return new WP_Error( 'he_relation_provenance_invalid', __( 'Relationship provenance must reference a source belonging to the source concept.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+			$reference = $wpdb->get_row( $wpdb->prepare( 'SELECT id,version_id FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d AND concept_id=%d', $reference_id, (int) $source['id'] ), ARRAY_A );
+			if ( ! $reference || ( (int) $reference['version_id'] !== 0 && (int) $reference['version_id'] !== (int) $source['current_version'] ) || ( ! $source['current_version'] && (int) $reference['version_id'] !== 0 ) ) { return new WP_Error( 'he_relation_provenance_invalid', __( 'Relationship provenance must be pending for the next source snapshot or bound to the current source version.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
 		}
 		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/entries/([^/]+)/references$#', $route ) ) {
 			$data = (array) $request->get_json_params();

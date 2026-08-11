@@ -16,6 +16,7 @@ final class HE_V22_Governance {
 	const REINDEX_CURSOR = 'he_v22_reindex_cursor';
 	const REINDEX_REQUIRED = 'he_v22_reindex_required';
 	const BATCH_SIZE = 50;
+	private static $upgrade_lock_token = '';
 
 	public static function hooks() {
 		add_action( 'init', array( __CLASS__, 'register_rewrites' ), 80 );
@@ -83,22 +84,45 @@ final class HE_V22_Governance {
 		}
 	}
 
-	/** Atomic option insertion avoids the read-then-update migration-lock race. */
+	/** Atomic option insertion plus compare-and-delete stale takeover prevents one worker from deleting another worker's lease. */
 	private static function acquire_lock() {
-		$token = array( 'token' => wp_generate_uuid4(), 'time' => time() );
-		if ( add_option( self::LOCK_OPTION, $token, '', false ) ) {
+		global $wpdb;
+		$token = wp_generate_uuid4();
+		$value = array( 'token' => $token, 'time' => time() );
+		if ( add_option( self::LOCK_OPTION, $value, '', false ) ) {
+			self::$upgrade_lock_token = $token;
 			return true;
 		}
 		$existing = get_option( self::LOCK_OPTION );
-		if ( is_array( $existing ) && ! empty( $existing['time'] ) && time() - (int) $existing['time'] > 600 ) {
-			delete_option( self::LOCK_OPTION );
-			return add_option( self::LOCK_OPTION, $token, '', false );
+		if ( ! is_array( $existing ) || empty( $existing['time'] ) || time() - (int) $existing['time'] <= 600 ) {
+			return false;
 		}
-		return false;
+		$deleted = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+			self::LOCK_OPTION,
+			maybe_serialize( $existing )
+		) );
+		if ( 1 !== (int) $deleted || ! add_option( self::LOCK_OPTION, $value, '', false ) ) {
+			return false;
+		}
+		self::$upgrade_lock_token = $token;
+		return true;
 	}
 
 	private static function release_lock() {
-		delete_option( self::LOCK_OPTION );
+		global $wpdb;
+		if ( ! self::$upgrade_lock_token ) {
+			return;
+		}
+		$current = get_option( self::LOCK_OPTION );
+		if ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], self::$upgrade_lock_token ) ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				self::LOCK_OPTION,
+				maybe_serialize( $current )
+			) );
+		}
+		self::$upgrade_lock_token = '';
 	}
 
 	private static function column_exists( $table, $column ) {

@@ -3,7 +3,7 @@
 $root=dirname(__DIR__);$p=$root.'/homeopathy-encyclopedia';$fail=array();
 function a($ok,$m){global $fail;if(!$ok)$fail[]=$m;} function rd($f){$v=file_get_contents($f);if(false===$v)throw new RuntimeException($f);return $v;}
 $b=rd($p.'/homeopathy-encyclopedia.php');$s=rd($p.'/includes/class-he-v2-schema.php');$d=rd($p.'/includes/class-he-v2-domain.php');$api=rd($p.'/includes/class-he-v2-api.php');$auth=rd($p.'/includes/class-he-v2-auth.php');$g=rd($p.'/includes/class-he-v22-governance.php');$i=rd($p.'/includes/class-he-v22-integrity.php');$sch=rd($p.'/includes/class-he-v22-schedule.php');$search=rd($p.'/includes/class-he-v22-search.php');$types=rd($p.'/includes/class-he-v22-type-schemas.php');$rg=rd($p.'/includes/class-he-v22-research-guard.php');$c=rd($p.'/includes/class-he-v22-consumers.php');$op=rd($p.'/includes/class-he-v22-operations.php');$privacy=rd($p.'/includes/class-he-v2-privacy.php');$pub=rd($p.'/includes/class-he-v22-public-guard.php');
-a(false!==strpos($b,"HE_VERSION', '2.4.2"),'version');a(false!==strpos($b,"HE_SCHEMA_VERSION', 10"),'schema');a(false!==strpos($b,"HE_CONTRACT_VERSION', '2.4.2"),'contract');
+a(false!==strpos($b,"HE_VERSION', '2.4.3"),'version');a(false!==strpos($b,"HE_SCHEMA_VERSION', 10"),'schema');a(false!==strpos($b,"HE_CONTRACT_VERSION', '2.4.3"),'contract');
 a((bool)preg_match("/'staging_accepted'\s*=>\s*false/",$b)&&(bool)preg_match("/'live_deployed'\s*=>\s*false/",$b)&&(bool)preg_match("/'operational'\s*=>\s*false/",$b),'release truth');
 preg_match_all("/=> __\( '/",$d,$m);a(count($m[0])>=16,'taxonomy');a(16===substr_count($types,"'body_system_required' =>"),'16 type schemas');
 foreach(array('concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','bookmarks','rate_limits','search_index') as $t)a(false!==strpos($s,"table( '".$t."' )"),'table '.$t);
@@ -19,4 +19,4 @@ foreach(array('file-05','file-12','file-15','file-16','file-21','file-26') as $x
 a(false!==strpos($c,"'write_authority' => false")&&false!==strpos($c,"'private_fields' => false"),'read-only consumer boundary');
 foreach(array('wp_privacy_personal_data_exporters','wp_privacy_personal_data_erasers','he_v2_privacy_legal_hold') as $x)a(false!==strpos($privacy,$x),'privacy '.$x);
 a(false!==strpos($pub,'ScholarlyArticle'),'research structured data');a(false!==strpos($op,"status='dead-letter'"),'dead letter health');
-if($fail){fwrite(STDERR,"File 06 core invariants FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 current core invariants passed under v2.4.2.\n";
+if($fail){fwrite(STDERR,"File 06 core invariants FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 current core invariants passed under v2.4.3.\n";

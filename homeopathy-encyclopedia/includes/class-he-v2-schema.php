@@ -7,6 +7,7 @@ final class HE_V2_Schema {
 	const OPTION_FAILURE = 'he_v2_runtime_failure';
 	const OPTION_SAFE_MODE = 'he_v2_safe_mode';
 	const OPTION_MIGRATION_LOCK = 'he_v2_migration_lock';
+	private static $migration_lock_token = '';
 
 	public static function table( $suffix ) {
 		global $wpdb;
@@ -40,17 +41,43 @@ final class HE_V2_Schema {
 	}
 
 	private static function acquire_lock() {
+		global $wpdb;
 		$token = wp_generate_uuid4();
+		$value = array( 'token' => $token, 'time' => time() );
+		if ( add_option( self::OPTION_MIGRATION_LOCK, $value, '', false ) ) {
+			self::$migration_lock_token = $token;
+			return true;
+		}
 		$existing = get_option( self::OPTION_MIGRATION_LOCK );
-		if ( is_array( $existing ) && ! empty( $existing['time'] ) && ( time() - (int) $existing['time'] ) < 300 ) {
+		if ( ! is_array( $existing ) || empty( $existing['time'] ) || ( time() - (int) $existing['time'] ) <= 300 ) {
 			return false;
 		}
-		update_option( self::OPTION_MIGRATION_LOCK, array( 'token' => $token, 'time' => time() ), false );
+		$deleted = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+			self::OPTION_MIGRATION_LOCK,
+			maybe_serialize( $existing )
+		) );
+		if ( 1 !== (int) $deleted || ! add_option( self::OPTION_MIGRATION_LOCK, $value, '', false ) ) {
+			return false;
+		}
+		self::$migration_lock_token = $token;
 		return true;
 	}
 
 	private static function release_lock() {
-		delete_option( self::OPTION_MIGRATION_LOCK );
+		global $wpdb;
+		if ( ! self::$migration_lock_token ) {
+			return;
+		}
+		$current = get_option( self::OPTION_MIGRATION_LOCK );
+		if ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], self::$migration_lock_token ) ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				self::OPTION_MIGRATION_LOCK,
+				maybe_serialize( $current )
+			) );
+		}
+		self::$migration_lock_token = '';
 	}
 
 	public static function maybe_upgrade() {
