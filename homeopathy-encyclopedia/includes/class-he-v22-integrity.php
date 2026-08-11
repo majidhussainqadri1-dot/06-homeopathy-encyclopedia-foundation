@@ -63,6 +63,20 @@ final class HE_V22_Integrity {
 		if ( ! $row ) {
 			return self::finish( $reservation, new WP_Error( 'he_not_found', __( 'The integrity record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) );
 		}
+		$post_id = 0;
+		if ( 'concept' === $row['object_type'] ) {
+			$concept = HE_V2_Domain::concept_by_id( (int) $row['object_id'], true );
+			$post_id = $concept ? (int) $concept['post_id'] : 0;
+		} elseif ( 'research' === $row['object_type'] ) {
+			$post_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT post_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', (int) $row['object_id'] ) );
+		}
+		if ( ! $post_id ) {
+			return self::finish( $reservation, new WP_Error( 'he_not_found', __( 'The governed integrity subject is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) );
+		}
+		$object_permission = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REVIEW, $post_id, 'file06-integrity-transition' );
+		if ( is_wp_error( $object_permission ) ) {
+			return self::finish( $reservation, $object_permission );
+		}
 		$data = (array) $request->get_json_params();
 		$to = sanitize_key( $data['state'] ?? '' );
 		$expected = absint( $data['expected_version'] ?? 0 );

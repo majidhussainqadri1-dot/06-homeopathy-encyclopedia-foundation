@@ -14,5 +14,6 @@ v2410_ok(false!==strpos($integrity,"entry_integrity_transaction_start_failed") &
 v2410_ok(false!==strpos($v22,'$object_permission = HE_V2_Auth::rest_permission') && false!==strpos($v22,"'file06-research-integrity-apply'") && false!==strpos($v22,'return self::mutation_finish( $reservation, $object_permission, 200 )'),'R6 research integrity apply is authorized globally instead of against its research object');
 $domain=v2410_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v2410_ok(false!==strpos($domain,'INSERT INTO {$reviews}') && false!==strpos($domain,'WHERE c.id=%d AND c.row_version=%d') && false!==strpos($domain,'changed while the review decision was being stored'),'R7 entry review decision is not atomically bound to expected row version');
+v2410_ok(false!==strpos($integrity,"'file06-integrity-transition'") && false!==strpos($integrity,'HE_V2_Auth::CAP_REVIEW, $post_id') && false!==strpos($integrity,'The governed integrity subject is not available.'),'R8 integrity state transitions are authorized globally instead of against their governed subject');
 /*__V2410_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.10 eleventh-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.10 eleventh-review regressions: PASS\n";
