@@ -658,11 +658,15 @@ final class HE_V2_Domain {
 		return self::concept_by_id( $row['id'], true );
 	}
 
-	public static function add_review( $concept_id, $scope, $decision, $conflict, $note, $reviewer_id ) {
+	public static function add_review( $concept_id, $scope, $decision, $conflict, $note, $reviewer_id, $expected_version = 0 ) {
 		global $wpdb;
 		$row = self::concept_by_id( $concept_id, true );
 		if ( ! $row ) {
 			return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		}
+		$expected_version = absint( $expected_version );
+		if ( ! $expected_version || $expected_version !== (int) $row['row_version'] ) {
+			return new WP_Error( 'he_version_conflict', __( 'The entry changed before the review could be stored. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
 		$post = get_post( (int) $row['post_id'] );
 		if ( (int) $post->post_author === absint( $reviewer_id ) ) {
@@ -670,6 +674,7 @@ final class HE_V2_Domain {
 		}
 		$scope = in_array( $scope, array( 'scientific', 'clinical', 'source', 'language', 'shariah', 'privacy' ), true ) ? $scope : 'scientific';
 		$decision = in_array( $decision, array( 'approved', 'changes_required', 'rejected' ), true ) ? $decision : 'changes_required';
+		$content_hash = HE_V22_Governance::entry_content_hash( $row );
 		$ok = $wpdb->insert( HE_V2_Schema::table( 'reviews' ), array(
 			'object_type' => 'concept',
 			'object_id' => $row['id'],
@@ -678,8 +683,11 @@ final class HE_V2_Domain {
 			'decision' => $decision,
 			'conflict_declared' => $conflict ? 1 : 0,
 			'note' => sanitize_textarea_field( $note ),
+			'content_hash' => $content_hash,
+			'reviewed_row_version' => (int) $row['row_version'],
+			'review_subject_author' => $post ? (int) $post->post_author : 0,
 			'created_at' => current_time( 'mysql', true ),
-		), array( '%s','%d','%d','%s','%s','%d','%s','%s' ) );
+		), array( '%s','%d','%d','%s','%s','%d','%s','%s','%d','%d','%s' ) );
 		if ( $ok ) {
 			self::emit_event( 'EncyclopediaEntryReviewed.v1', 'concept', $row['id'], array( 'scope' => $scope, 'decision' => $decision ) );
 		}

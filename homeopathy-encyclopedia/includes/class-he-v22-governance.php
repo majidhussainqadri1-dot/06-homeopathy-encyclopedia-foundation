@@ -549,12 +549,6 @@ final class HE_V22_Governance {
 		}
 		$route = $request->get_route();
 		$prefix = '/' . HE_V2_API::NS;
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/entries/([^/]+)/review$#', $route, $m ) && WP_REST_Server::CREATABLE === $request->get_method() ) {
-			$row = HE_V2_Domain::concept_by_id( $m[1], true );
-			if ( $row ) {
-				self::bind_latest_entry_review( $row );
-			}
-		}
 		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/dataset-access/(\\d+)/approve$#', $route, $m ) && WP_REST_Server::CREATABLE === $request->get_method() ) {
 			HE_V2_Domain::emit_event( 'ResearchDatasetAccessApproved.v1', 'dataset_access', absint( $m[1] ), array() );
 		}
@@ -575,7 +569,7 @@ final class HE_V22_Governance {
 		return $result;
 	}
 
-	private static function entry_content_hash( $row ) {
+	public static function entry_content_hash( $row ) {
 		$post = get_post( (int) $row['post_id'] );
 		if ( ! $post ) {
 			return '';

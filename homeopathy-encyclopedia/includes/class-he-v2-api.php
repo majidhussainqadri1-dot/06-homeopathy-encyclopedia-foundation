@@ -332,7 +332,7 @@ final class HE_V2_API {
 		if ( ! is_wp_error( $reservation ) && ( ! $row || ! absint( $data['expected_version'] ?? 0 ) || absint( $data['expected_version'] ?? 0 ) !== (int) $row['row_version'] ) ) {
 			$result = new WP_Error( 'he_version_conflict', __( 'The entry changed after it was loaded for review. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		} else {
-			$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::add_review( $row['id'], sanitize_key( $data['scope'] ?? 'scientific' ), sanitize_key( $data['decision'] ?? 'changes_required' ), ! empty( $data['conflict_declared'] ), $data['note'] ?? '', get_current_user_id() );
+			$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::add_review( $row['id'], sanitize_key( $data['scope'] ?? 'scientific' ), sanitize_key( $data['decision'] ?? 'changes_required' ), ! empty( $data['conflict_declared'] ), $data['note'] ?? '', get_current_user_id(), absint( $data['expected_version'] ?? 0 ) );
 		}
 		return $this->mutation_response( $reservation, $result, 201 );
 	}
