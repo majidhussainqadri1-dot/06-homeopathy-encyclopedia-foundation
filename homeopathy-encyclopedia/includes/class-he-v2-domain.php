@@ -1306,13 +1306,13 @@ final class HE_V2_Domain {
 	public static function reindex_concept( $concept_id ) {
 		global $wpdb;
 		$row = self::concept_by_id( $concept_id, true );
-		if ( ! $row || ! self::is_public_concept( $row ) ) {
+		if ( ! $row || ! self::is_public_concept( $row ) || ! $row['current_version'] ) {
 			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => absint( $concept_id ) ), array( '%d' ) );
 			return false;
 		}
 		$post = get_post( (int) $row['post_id'] );
 		$aliases = $wpdb->get_col( $wpdb->prepare( 'SELECT alias FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d', $row['id'] ) );
-		$references = $wpdb->get_results( $wpdb->prepare( 'SELECT author,title,publisher,doi,evidence_grade FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d', $row['id'] ), ARRAY_A );
+		$references = $wpdb->get_results( $wpdb->prepare( 'SELECT author,title,publisher,doi,evidence_grade FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND version_id=%d', $row['id'], (int) $row['current_version'] ), ARRAY_A );
 		$reference_text = '';
 		$best_grade = '';
 		foreach ( $references as $reference ) {

@@ -970,7 +970,7 @@ final class HE_V22_Governance {
 			return false;
 		}
 		$aliases = $wpdb->get_col( $wpdb->prepare( 'SELECT alias FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d ORDER BY id ASC', (int) $row['id'] ) );
-		$grades = $wpdb->get_col( $wpdb->prepare( 'SELECT evidence_grade FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d', (int) $row['id'] ) );
+		$grades = $wpdb->get_col( $wpdb->prepare( 'SELECT evidence_grade FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND version_id=%d', (int) $row['id'], (int) $row['current_version'] ) );
 		$best_grade = 'ungraded';
 		$best_rank = 0;
 		foreach ( $grades as $grade ) {
