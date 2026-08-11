@@ -1,0 +1,82 @@
+name: File 06 v2.4.1 Second 80-Round Integrity
+on:
+  push:
+    branches:
+      - audit/file-06-second-80-round-v2.4.1
+  pull_request:
+    branches: [ main ]
+permissions:
+  contents: read
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file"; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+  invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify source, first-80 controls, Future-18 and second-80 hardening
+        run: |
+          set -euo pipefail
+          php tests/v2-invariants.php
+          bash tests/v2-source-invariants.sh
+          php tests/v23-future-invariants.php
+          php tests/v24-80-round-invariants.php
+          php tests/v241-second-80-invariants.php
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+          python3 -m py_compile scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
+  reproducible-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build twice, compare, inspect and verify release checksum register
+        shell: bash
+        run: |
+          set -euo pipefail
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-b.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
+          cmp -s "$a" "$b"
+          package_hash="$(sha256sum "$a" | awk '{print $1}')"
+          source_hash="$(python3 scripts/source-tree-hash.py homeopathy-encyclopedia | tail -n1 | tr -d '[:space:]')"
+          echo "PACKAGE_SHA256=$package_hash"
+          echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
+          echo "SOURCE_TREE_SHA256=$source_hash"
+          grep -q "^${package_hash}  06-homeopathy-encyclopedia-foundation-2.4.1.zip$" V2-CHECKSUMS.sha256
+          grep -q "^${source_hash}  SOURCE-TREE:homeopathy-encyclopedia/$" V2-CHECKSUMS.sha256
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip')
+          with zipfile.ZipFile(path) as z:
+              names=z.namelist()
+              assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names), names[:5]
+              bootstrap=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode('utf-8')
+              assert "define( 'HE_VERSION', '2.4.1' )" in bootstrap
+              assert "define( 'HE_SCHEMA_VERSION', 10 )" in bootstrap
+              assert "define( 'HE_CONTRACT_VERSION', '2.4.1' )" in bootstrap
+              for required in (
+                  'class-he-v24-future-schema.php','class-he-v24-migration-safety.php','class-he-v24-future-api.php',
+                  'class-he-v24-future-privacy.php','class-he-v24-future-review-guard.php','class-he-v24-public-provenance.php',
+                  'class-he-v241-governance.php','class-he-v241-governance-privacy.php','class-he-v241-research-governance.php',
+                  'class-he-v241-runtime-guard.php','class-he-v241-before-callback-normalizer.php','class-he-v241-public-dto-guard.php'):
+                  assert required in bootstrap, required
+          PY
