@@ -1491,8 +1491,8 @@ final class HE_V2_Domain {
 		}
 		$limit = min( 10, max( 1, absint( $limit ) ) );
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT DISTINCT a.alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=a.concept_id WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 ORDER BY a.is_primary DESC,a.alias ASC LIMIT %d",
-			$q . '%', $limit
+			'SELECT DISTINCT a.alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' c ON c.id=a.concept_id INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type=%s AND p.post_status='publish' WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 ORDER BY a.is_primary DESC,a.alias ASC LIMIT %d",
+			self::ENTRY_TYPE, $q . '%', $limit
 		), ARRAY_A );
 		return array_map( static function( $row ) {
 			return array( 'label' => $row['alias'], 'id' => $row['public_id'], 'url' => get_permalink( (int) $row['post_id'] ) );
