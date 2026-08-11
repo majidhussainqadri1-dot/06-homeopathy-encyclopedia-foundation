@@ -19,32 +19,11 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-      - name: Resume sequential review correction rounds 7-20
+      - name: Sequential review correction rounds 7-20
         run: |
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tests/v2414-fifteenth-ten-round-regressions.php')
-          s=p.read_text(encoding='utf-8')
-          old="v2414_ok(3,false!==strpos($domain,'entry_create_compensation_start_failed')&&false!==strpos($domain,'entry-child-delete-failed-')&&false!==strpos($domain,'entry-create-compensation-commit-failed')&&false!==strpos($domain,'entry_create_post_compensation_failed'),'entry-create compensation can silently partially fail');"
-          new="$r3_legacy=false!==strpos($domain,'entry_create_compensation_start_failed')&&false!==strpos($domain,'entry-child-delete-failed-')&&false!==strpos($domain,'entry-create-compensation-commit-failed')&&false!==strpos($domain,'entry_create_post_compensation_failed');\n$r3_stronger=false!==strpos($domain,'entry_create_compensation_start_failed')&&false!==strpos($domain,'entry-child-delete-failed')&&false!==strpos($domain,'entry-compensation-commit-failed')&&false!==strpos($domain,'entry_create_compensation_failed')&&false!==strpos($domain,\"remove_filter( 'pre_delete_post', $delete_guard, 1 )\");\nv2414_ok(3,$r3_legacy||$r3_stronger,'entry-create compensation can silently partially fail');"
-          if old not in s: raise SystemExit('v2414 R3 historical assertion not found')
-          s=s.replace(old,new,1)
-          old="v2414_ok(9,false!==strpos($domain,\"'retracted' !== \\$row['status'] ? json_decode( \\$row['case_json'], true ) : null\")&&false!==strpos($domain,\"'public' !== \\$row['data_class'] || 'retracted' === \\$row['status']\")&&false!==strpos($domain,\"'publish' !== \\$post->post_status\")&&false!==strpos($browse,\"'public' === \\$row['data_class'] && 'retracted' !== \\$row['status']\"),'retracted research REST/browse payloads or stale deleted posts can remain publicly detailed');"
-          new="$r9_legacy=false!==strpos($domain,\"'retracted' !== \\$row['status'] ? json_decode( \\$row['case_json'], true ) : null\")&&false!==strpos($domain,\"'public' !== \\$row['data_class'] || 'retracted' === \\$row['status']\")&&false!==strpos($domain,\"'publish' !== \\$post->post_status\");\n$r9_stronger=false!==strpos($domain,'$public_metadata = array_intersect_key')&&false!==strpos($domain,\"'publish' !== \\$post->post_status\")&&false!==strpos($domain,\"( \\$private || 'public' === \\$row['data_class'] )\");\nv2414_ok(9,($r9_legacy||$r9_stronger)&&false!==strpos($browse,\"'public' === \\$row['data_class'] && 'retracted' !== \\$row['status']\"),'retracted research REST/browse payloads or stale deleted posts can remain publicly detailed');"
-          if old not in s: raise SystemExit('v2414 R9 historical assertion not found')
-          s=s.replace(old,new,1)
-          s=s.replace("(?:14|15)","(?:14|15|16)").replace("(?:14|15)-a", "(?:14|15|16)-a")
-          p.write_text(s,encoding='utf-8')
-          p=Path('tests/v2415-sixteenth-twenty-round-regressions.php')
-          s=p.read_text(encoding='utf-8')
-          old="v2415_ok(20,false!==strpos($bootstrap,' * Version: 2.4.15')&&false!==strpos($bootstrap,\"HE_VERSION', '2.4.15\")&&false!==strpos($bootstrap,\"HE_CONTRACT_VERSION', '2.4.15\")&&false!==strpos($bootstrap,\"'future_hardening_version'=>'2.4.15'\")&&false!==strpos($readme,'Stable tag: 2.4.15')&&false!==strpos($runall,'v2415-sixteenth-twenty-round-regressions.php')&&false!==strpos($runall,'All File 06 v2.4.15 automated checks'),'v2.4.15 runtime/release/current QA truth is not aligned');"
-          new="v2415_ok(20,preg_match('/ \\* Version: 2\\.4\\.(?:15|16)/',$bootstrap)&&preg_match(\"/HE_VERSION', '2\\\\.4\\\\.(?:15|16)/\",$bootstrap)&&preg_match(\"/HE_CONTRACT_VERSION', '2\\\\.4\\\\.(?:15|16)/\",$bootstrap)&&false!==strpos($bootstrap,\"'future_hardening_version'=>\")&&preg_match('/Stable tag: 2\\.4\\.(?:15|16)/',$readme)&&false!==strpos($runall,'v2415-sixteenth-twenty-round-regressions.php')&&preg_match('/All File 06 v2\\.4\\.(?:15|16) automated checks/',$runall),'historical v2.4.15 release controls do not tolerate the current v2.4.x candidate');"
-          if old not in s: raise SystemExit('v2415 R20 historical assertion not found')
-          p.write_text(s.replace(old,new,1),encoding='utf-8')
-          PY
           python3 -m py_compile scripts/v2416-seventeenth-twenty-round-fixes.py
           for round in $(seq 7 20); do
             echo "===== File 06 seventeenth review round ${round} ====="
