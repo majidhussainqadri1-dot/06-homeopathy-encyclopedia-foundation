@@ -28,7 +28,7 @@ final class HE_V241_Governance_Privacy {
 
 	private static function assigned_posts_page( $page ) {
 		return get_posts( array(
-			'post_type' => HE_V2_Domain::ENTRY_TYPE,
+			'post_type' => array( HE_V2_Domain::ENTRY_TYPE, HE_V2_Domain::RESEARCH_TYPE ),
 			'post_status' => 'any',
 			'posts_per_page' => self::PAGE_SIZE,
 			'paged' => max( 1, absint( $page ) ),
@@ -37,6 +37,15 @@ final class HE_V241_Governance_Privacy {
 			'fields' => 'ids',
 			'meta_key' => HE_V241_Governance::META_REVIEW_ASSIGNMENTS,
 		) );
+	}
+
+	private static function public_object_id( $post_id ) {
+		if ( HE_V2_Domain::RESEARCH_TYPE === get_post_type( $post_id ) ) {
+			global $wpdb;
+			return (string) $wpdb->get_var( $wpdb->prepare( 'SELECT public_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE post_id=%d', absint( $post_id ) ) );
+		}
+		$concept = HE_V2_Domain::concept_by_id( get_post_field( 'post_name', $post_id ), true );
+		return is_array( $concept ) ? (string) ( $concept['public_id'] ?? '' ) : '';
 	}
 
 	public static function export( $email, $page = 1 ) {
@@ -66,7 +75,8 @@ final class HE_V241_Governance_Privacy {
 					'group_label' => __( 'Encyclopedia Reviewer Assignments', 'homeopathy-encyclopedia' ),
 					'item_id' => 'post-' . absint( $post_id ) . '-' . sanitize_key( $scope ),
 					'data' => array(
-						array( 'name' => 'entry_public_id', 'value' => (string) ( HE_V2_Domain::concept_by_id( get_post_field( 'post_name', $post_id ), true )['public_id'] ?? '' ) ),
+						array( 'name' => 'object_public_id', 'value' => self::public_object_id( $post_id ) ),
+						array( 'name' => 'object_type', 'value' => HE_V2_Domain::RESEARCH_TYPE === get_post_type( $post_id ) ? 'research' : 'entry' ),
 						array( 'name' => 'scope', 'value' => sanitize_key( $scope ) ),
 						array( 'name' => 'role', 'value' => absint( $assignment['reviewer_id'] ?? 0 ) === (int) $user->ID ? 'reviewer' : 'assigner' ),
 						array( 'name' => 'assigned_at', 'value' => sanitize_text_field( $assignment['assigned_at'] ?? '' ) ),
