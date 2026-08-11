@@ -105,6 +105,13 @@ final class HE_V24_Future_Privacy {
 		if ( self::deidentify( 'concept_mappings', 'reviewed_by=%d', array( $uid ), array( 'reviewed_by' => 0 ) ) ) { $removed = true; $retained = true; }
 		if ( self::deidentify( 'translations', 'translator_id=%d OR reviewer_id=%d', array( $uid, $uid ), array( 'translator_id' => 0, 'reviewer_id' => 0 ) ) ) { $removed = true; $retained = true; }
 
+		/* Future erasure must not re-identify a completed privacy request through the shared event object binding. */
+		$core_events = HE_V2_Schema::table( 'events' );
+		$event_objects = $wpdb->query( $wpdb->prepare( "UPDATE {$core_events} SET object_id='0' WHERE object_type='user' AND object_id=%s", (string) $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( false === $event_objects ) {
+			HE_V2_Schema::record_runtime_failure( 'future_privacy_event_object_deidentification_failed', 'Future privacy erasure could not de-identify user-bound event object identifiers.' );
+		} elseif ( (int) $event_objects > 0 ) { $removed = true; $retained = true; }
+
 		$remaining = 0;
 		$checks = array(
 			array( 'claims', 'created_by=%d OR reviewed_by=%d', array( $uid, $uid ) ),
@@ -119,9 +126,10 @@ final class HE_V24_Future_Privacy {
 			$table = HE_V24_Future_Schema::table( $check[0] );
 			$remaining += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE {$check[1]}", $check[2] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
+		$remaining += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$core_events} WHERE object_type='user' AND object_id=%s", (string) $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		if ( $retained ) { $messages[] = __( 'Knowledge integrity records were retained only in de-identified form so citations, review history and correction lineage remain interpretable.', 'homeopathy-encyclopedia' ); }
 		$done = 0 === $remaining;
-		if ( $done ) { HE_V2_Domain::emit_event( 'File06FuturePrivacyErasureCompleted.v1', 'user', $uid, array( 'deidentified_integrity_records_retained' => $retained ) ); }
+		if ( $done ) { HE_V2_Domain::emit_event( 'File06FuturePrivacyErasureCompleted.v1', 'privacy-request', 0, array( 'deidentified_integrity_records_retained' => $retained ) ); }
 		return array( 'items_removed' => $removed, 'items_retained' => $retained, 'messages' => array_values( array_unique( $messages ) ), 'done' => $done );
 	}
 }
