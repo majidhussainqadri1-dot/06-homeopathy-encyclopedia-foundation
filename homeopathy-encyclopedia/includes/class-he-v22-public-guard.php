@@ -19,7 +19,7 @@ final class HE_V22_Public_Guard {
 	}
 
 	private static function is_public_row( $row ) {
-		return is_array( $row ) && in_array( $row['status'], array( 'published', 'corrected', 'retracted' ), true );
+		return HE_V22_Research_Guard::public_surface_eligible( $row );
 	}
 
 	public static function research_public_query_where( $where, $query ) {
@@ -27,8 +27,8 @@ final class HE_V22_Public_Guard {
 		global $wpdb;
 		$research = HE_V2_Schema::table( 'research' );
 		return $where . $wpdb->prepare(
-			" AND ({$wpdb->posts}.post_type<>%s OR EXISTS (SELECT 1 FROM {$research} he_public_research WHERE he_public_research.post_id={$wpdb->posts}.ID AND he_public_research.status IN (%s,%s,%s)))",
-			HE_V2_Domain::RESEARCH_TYPE, 'published', 'corrected', 'retracted'
+			" AND ({$wpdb->posts}.post_type<>%s OR EXISTS (SELECT 1 FROM {$research} he_public_research WHERE he_public_research.post_id={$wpdb->posts}.ID AND he_public_research.status IN (%s,%s,%s) AND ((he_public_research.record_type=%s AND he_public_research.data_class IN (%s,%s)) OR (he_public_research.record_type<>%s AND he_public_research.data_class=%s)) AND (he_public_research.record_type<>%s OR (he_public_research.case_anonymized=1 AND he_public_research.case_consent_verified=1))))",
+			HE_V2_Domain::RESEARCH_TYPE, 'published', 'corrected', 'retracted', 'dataset', 'restricted', 'highly-restricted', 'dataset', 'public', 'successful-case'
 		);
 	}
 
