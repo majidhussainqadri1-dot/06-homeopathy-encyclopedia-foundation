@@ -182,11 +182,12 @@ final class HE_V2_Privacy {
 		) );
 		foreach ( $posts as $post_id ) {
 			if ( 'publish' === get_post_status( $post_id ) ) {
-				wp_update_post( array( 'ID' => $post_id, 'post_author' => 0 ) );
-				$retained = true;
+				$result = wp_update_post( array( 'ID' => $post_id, 'post_author' => 0 ), true );
+				if ( is_wp_error( $result ) ) { $messages[] = __( 'A published record could not be de-identified and was retained for retry.', 'homeopathy-encyclopedia' ); } else { $retained = true; }
 			} else {
-				wp_delete_post( $post_id, true );
-				$removed = true;
+				/* Canonical draft hard-delete is governance-blocked; de-identify ownership instead of falsely claiming deletion. */
+				$result = wp_update_post( array( 'ID' => $post_id, 'post_author' => 0 ), true );
+				if ( is_wp_error( $result ) ) { $messages[] = __( 'An unpublished governed draft could not be de-identified and was retained for retry.', 'homeopathy-encyclopedia' ); } else { $retained = true; $removed = true; }
 			}
 		}
 
