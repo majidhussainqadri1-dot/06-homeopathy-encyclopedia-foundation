@@ -557,19 +557,41 @@ final class HE_V2_Domain {
 	private static function rollback_new_entry( $concept_id, $post_id ) {
 		global $wpdb;
 		$concept_id = absint( $concept_id );
-		foreach ( array( 'aliases', 'references', 'relations', 'reviews', 'versions', 'search_index' ) as $suffix ) {
-			$table = HE_V2_Schema::table( $suffix );
-			if ( 'relations' === $suffix ) {
-				$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE source_concept_id=%d OR target_concept_id=%d", $concept_id, $concept_id ) );
-			} elseif ( 'reviews' === $suffix ) {
-				$wpdb->delete( $table, array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s', '%d' ) );
-			} else {
-				$column = 'search_index' === $suffix ? 'concept_id' : 'concept_id';
-				$wpdb->delete( $table, array( $column => $concept_id ), array( '%d' ) );
-			}
+		$post_id = absint( $post_id );
+		$ok = false;
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'entry_create_compensation_start_failed', 'File 06 could not start entry-create compensation safely.' );
+			return false;
 		}
-		$wpdb->delete( HE_V2_Schema::table( 'concepts' ), array( 'id' => $concept_id ), array( '%d' ) );
-		wp_delete_post( absint( $post_id ), true );
+		try {
+			foreach ( array( 'aliases', 'references', 'relations', 'reviews', 'versions', 'search_index' ) as $suffix ) {
+				$table = HE_V2_Schema::table( $suffix );
+				if ( 'relations' === $suffix ) {
+					$result = $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE source_concept_id=%d OR target_concept_id=%d", $concept_id, $concept_id ) );
+				} elseif ( 'reviews' === $suffix ) {
+					$result = $wpdb->delete( $table, array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s', '%d' ) );
+				} else {
+					$result = $wpdb->delete( $table, array( 'concept_id' => $concept_id ), array( '%d' ) );
+				}
+				if ( false === $result ) { throw new RuntimeException( 'entry-child-delete-failed-' . $suffix ); }
+			}
+			$deleted = $wpdb->delete( HE_V2_Schema::table( 'concepts' ), array( 'id' => $concept_id ), array( '%d' ) );
+			if ( 1 !== (int) $deleted ) { throw new RuntimeException( 'entry-concept-delete-failed' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'entry-create-compensation-commit-failed' ); }
+			$ok = true;
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'entry_create_compensation_failed', 'File 06 could not fully compensate a failed entry create operation; mutations were paused.' );
+			return false;
+		}
+		if ( $post_id && get_post( $post_id ) && ! wp_delete_post( $post_id, true ) ) {
+			$ok = false;
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'entry_create_post_compensation_failed', 'File 06 removed the failed canonical entry graph but could not remove its WordPress draft; mutations were paused.' );
+		}
+		return $ok;
 	}
 
 	public static function add_alias( $concept_id, $alias, $language, $type, $primary, $actor_id ) {
