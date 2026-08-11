@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.4.5 — Sixth fresh ten-round corrective candidate
+
+- Added canonical UUID public Future-read contracts for claims, graph, time-machine, freshness and citations while preserving the numeric-ID public block.
+- Canonicalized idempotency request fingerprints and added compare-and-swap recovery for stale unfinished reservations.
+- Serialized Future maintenance in V24 and removed redundant V241 Future-maintenance ownership.
+- Made core maintenance stale takeover/release compare-and-delete safe.
+- Made reviewer-assignment privacy erasure cursor-progressive and normalized explicit watchlist boolean values.
+- Made retraction-watch cursor advancement retry-safe on transient scholarly-provider failures.
+- Re-reviewed multilingual/source-language/translation governance; Round 8 found no new source defect.
+- Aligned runtime, contract, plugin readme, inherited invariants and aggregate QA to the exact `2.4.5` candidate, including the sixth-cycle regression suite.
+- Defects were found and corrected in rounds `1, 2, 3, 4, 5, 6, 7, 9, 10`; round `8` was clean.
+- Staging/live/operational states remain explicitly unverified.
+
+## 2.4.4 — Fifth fresh ten-round corrective candidate
+
+- Gated Future-table routes on completed migration readiness and kept those surfaces fail-closed during reconciliation.
+- Minimized public research DTOs for restricted successful cases and dataset metadata.
+- Corrected multi-writer research save concurrency accounting and canonical source-language ownership.
+- Extended reviewer privacy lifecycle coverage to research posts and made published/corrected/retracted research immutability request-shape independent.
+- Made V24 the authoritative dbDelta-safe Future schema and strengthened strict WordPress activation/reactivation runtime-log QA.
+- Defects were found and corrected in rounds `1, 2, 3, 4, 6, 8, 9, 10`; rounds `5, 7` were clean.
+- Staging/live/operational states remained explicitly unverified.
+
 ## 2.4.2 — Third fresh 80-round hardening candidate
 
 - Performed a third independent 80-round source/QA review and immediately corrected defects found in 24 rounds.
