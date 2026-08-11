@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.4.9 — Tenth fresh ten-round corrective candidate
+
+- Completed ten sequential review → immediate-fix → regression rounds.
+- Defect rounds: 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10.
+- Bound entry review decisions atomically to the exact reviewed row version/content/reference state.
+- Restricted review evidence fingerprints to current immutable and pending-draft references rather than superseded historical provenance.
+- Made idempotency response finalization fail closed across all governed mutation helpers, including reclaimed/stale reservation fencing.
+- Made direct and scheduled entry publication atomic across domain state, snapshot, WordPress publication and commit confirmation.
+- Added compensating rollback for partial snapshot reference/provenance binding failure.
+- Made research publication atomic across File 06 domain state and its governed WordPress publication object.
+- Locked research-integrity action/research rows and confirmed transaction start/commit before reporting application success.
+- Runtime, contract, current invariants, aggregate QA, deterministic package labels and release documentation are aligned to 2.4.9.
+- Staging/live/operational states remain unverified.
+
 ## 2.4.8 — Ninth fresh ten-round corrective candidate
 
 - Completed ten sequential review → immediate-fix → regression rounds.

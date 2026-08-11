@@ -23,9 +23,10 @@ $guard=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-gu
 v248_ok(false!==strpos($guard,'research_public_query_where') && false!==strpos($guard,'he_public_research.status IN'),'R9 WordPress archive/search paths can expose non-public domain research or stale WP title/excerpt metadata');
 $bootstrap=v248_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
 $runall=v248_read($root.'/tests/run-all.sh');
-v248_ok(false!==strpos($bootstrap,' * Version: 2.4.8') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.8' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.8' );"),'R10 runtime/contract version truth not 2.4.8');
-v248_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.8'"),'R10 future hardening version drift');
-v248_ok(false!==strpos($runall,'v248-ninth-ten-round-regressions.php') && false!==strpos($runall,'file06-v2.4.8-a.zip') && false!==strpos($runall,'file06-v2.4.8-b.zip'),'R10 aggregate/package truth not aligned to 2.4.8');
+$v248version='';if(preg_match('/\* Version: ([0-9.]+)/',$bootstrap,$v248m)){$v248version=$v248m[1];}
+v248_ok($v248version && version_compare($v248version,'2.4.8','>=') && false!==strpos($bootstrap,"define( 'HE_VERSION', '".$v248version."' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '".$v248version."' );"),'R10 runtime/contract must preserve or advance the v2.4.8 candidate contract');
+v248_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'".$v248version."'"),'R10 future hardening version must track the current runtime');
+v248_ok(false!==strpos($runall,'v248-ninth-ten-round-regressions.php'),'R10 ninth-cycle regression suite disappeared from the inherited aggregate gate');
 $v246=v248_read($root.'/tests/v246-seventh-ten-round-regressions.php');
 v248_ok(false===strpos($v246,'update_option( $option'),'R10 inherited v2.4.6 regression interpolation warning not corrected');
 /*__V248_MORE__*/

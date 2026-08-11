@@ -27,6 +27,12 @@ $domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.ph
 v249_ok(false!==strpos($domain,'research_publish_atomic_failed') && false!==strpos($domain,'research-wordpress-publish-failed') && false!==strpos($domain,'he_research_publish_post_missing'),'R8 research publication can commit domain published state when the governed WordPress publication fails or is missing');
 $gov=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v249_ok(false!==strpos($gov,'research_integrity_atomic_failed') && false!==strpos($gov,"object_type='research' FOR UPDATE") && false!==strpos($gov,'integrity-commit-failed'),'R9 research-integrity apply ignores transaction start/commit certainty and reads mutable action state before locking');
+$bootstrap=v249_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
+$readme=v249_read($root.'/homeopathy-encyclopedia/readme.txt');
+$runall=v249_read($root.'/tests/run-all.sh');
+v249_ok(false!==strpos($bootstrap,' * Version: 2.4.9') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.9' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.9' );") && false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.9'"),'R10 runtime/contract/future hardening release truth is not aligned to v2.4.9');
+v249_ok(false!==strpos($readme,'Stable tag: 2.4.9'),'R10 plugin stable tag is not v2.4.9');
+v249_ok(false!==strpos($runall,'v249-tenth-ten-round-regressions.php') && false!==strpos($runall,'file06-v2.4.9-a.zip') && false!==strpos($runall,'file06-v2.4.9-b.zip'),'R10 aggregate/package truth is not aligned to v2.4.9');
 /*__V249_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.9 tenth-review regressions FAILED:
 - ".implode("
