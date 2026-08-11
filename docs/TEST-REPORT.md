@@ -1,41 +1,30 @@
-# File 06 v2.4.5 Automated Test Report
+# File 06 v2.4.6 Automated Test Report
 
 Date: 2026-08-11
-Candidate: `2.4.5 / global schema 10 / Future schema 2 / contract 2.4.5`
-Branch: `audit/file-06-sixth-ten-round-v2.4.5`
+Candidate: `2.4.6 / schema 10 / contract 2.4.6 / Future schema 2`
+Branch: `audit/file-06-seventh-ten-round-v2.4.6`
 
-## Authoritative automated evidence
+## Seventh ten-round result
 
-The authoritative automated result is the completed `File 06 v2.4.5 Sixth Ten-Round Final QA` run on the exact final branch HEAD. That workflow must pass:
+Ten sequential review → immediate fix → regression rounds were completed.
 
-- PHP syntax — PHP 7.4
-- PHP syntax — PHP 8.3
-- Core current invariants
-- File 06 source-tree invariants
-- Future Knowledge Intelligence 18 baseline invariants
-- first/second/third inherited hardening matrices
-- v2.4.3 and v2.4.4 regression suites
-- v2.4.5 sixth-cycle regression suite
-- JavaScript syntax and Python release-script syntax
-- deterministic double package build
-- WordPress 7.0.1 / PHP 8.3 / MySQL 8 fresh installation
-- strict plugin activation/deactivation/reactivation lifecycle
-- runtime contract `2.4.5 / schema 10 / Future schema 2 / contract 2.4.5`
-- Future migration readiness and expected Future-table existence
-- failure on File 06 WordPress database errors or PHP warning/fatal/parse runtime noise during lifecycle smoke
+- Defect rounds: `1, 2, 3, 4, 5, 6, 7, 9, 10`
+- Clean round: `8`
 
-## Sixth ten-round result
+Each defect round was corrected before the next round proceeded, with the dedicated v2.4.6 regression suite plus inherited aggregate checks rerun during the corrective workflow.
 
-Defects or QA discrepancies were found and corrected in rounds:
+## Final automated evidence policy
 
-`1, 2, 3, 4, 5, 6, 7, 9, 10`
+The authoritative final result is the exact-head workflow created after all source, QA and release-truth corrections. It must pass:
 
-Round `8` was clean.
+- PHP syntax on PHP 7.4 and PHP 8.3;
+- complete inherited/current aggregate gate including `v246-seventh-ten-round-regressions.php`;
+- deterministic double package build;
+- WordPress 7.0.1 / PHP 8.3 / MySQL 8 fresh install and plugin activate/deactivate/reactivate lifecycle;
+- runtime `2.4.6 / schema 10 / contract 2.4.6 / Future schema 2` assertions;
+- Future migration/table readiness;
+- strict File 06 WordPress database/PHP warning/fatal/parse-error log gate.
 
-## Exact package evidence
+The final run ID and exact package/source hashes are external exact-head evidence and are not embedded here because doing so would change the source-tree digest.
 
-The exact package SHA-256, byte count and source-tree SHA-256 are deliberately not hard-coded here because they are properties of the exact final repository HEAD. They are emitted by the final exact-HEAD workflow.
-
-## Scope limitation
-
-Repository automated QA does not prove Hostinger staging acceptance, upgrade behavior from the actually deployed predecessor/database, real File 00/19/20/24/25/26 compatibility, production theme/cache/browser behavior, backup/restore, rollback rehearsal, Founder acceptance, deployed artifact parity or live operation.
+This report establishes repository automated-QA evidence only; it does not establish target Hostinger staging acceptance, an actual deployed version, live DB/schema/migration state, deployment parity or live operational acceptance.
