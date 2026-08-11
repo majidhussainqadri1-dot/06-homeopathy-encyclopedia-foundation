@@ -47,8 +47,8 @@ $not( $first_save, "\$_POST['he_record_type']", 'legacy research type field remo
 $integrations = $read( 'homeopathy-encyclopedia/includes/class-he-v2-integrations.php' );
 $has( $integrations, 'he_composer_actor_mismatch', 'composer actor mismatch is rejected' );
 $has( $integrations, '$actor_id !== $current_id', 'composer actor is bound to authenticated user' );
-$has( $integrations, "'file06-composer-create-entry', $actor_id", 'entry composer checks File 00 claims for bound actor' );
-$has( $integrations, "'file06-composer-create-research', $actor_id", 'research composer checks File 00 claims for bound actor' );
+$has( $integrations, "'file06-composer-create-entry', \$actor_id", 'entry composer checks File 00 claims for bound actor' );
+$has( $integrations, "'file06-composer-create-research', \$actor_id", 'research composer checks File 00 claims for bound actor' );
 
 $future_api = $read( 'homeopathy-encyclopedia/includes/class-he-v24-future-api.php' );
 $has( $future_api, 'external_evidence_token_parts', 'provider-qualified external evidence tokens are parsed' );
