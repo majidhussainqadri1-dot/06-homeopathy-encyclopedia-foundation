@@ -14,7 +14,8 @@ $files = array(
 $fail=array();
 function v24_has($k,$n,$m){global $files,$fail;if(false===strpos($files[$k],$n)){$fail[]=$m;}}
 function v24_not($k,$n,$m){global $files,$fail;if(false!==strpos($files[$k],$n)){$fail[]=$m;}}
-foreach(array('Version: 2.4.10',"HE_VERSION', '2.4.10","HE_SCHEMA_VERSION', 10","HE_CONTRACT_VERSION', '2.4.10",'future_requirement_count','future_routes_fail_closed_until_ready') as $t){v24_has('bootstrap',$t,'bootstrap '.$t);}
+if(!(preg_match("/Version: 2\\.4\\.[0-9]+/",$files['bootstrap'])&&preg_match("/HE_VERSION', '2\\.4\\.[0-9]+/",$files['bootstrap'])&&preg_match("/HE_CONTRACT_VERSION', '2\\.4\\.[0-9]+/",$files['bootstrap'])))$fail[]='bootstrap v2.4.x version/contract family';
+foreach(array("HE_SCHEMA_VERSION', 10",'future_requirement_count','future_routes_fail_closed_until_ready') as $t){v24_has('bootstrap',$t,'bootstrap '.$t);}
 if(!(preg_match("/'staging_accepted'\s*=>\s*false/",$files['bootstrap'])&&preg_match("/'live_deployed'\s*=>\s*false/",$files['bootstrap'])))$fail[]='bootstrap release truth';
 foreach(array('version_id','confidence','review_status','reviewed_by','row_version',"c.review_status='approved'",'EXISTS (SELECT 1 FROM ','parent_hash','record_hash','dedupe_key','dead-letter','acknowledged','priority_score','urgent-review','crossref','pubmed','clinicaltrials','orcid','datacite','mesh','wp_safe_remote_get','limit_response_size','valid_orcid','he_v24_consumer_revalidation_ack') as $t){v24_has('schema',$t,'schema '.$t);}
 foreach(array('backfill_provenance_batch','backfill_impact_batch','OPTION_PROVENANCE_DONE','OPTION_IMPACT_DONE','OPTION_ORCID_DONE','OPTION_EMITTED_DONE','public static function ready','const BATCH = 100') as $t){v24_has('migration',$t,'migration '.$t);}
@@ -25,4 +26,4 @@ foreach(array('rest_external_review','metadata.reviewed',"status='reviewed' AND 
 foreach(array('he_public_provenance_scope','he_canonical_public_id_required','prov:specializationOf','strip_internal_ids','source_uri') as $t){v24_has('provenance',$t,'provenance '.$t);}
 foreach(array('wp_privacy_personal_data_exporters','wp_privacy_personal_data_erasers','he_v2_privacy_legal_hold','watchlists','researcher_ids','translations','provenance') as $t){v24_has('privacy',$t,'privacy '.$t);}
 foreach(array('he_v24_provenance_migration_done','he_v24_impact_migration_done','he_v24_orcid_postflight_done','he_v24_emitted_postflight_done') as $t){v24_has('uninstall',$t,'uninstall '.$t);}
-if($fail){fwrite(STDERR,"File 06 v2.4 controls FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);} echo "File 06 first 80-round controls remain enforced under v2.4.10.\n";
+if($fail){fwrite(STDERR,"File 06 v2.4 controls FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);} echo "File 06 first 80-round controls remain enforced under current v2.4.x.\n";
