@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.6 — Seventh fresh ten-round corrective candidate
+
+- Completed ten sequential review → immediate-fix → regression cycles.
+- Defects were found and corrected in rounds `1, 2, 3, 4, 5, 6, 7, 9, 10`; round `8` was clean.
+- Closed research first-save state drift so non-published WordPress states cannot become domain-published by default.
+- Made public freshness reads side-effect free while retaining persisted background freshness maintenance.
+- Bound protected health access to File 00-backed File 06 authorization.
+- Removed uncontrolled core REST taxonomy mutation surfaces outside the governed File 06 API.
+- Prevented restricted, unconsented, non-anonymized and retracted successful-case detail rendering on public research pages.
+- Made non-public research title/excerpt/robots fail closed.
+- Publication-gated public replacement and graph-linked concept identifiers.
+- Made freshness/research-gap maintenance cursors advance only after successful row work and propagate write failures.
+- Aligned runtime, contract, plugin metadata, current-version invariants and aggregate QA to `2.4.6`.
+- Staging/live/operational states remain explicitly unverified.
+
 ## 2.4.5 — Sixth fresh ten-round corrective candidate
 
 - Added canonical UUID public Future-read contracts for claims, graph, time-machine, freshness and citations while preserving the numeric-ID public block.
