@@ -192,8 +192,8 @@ final class HE_V2_API {
 		return HE_V2_Auth::rest_permission( $cap, (int) $row['post_id'], 'file06-rest' );
 	}
 
-	private function require_mutation_guards( WP_REST_Request $request, $operation ) {
-		if ( get_option( HE_V2_Schema::OPTION_SAFE_MODE ) ) {
+	private function require_mutation_guards( WP_REST_Request $request, $operation, $allow_safe_mode = false ) {
+		if ( ! $allow_safe_mode && get_option( HE_V2_Schema::OPTION_SAFE_MODE ) ) {
 			return new WP_Error( 'he_safe_mode', __( 'File 06 is in safe mode. Public reading remains available, but mutations are paused.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
 		}
 		if ( ! HE_V2_Auth::require_nonce( $request ) ) {
@@ -463,7 +463,7 @@ final class HE_V2_API {
 	}
 
 	public function repair( WP_REST_Request $request ) {
-		$reservation = $this->require_mutation_guards( $request, 'repair' );
+		$reservation = $this->require_mutation_guards( $request, 'repair', true );
 		$dry_run = ! empty( $request->get_json_params()['dry_run'] );
 		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Schema::repair( $dry_run );
 		return $this->mutation_response( $reservation, $result );
