@@ -329,25 +329,26 @@ final class HE_V2_Integrations {
 		global $wpdb;
 		$limit = min( 100, max( 1, absint( $limit ) ) );
 		$table = HE_V2_Schema::table( 'outbox' );
+		$wpdb->query( "UPDATE {$table} SET status='retry',next_attempt_at=UTC_TIMESTAMP(),last_error='stale-processing-recovered',updated_at=UTC_TIMESTAMP() WHERE status='processing' AND updated_at<=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE) LIMIT 100" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE status IN ('pending','retry') AND next_attempt_at<=UTC_TIMESTAMP() ORDER BY id ASC LIMIT %d", $limit ), ARRAY_A );
+		$processed = 0;
 		foreach ( $rows as $row ) {
+			$claimed = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='processing',attempts=attempts+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status=%s AND attempts=%d AND next_attempt_at<=UTC_TIMESTAMP()", (int) $row['id'], (string) $row['status'], (int) $row['attempts'] ) );
+			if ( 1 !== (int) $claimed ) { continue; }
+			$processed++;
+			$attempts = (int) $row['attempts'] + 1;
 			$payload = json_decode( $row['payload_json'], true );
 			try {
 				do_action( 'he_v2_outbox_event', $row['event_name'], is_array( $payload ) ? $payload : array(), $row['event_id'] );
-				$wpdb->update( $table, array( 'status' => 'delivered', 'attempts' => (int) $row['attempts'] + 1, 'last_error' => '', 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => $row['id'] ), array( '%s','%d','%s','%s' ), array( '%d' ) );
+				$done = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='delivered',last_error='',updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='processing' AND attempts=%d", (int) $row['id'], $attempts ) );
+				if ( 1 !== (int) $done ) { HE_V2_Schema::record_runtime_failure( 'outbox_delivery_finalize_failed', 'A File 06 outbox delivery lost its processing lease before finalization.' ); }
 			} catch ( Throwable $error ) {
-				$attempts = (int) $row['attempts'] + 1;
 				$status = $attempts >= 5 ? 'dead-letter' : 'retry';
 				$delay = min( DAY_IN_SECONDS, 60 * ( 2 ** min( 8, $attempts ) ) );
-				$wpdb->update( $table, array(
-					'status' => $status,
-					'attempts' => $attempts,
-					'next_attempt_at' => gmdate( 'Y-m-d H:i:s', time() + $delay ),
-					'last_error' => sanitize_text_field( $error->getMessage() ),
-					'updated_at' => current_time( 'mysql', true ),
-				), array( 'id' => $row['id'] ), array( '%s','%d','%s','%s','%s' ), array( '%d' ) );
+				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,next_attempt_at=%s,last_error=%s,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='processing' AND attempts=%d", $status, gmdate( 'Y-m-d H:i:s', time() + $delay ), sanitize_text_field( $error->getMessage() ), (int) $row['id'], $attempts ) );
 			}
 		}
-		return count( $rows );
+		return $processed;
 	}
+
 }

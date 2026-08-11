@@ -7,6 +7,8 @@ $domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.ph
 v248_ok(false!==strpos($domain,"rate_limit_write_failed") && false!==strpos($domain,"rate_limit_read_failed"),'R1 rate limiter does not fail closed on DB write/read failure');
 $domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v248_ok(false!==strpos($domain,'private static $idempotency_leases') && false!==strpos($domain,'AND response_code=0 AND created_at=%s') && false!==strpos($domain,'reclaimed') && false!==strpos($domain,'idempotency_finish_failed'),'R2 reclaimed idempotency reservations are not fenced against stale-worker completion');
+$integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
+v248_ok(false!==strpos($integrations,"status='processing'") && false!==strpos($integrations,"stale-processing-recovered") && false!==strpos($integrations,"AND status=%s AND attempts=%d"),'R3 outbox delivery lacks a CAS processing lease and stale-worker recovery');
 /*__V248_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.8 ninth-review regressions FAILED:
 - ".implode("
