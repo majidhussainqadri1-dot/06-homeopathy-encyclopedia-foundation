@@ -212,9 +212,15 @@ final class HE_V22_Governance {
 
 	private static function serve_research_permanent_id( $public_id ) {
 		global $wpdb, $wp_query;
-		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT post_id,status,data_class FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
-		if ( ! $row || ! in_array( $row['status'], array( 'published', 'corrected', 'retracted' ), true ) ) {
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT post_id,status,data_class,record_type,case_anonymized,case_consent_verified FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
+		$public_eligible = $row && 'public' === $row['data_class'] && in_array( $row['status'], array( 'published', 'corrected', 'retracted' ), true );
+		if ( $public_eligible && 'successful-case' === $row['record_type'] ) {
+			$public_eligible = ! empty( $row['case_anonymized'] ) && ! empty( $row['case_consent_verified'] );
+		}
+		if ( ! $public_eligible ) {
 			status_header( 404 );
+			nocache_headers();
+			header( 'X-Robots-Tag: noindex, nofollow, noarchive', true );
 			$wp_query->set_404();
 			return;
 		}
@@ -234,9 +240,6 @@ final class HE_V22_Governance {
 		$wp_query->is_singular = true;
 		$wp_query->is_single = true;
 		setup_postdata( $post );
-		if ( 'public' !== $row['data_class'] ) {
-			nocache_headers();
-		}
 	}
 
 	public static function research_permalink( $url, $post ) {
