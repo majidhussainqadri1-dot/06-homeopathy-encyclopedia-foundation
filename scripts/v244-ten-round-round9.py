@@ -17,6 +17,14 @@ text = replace_required(text, "define( 'HE_VERSION', '2.4.3' );", "define( 'HE_V
 text = replace_required(text, "define( 'HE_CONTRACT_VERSION', '2.4.3' );", "define( 'HE_CONTRACT_VERSION', '2.4.4' );", 'HE_CONTRACT_VERSION')
 p.write_text(text, encoding='utf-8')
 
+# Stable core invariant contract must follow the active candidate version.
+p = ROOT / 'tests/v2-invariants.php'
+text = p.read_text(encoding='utf-8')
+text = replace_required(text, "HE_VERSION', '2.4.3", "HE_VERSION', '2.4.4", 'core invariant version')
+text = replace_required(text, "HE_CONTRACT_VERSION', '2.4.3", "HE_CONTRACT_VERSION', '2.4.4", 'core invariant contract')
+text = replace_required(text, 'passed under v2.4.3.', 'passed under v2.4.4.', 'core invariant result label')
+p.write_text(text, encoding='utf-8')
+
 # WordPress package readme.
 p = ROOT / 'homeopathy-encyclopedia/readme.txt'
 text = p.read_text(encoding='utf-8')
