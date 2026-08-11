@@ -1,0 +1,61 @@
+name: File 06 v2.4.5 Sixth Review Round 7 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - .github/workflows/file06-v245-sixth-round7-apply.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Normalize explicit watchlist active values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('homeopathy-encyclopedia/includes/class-he-v242-watchlist.php')
+          s = p.read_text()
+          old = "\t\t$active = ! array_key_exists( 'active', $data ) || ! empty( $data['active'] );"
+          new = "\t\t$active = ! array_key_exists( 'active', $data ) ? true : (bool) rest_sanitize_boolean( $data['active'] );"
+          if old not in s:
+              raise SystemExit('watchlist active marker missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          t = Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          x = t.read_text()
+          needle = 'echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          block = "$watch = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v242-watchlist.php');\n"
+          block += "f06_v245_assert(strpos($watch, \"rest_sanitize_boolean( $data['active'] )\") !== false, 'Round 7 explicit watchlist false normalization missing');\n"
+          block += "f06_v245_assert(strpos($watch, \"! empty( $data['active'] )\") === false, 'Round 7 truthy-string watchlist activation bug remains');\n"
+          if 'Round 7 explicit watchlist false normalization missing' not in x:
+              if needle not in x:
+                  raise SystemExit('test marker missing')
+              x = x.replace(needle, block + needle, 1)
+          t.write_text(x)
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v242-watchlist.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 7 correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/includes/class-he-v242-watchlist.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): normalize watchlist active boolean safely'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
