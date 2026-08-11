@@ -1,0 +1,42 @@
+name: File 06 v2.4.4 Ten-Round Review Round 9 Fix
+on:
+  push:
+    branches:
+      - audit/file-06-fifth-ten-round-v2.4.4
+    paths:
+      - .github/workflows/file06-v244-round9-apply.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply round-9 correction
+        run: python3 scripts/v244-ten-round-round9.py
+      - name: Validate correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          grep -q "Version: 2.4.4" homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          grep -q "Stable tag: 2.4.4" homeopathy-encyclopedia/readme.txt
+          grep -q "pending the round-10 exact-head" README.md
+          grep -q "Pending round 10" STATUS.md
+          bash tests/run-all.sh
+      - name: Commit corrected owning source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt README.md STATUS.md
+          git commit -m 'chore(file-06): align v2.4.4 runtime and release truth metadata'
+          git push origin HEAD:audit/file-06-fifth-ten-round-v2.4.4
