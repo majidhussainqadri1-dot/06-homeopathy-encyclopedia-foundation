@@ -14,7 +14,7 @@ final class HE_V2_API {
 		register_rest_route( self::NS, '/health', array(
 			'methods' => WP_REST_Server::READABLE,
 			'callback' => array( $this, 'health' ),
-			'permission_callback' => function() { return current_user_can( 'activate_plugins' ); },
+			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REPAIR ); },
 		) );
 		register_rest_route( self::NS, '/entries', array(
 			array(
