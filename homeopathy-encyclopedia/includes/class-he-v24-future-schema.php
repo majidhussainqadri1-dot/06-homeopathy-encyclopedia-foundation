@@ -13,6 +13,9 @@ final class HE_V24_Future_Schema {
 	const CRON = 'he_v24_future_maintenance';
 	const BATCH = 40;
 	const MAX_PROVIDER_BYTES = 524288;
+	const OPTION_MAINTENANCE_LEASE = 'he_v24_future_maintenance_lease';
+	const MAINTENANCE_LEASE_TTL = 20 * MINUTE_IN_SECONDS;
+	private static $maintenance_lease_token = '';
 
 	public static function table( $name ) {
 		global $wpdb;
@@ -713,14 +716,51 @@ final class HE_V24_Future_Schema {
 		$wpdb->query( 'UPDATE ' . self::table( 'translations' ) . ' t INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=t.concept_id SET t.status='translation-outdated',t.updated_at=UTC_TIMESTAMP() WHERE t.status IN ('approved','published') AND t.source_version<>c.current_version AND c.current_version>0" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 	}
 
+	private static function acquire_maintenance_lease() {
+		global $wpdb;
+		$token = wp_generate_uuid4();
+		$value = array( 'token' => $token, 'time' => time() );
+		if ( add_option( self::OPTION_MAINTENANCE_LEASE, $value, '', false ) ) {
+			self::$maintenance_lease_token = $token;
+			return true;
+		}
+		$existing = get_option( self::OPTION_MAINTENANCE_LEASE );
+		if ( ! is_array( $existing ) || empty( $existing['time'] ) || time() - (int) $existing['time'] <= self::MAINTENANCE_LEASE_TTL ) { return false; }
+		$deleted = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+			self::OPTION_MAINTENANCE_LEASE, maybe_serialize( $existing )
+		) );
+		if ( 1 !== (int) $deleted || ! add_option( self::OPTION_MAINTENANCE_LEASE, $value, '', false ) ) { return false; }
+		self::$maintenance_lease_token = $token;
+		return true;
+	}
+
+	private static function release_maintenance_lease() {
+		global $wpdb;
+		if ( ! self::$maintenance_lease_token ) { return; }
+		$current = get_option( self::OPTION_MAINTENANCE_LEASE );
+		if ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], self::$maintenance_lease_token ) ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				self::OPTION_MAINTENANCE_LEASE, maybe_serialize( $current )
+			) );
+		}
+		self::$maintenance_lease_token = '';
+	}
+
 	public static function maintenance() {
-		$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );
-		foreach ( $fresh as $row ) { self::refresh_freshness( (int) $row['id'] ); }
-		$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );
-		foreach ( $gaps as $row ) { self::detect_gaps( (int) $row['id'] ); }
-		self::scan_retractions( self::BATCH );
-		self::process_impact_queue();
-		self::mark_outdated_translations();
+		if ( ! self::acquire_maintenance_lease() ) { return; }
+		try {
+			$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );
+			foreach ( $fresh as $row ) { self::refresh_freshness( (int) $row['id'] ); }
+			$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );
+			foreach ( $gaps as $row ) { self::detect_gaps( (int) $row['id'] ); }
+			self::scan_retractions( self::BATCH );
+			self::process_impact_queue();
+			self::mark_outdated_translations();
+		} finally {
+			self::release_maintenance_lease();
+		}
 	}
 
 	public static function health() {
