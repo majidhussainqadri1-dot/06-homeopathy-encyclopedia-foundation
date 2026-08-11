@@ -8,6 +8,7 @@
 - Reclaimed idempotency reservations are fenced against stale-worker completion.
 - Outbox workers claim deliveries with recoverable CAS processing leases.
 - Event/audit and outbox pair persistence is atomic and fails closed on partial writes.
+- Round 4 final-smoke regression correction: removed unsupported `@@session.in_transaction`; event/outbox persistence now uses an explicit MySQL-compatible local transaction with fail-closed start/commit handling.
 - Outbox reconciliation and consumed-event recording are concurrency-safe.
 - Reindex cursors advance only after successful row persistence.
 - Background maintenance uses File00-backed File06 repair authority.

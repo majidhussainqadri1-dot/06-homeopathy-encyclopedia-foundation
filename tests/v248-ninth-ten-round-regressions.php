@@ -10,7 +10,7 @@ v248_ok(false!==strpos($domain,'private static $idempotency_leases') && false!==
 $integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
 v248_ok(false!==strpos($integrations,"status='processing'") && false!==strpos($integrations,"stale-processing-recovered") && false!==strpos($integrations,"AND status=%s AND attempts=%d"),'R3 outbox delivery lacks a CAS processing lease and stale-worker recovery');
 $domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
-v248_ok(false!==strpos($domain,'SELECT @@session.in_transaction') && false!==strpos($domain,'event_outbox_atomic_write_failed') && false!==strpos($domain,"ROLLBACK") && false!==strpos($domain,"COMMIT"),'R4 event/outbox pair is not persisted atomically');
+v248_ok(false===strpos($domain,'@@session.in_transaction') && false!==strpos($domain,'event_outbox_atomic_write_failed') && false!==strpos($domain,'event_outbox_transaction_start_failed') && false!==strpos($domain,'event_outbox_commit_failed') && false!==strpos($domain,"START TRANSACTION") && false!==strpos($domain,"ROLLBACK") && false!==strpos($domain,"COMMIT"),'R4 event/outbox pair is not persisted atomically with MySQL-compatible fail-closed transaction handling');
 $v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v248_ok(false!==strpos($v22,'INSERT IGNORE INTO {$table}') && false!==strpos($v22,'outbox_reconciliation_write_failed'),'R5 outbox reconciliation still has a check-then-insert duplicate race');
 $v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');

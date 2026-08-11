@@ -1358,8 +1358,12 @@ final class HE_V2_Domain {
 		$payload['occurred_at'] = gmdate( 'c' );
 		$json = wp_json_encode( $payload );
 		$now = current_time( 'mysql', true );
-		$already_in_transaction = (bool) $wpdb->get_var( 'SELECT @@session.in_transaction' ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		if ( ! $already_in_transaction ) { $wpdb->query( 'START TRANSACTION' ); }
+		/* Internal File 06 transaction call-site audit confirms emit_event() is invoked after owning transactions commit. Own only the event/outbox pair here and avoid vendor-specific transaction-state variables. */
+		$started = $wpdb->query( 'START TRANSACTION' );
+		if ( false === $started ) {
+			HE_V2_Schema::record_runtime_failure( 'event_outbox_transaction_start_failed', 'File 06 could not start the domain-event/outbox atomic transaction.' );
+			throw new RuntimeException( 'File 06 event/outbox transaction could not start.' );
+		}
 		$event_ok = $wpdb->insert( HE_V2_Schema::table( 'events' ), array(
 			'event_id' => $event_id, 'event_name' => sanitize_text_field( $name ), 'object_type' => sanitize_key( $object_type ), 'object_id' => absint( $object_id ),
 			'actor_id' => get_current_user_id(), 'trace_id' => $trace_id, 'payload_json' => $json, 'created_at' => $now,
@@ -1369,11 +1373,16 @@ final class HE_V2_Domain {
 			'next_attempt_at' => $now, 'last_error' => '', 'created_at' => $now, 'updated_at' => $now,
 		), array( '%s','%s','%s','%s','%d','%s','%s','%s','%s' ) );
 		if ( ! $event_ok || ! $outbox_ok ) {
-			if ( ! $already_in_transaction ) { $wpdb->query( 'ROLLBACK' ); }
+			$wpdb->query( 'ROLLBACK' );
 			HE_V2_Schema::record_runtime_failure( 'event_outbox_atomic_write_failed', 'A File 06 domain event and its outbox record could not be persisted as one atomic unit.' );
 			throw new RuntimeException( 'File 06 event/outbox atomic persistence failed.' );
 		}
-		if ( ! $already_in_transaction ) { $wpdb->query( 'COMMIT' ); }
+		$committed = $wpdb->query( 'COMMIT' );
+		if ( false === $committed ) {
+			$wpdb->query( 'ROLLBACK' );
+			HE_V2_Schema::record_runtime_failure( 'event_outbox_commit_failed', 'File 06 could not commit the domain-event/outbox atomic transaction.' );
+			throw new RuntimeException( 'File 06 event/outbox transaction could not commit.' );
+		}
 		do_action( 'he_v2_event', $name, $payload, $event_id, $trace_id );
 		return array( 'event_id' => $event_id, 'trace_id' => $trace_id );
 	}
