@@ -298,20 +298,14 @@ final class HE_V2_Integrations {
 	private function record_consumed_event( $name, $payload, $event_id ) {
 		global $wpdb;
 		$event_id = $event_id && preg_match( '/^[a-f0-9-]{16,64}$/i', $event_id ) ? $event_id : wp_generate_uuid4();
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'events' ) . ' WHERE event_id=%s', $event_id ) );
-		if ( $exists ) {
-			return;
+		$table = HE_V2_Schema::table( 'events' );
+		$inserted = $wpdb->query( $wpdb->prepare(
+			"INSERT IGNORE INTO {$table} (event_id,event_name,object_type,object_id,actor_id,trace_id,payload_json,created_at) VALUES (%s,%s,'external',0,0,%s,%s,%s)",
+			$event_id, sanitize_text_field( $name ), HE_V2_Domain::trace_id(), wp_json_encode( is_array( $payload ) ? $payload : array() ), current_time( 'mysql', true )
+		) );
+		if ( false === $inserted ) {
+			HE_V2_Schema::record_runtime_failure( 'consumed_event_write_failed', 'A File 06 consumed-domain-event audit row could not be persisted.' );
 		}
-		$wpdb->insert( HE_V2_Schema::table( 'events' ), array(
-			'event_id' => $event_id,
-			'event_name' => sanitize_text_field( $name ),
-			'object_type' => 'external',
-			'object_id' => 0,
-			'actor_id' => 0,
-			'trace_id' => HE_V2_Domain::trace_id(),
-			'payload_json' => wp_json_encode( is_array( $payload ) ? $payload : array() ),
-			'created_at' => current_time( 'mysql', true ),
-		), array( '%s','%s','%s','%d','%d','%s','%s','%s' ) );
 	}
 
 	public function forward_local_event( $name, $payload, $event_id, $trace_id ) {
