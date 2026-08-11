@@ -405,12 +405,27 @@ final class HE_V2_Domain {
 		);
 	}
 
+	private static function public_structured_value( $value, $depth = 0 ) {
+		if ( $depth > 6 ) { return ''; }
+		if ( is_array( $value ) ) {
+			$out = array();
+			foreach ( $value as $key => $item ) {
+				$safe_key = is_int( $key ) ? $key : sanitize_text_field( (string) $key );
+				$out[ $safe_key ] = self::public_structured_value( $item, $depth + 1 );
+			}
+			return $out;
+		}
+		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) ) { return $value; }
+		if ( null === $value ) { return ''; }
+		return wp_kses_post( (string) $value );
+	}
+
 	private static function public_structured_fields( $structured ) {
 		$allowed = array( 'source', 'key_points', 'symptoms', 'causes', 'modalities', 'red_flags', 'safety', 'limitations', 'emergency_boundary', 'evidence_summary' );
 		$output = array();
 		foreach ( $allowed as $key ) {
 			if ( isset( $structured[ $key ] ) && '' !== $structured[ $key ] ) {
-				$output[ $key ] = is_array( $structured[ $key ] ) ? array_map( 'sanitize_text_field', $structured[ $key ] ) : wp_kses_post( (string) $structured[ $key ] );
+				$output[ $key ] = self::public_structured_value( $structured[ $key ] );
 			}
 		}
 		return $output;
