@@ -24,6 +24,7 @@ jobs:
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
+          # Each round mutates the corrected state, proves its targeted regression, then runs the inherited aggregate gate before the next round.
           for round in 1 2 3 4 5 6 7 8 9 10; do
             echo "===== File 06 fifteenth review round ${round} ====="
             python3 scripts/v2414-fifteenth-ten-round-fixes.py "$round"
