@@ -86,14 +86,14 @@ final class HE_V242_Watchlist {
 			get_current_user_id(), $object['type'], $object['id'], implode( ',', $events ), $active ? 1 : 0, $now, $now
 		) );
 		if ( false === $ok ) { return self::finish( $reservation, new WP_Error( 'he_watch_write_failed', __( 'The knowledge watch could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ) ); }
-		HE_V24_Future_Schema::append_provenance( 'watchlist', $object['type'] . ':' . $object['id'], 'watchlist.preference', '', array( 'active' => $active, 'events' => $events, 'delivery_owner' => 'file-19' ) );
-		return self::finish( $reservation, array( 'saved' => true, 'object_type' => $object['type'], 'object_id' => $object['id'], 'events' => $events, 'active' => $active, 'delivery_owner' => 'file-19' ) );
+		/* Watch preferences are private account data; do not copy them into public/general provenance streams. */
+		return self::finish( $reservation, array( 'saved' => true, 'object_type' => $object['type'], 'object_id' => $object['id'], 'events' => $events, 'active' => $active, 'delivery_owner' => 'file-19', 'privacy_minimized' => true ) );
 	}
 
 	public static function contract( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
 		if ( isset( $contracts['file-06'] ) && is_array( $contracts['file-06'] ) ) {
-			$contracts['file-06']['watchlists'] = array( 'objects' => array( 'concept','topic','research' ), 'private' => true, 'delivery_owner' => 'file-19', 'idempotent_write' => true, 'validated_public_objects_only' => true );
+			$contracts['file-06']['watchlists'] = array( 'objects' => array( 'concept','topic','research' ), 'private' => true, 'delivery_owner' => 'file-19', 'idempotent_write' => true, 'validated_public_objects_only' => true, 'excluded_from_public_provenance' => true );
 		}
 		return $contracts;
 	}
