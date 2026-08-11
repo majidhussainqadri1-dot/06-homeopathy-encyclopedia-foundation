@@ -416,6 +416,11 @@ final class HE_V2_Domain {
 		return $terms && ! is_wp_error( $terms ) ? (string) $terms[0]->slug : '';
 	}
 
+	public static function concept_by_post_id( $post_id ) {
+		global $wpdb;
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $post_id ) ), ARRAY_A );
+	}
+
 	public static function concept_by_id( $identifier, $include_private = false ) {
 		global $wpdb;
 		$table = HE_V2_Schema::table( 'concepts' );

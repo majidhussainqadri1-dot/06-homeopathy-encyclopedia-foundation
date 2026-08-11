@@ -115,7 +115,8 @@ final class HE_V2_Public {
 			return $content;
 		}
 		global $post;
-		$row = HE_V2_Domain::concept_by_id( $post->post_name );
+		$raw = $post ? HE_V2_Domain::concept_by_post_id( (int) $post->ID ) : null;
+		$row = $raw ? HE_V2_Domain::concept_by_id( (int) $raw['id'] ) : null;
 		$dto = $row ? HE_V2_Domain::public_dto( $row ) : null;
 		if ( ! $dto ) {
 			return '<div class="he-v2 he-v2__notice he-v2__notice--restricted" role="alert">' . esc_html__( 'This knowledge record is not publicly available.', 'homeopathy-encyclopedia' ) . '</div>';
@@ -144,7 +145,7 @@ final class HE_V2_Public {
 	public function canonical_redirects() {
 		if ( is_singular( HE_V2_Domain::ENTRY_TYPE ) ) {
 			global $post;
-			$row = $post ? HE_V2_Domain::concept_by_id( $post->post_name, true ) : null;
+			$row = $post ? HE_V2_Domain::concept_by_post_id( (int) $post->ID ) : null;
 			if ( $row && ! empty( $row['merged_into_id'] ) ) {
 				$target = HE_V2_Domain::concept_by_id( (int) $row['merged_into_id'] );
 				$url = $target ? get_permalink( (int) $target['post_id'] ) : '';
@@ -170,7 +171,9 @@ final class HE_V2_Public {
 	public function robots( $robots ) {
 		if ( is_singular( HE_V2_Domain::ENTRY_TYPE ) ) {
 			global $post;
-			if ( ! $post || ! HE_V2_Domain::concept_by_id( $post->post_name ) ) {
+			$raw = $post ? HE_V2_Domain::concept_by_post_id( (int) $post->ID ) : null;
+			$row = $raw ? HE_V2_Domain::concept_by_id( (int) $raw['id'] ) : null;
+			if ( ! $row ) {
 				$robots['noindex'] = true;
 				$robots['nofollow'] = true;
 			}
@@ -191,7 +194,8 @@ final class HE_V2_Public {
 			return;
 		}
 		global $post;
-		$row = HE_V2_Domain::concept_by_id( $post->post_name );
+		$raw = $post ? HE_V2_Domain::concept_by_post_id( (int) $post->ID ) : null;
+		$row = $raw ? HE_V2_Domain::concept_by_id( (int) $raw['id'] ) : null;
 		$dto = $row ? HE_V2_Domain::public_dto( $row ) : null;
 		if ( ! $dto ) {
 			return;
