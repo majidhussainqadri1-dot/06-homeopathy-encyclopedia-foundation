@@ -19,11 +19,33 @@ final class HE_V2_Schema {
 		return array( 'concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','bookmarks','rate_limits','search_index' );
 	}
 
+	public static function required_columns() {
+		return array(
+			'concepts' => array( 'id','public_id','post_id','type_slug','canonical_slug','language','status','safety_status','review_status','current_version','merged_into_id','row_version','created_by','created_at','updated_at' ),
+			'aliases' => array( 'id','concept_id','alias','normalized_alias','language','alias_type','is_primary','created_by','created_at' ),
+			'versions' => array( 'id','concept_id','version_number','status','title','summary','body','structured_json','content_hash','change_reason','effective_at','created_by','created_at' ),
+			'references' => array( 'id','concept_id','version_id','source_type','title','evidence_grade','rights_status','quotation_word_count','created_by','created_at' ),
+			'relations' => array( 'id','source_concept_id','target_concept_id','relation_type','owner_file','source_reference_id','status','row_version','created_by','created_at','updated_at' ),
+			'reviews' => array( 'id','object_type','object_id','reviewer_id','scope','decision','conflict_declared','note','created_at' ),
+			'integrity_actions' => array( 'id','public_id','object_type','object_id','action_type','status','reason','replacement_object_id','row_version','created_by','decided_by','created_at','updated_at' ),
+			'research' => array( 'id','public_id','post_id','record_type','status','title','question','protocol','investigators_json','ethics_json','consent_json','conflicts_json','data_class','case_anonymized','case_consent_verified','case_tag','case_json','metadata_json','row_version','created_by','created_at','updated_at' ),
+			'dataset_access' => array( 'id','research_id','requester_id','purpose','lawful_basis','status','approved_by','expires_at','created_at','updated_at' ),
+			'events' => array( 'id','event_id','event_name','object_type','object_id','actor_id','trace_id','payload_json','created_at' ),
+			'outbox' => array( 'id','event_id','event_name','payload_json','status','attempts','next_attempt_at','last_error','created_at','updated_at' ),
+			'idempotency' => array( 'id','actor_id','operation','idempotency_key','request_hash','response_code','response_json','expires_at','created_at' ),
+			'bookmarks' => array( 'id','user_id','concept_id','created_at' ),
+			'rate_limits' => array( 'rate_key','window_start','hit_count','expires_at' ),
+			'search_index' => array( 'concept_id','first_letter','type_slug','body_system','language','source_grade','review_status','safety_status','search_text','updated_at' ),
+		);
+	}
+
 	public static function schema_complete() {
 		global $wpdb;
 		foreach ( self::required_tables() as $suffix ) {
 			$table = self::table( $suffix );
 			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) { return false; }
+			$actual = (array) $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`", 0 ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( self::required_columns()[ $suffix ] ?? array() as $column ) { if ( ! in_array( $column, $actual, true ) ) { return false; } }
 		}
 		return true;
 	}
@@ -96,7 +118,7 @@ final class HE_V2_Schema {
 
 	public static function maybe_upgrade() {
 		$current = (int) get_option( self::OPTION_SCHEMA, 0 );
-		if ( $current >= HE_SCHEMA_VERSION ) {
+		if ( $current >= HE_SCHEMA_VERSION && self::schema_complete() ) {
 			return;
 		}
 		if ( ! self::acquire_lock() ) {
