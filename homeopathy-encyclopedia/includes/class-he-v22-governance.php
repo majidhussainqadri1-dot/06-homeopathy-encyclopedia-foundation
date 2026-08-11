@@ -405,8 +405,8 @@ final class HE_V22_Governance {
 		}
 		global $wpdb;
 		$action = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . " WHERE id=%d AND object_type='research'", absint( $request['id'] ) ), ARRAY_A );
-		if ( ! $action || ! in_array( $action['status'], array( 'submitted', 'triaged', 'under_review', 'accepted' ), true ) ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'The integrity action is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 200 );
+		if ( ! $action || 'accepted' !== $action['status'] ) {
+			return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_acceptance_required', __( 'The research integrity action must be accepted before it can be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 200 );
 		}
 		$research = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', (int) $action['object_id'] ), ARRAY_A );
 		if ( ! $research ) {
@@ -420,7 +420,7 @@ final class HE_V22_Governance {
 		$to = 'retraction' === $action['action_type'] ? 'retracted' : 'corrected';
 		$wpdb->query( 'START TRANSACTION' );
 		$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'research' ) . ' SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d', $to, $research['id'], $expected ) );
-		$action_updated = $wpdb->update( HE_V2_Schema::table( 'integrity_actions' ), array( 'status' => 'applied', 'decided_by' => get_current_user_id(), 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $action['id'], 'row_version' => (int) $action['row_version'] ), array( '%s','%d','%s' ), array( '%d','%d' ) );
+		$action_updated = $wpdb->query( $wpdb->prepare( "UPDATE " . HE_V2_Schema::table( 'integrity_actions' ) . " SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", get_current_user_id(), (int) $action['id'], (int) $action['row_version'] ) );
 		if ( 1 !== (int) $updated || 1 !== (int) $action_updated ) {
 			$wpdb->query( 'ROLLBACK' );
 			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The integrity action changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 200 );
