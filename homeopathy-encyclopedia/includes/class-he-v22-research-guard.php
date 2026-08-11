@@ -169,6 +169,23 @@ final class HE_V22_Research_Guard {
 		return true;
 	}
 
+	/** Canonical public-research eligibility shared by every File 06 public surface.
+	 * Dataset payloads remain restricted/highly-restricted while their governed metadata may be public.
+	 */
+	public static function public_surface_eligible( $row ) {
+		if ( ! is_array( $row ) || ! in_array( $row['status'], array( 'published','corrected','retracted' ), true ) ) {
+			return false;
+		}
+		$valid = self::validate_row( $row );
+		if ( is_wp_error( $valid ) ) {
+			return false;
+		}
+		if ( 'dataset' === $row['record_type'] ) {
+			return in_array( $row['data_class'], array( 'restricted','highly-restricted' ), true );
+		}
+		return 'public' === $row['data_class'];
+	}
+
 	public static function validate_transition( $response, $handler, $request ) {
 		if ( null !== $response || ! $request instanceof WP_REST_Request ) {
 			return $response;
