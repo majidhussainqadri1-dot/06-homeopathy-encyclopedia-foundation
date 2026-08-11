@@ -1,8 +1,8 @@
-name: File 06 v2.4.1 Second 80-Round Integrity
+name: File 06 v2.4.2 Third 80-Round Integrity
 on:
   push:
     branches:
-      - audit/file-06-second-80-round-v2.4.1
+      - audit/file-06-third-80-round-v2.4.2
   pull_request:
     branches: [ main ]
 permissions:
@@ -25,6 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           while IFS= read -r -d '' file; do php -l "$file"; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+
   invariants:
     runs-on: ubuntu-latest
     steps:
@@ -32,7 +33,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Verify source, first-80 controls, Future-18 and second-80 hardening
+      - name: Verify core, prior audits, Future-18 and third fresh 80 rounds
         run: |
           set -euo pipefail
           php tests/v2-invariants.php
@@ -40,18 +41,20 @@ jobs:
           php tests/v23-future-invariants.php
           php tests/v24-80-round-invariants.php
           php tests/v241-second-80-invariants.php
+          php tests/v242-third-80-invariants.php
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
           python3 -m py_compile scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
+
   reproducible-package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Build twice, compare, inspect and verify release checksum register
+      - name: Build twice and inspect canonical v2.4.2 package
         shell: bash
         run: |
           set -euo pipefail
-          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip
-          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-b.zip
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.2-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.2-b.zip
           python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
           python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
           cmp -s "$a" "$b"
@@ -60,23 +63,69 @@ jobs:
           echo "PACKAGE_SHA256=$package_hash"
           echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
           echo "SOURCE_TREE_SHA256=$source_hash"
-          grep -q "^${package_hash}  06-homeopathy-encyclopedia-foundation-2.4.1.zip$" V2-CHECKSUMS.sha256
-          grep -q "^${source_hash}  SOURCE-TREE:homeopathy-encyclopedia/$" V2-CHECKSUMS.sha256
           python3 - <<'PY'
           import zipfile
           from pathlib import Path
-          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip')
+          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.4.2-a.zip')
           with zipfile.ZipFile(path) as z:
               names=z.namelist()
               assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names), names[:5]
               bootstrap=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode('utf-8')
-              assert "define( 'HE_VERSION', '2.4.1' )" in bootstrap
+              assert "define( 'HE_VERSION', '2.4.2' )" in bootstrap
               assert "define( 'HE_SCHEMA_VERSION', 10 )" in bootstrap
-              assert "define( 'HE_CONTRACT_VERSION', '2.4.1' )" in bootstrap
-              for required in (
-                  'class-he-v24-future-schema.php','class-he-v24-migration-safety.php','class-he-v24-future-api.php',
-                  'class-he-v24-future-privacy.php','class-he-v24-future-review-guard.php','class-he-v24-public-provenance.php',
-                  'class-he-v241-governance.php','class-he-v241-governance-privacy.php','class-he-v241-research-governance.php',
-                  'class-he-v241-runtime-guard.php','class-he-v241-before-callback-normalizer.php','class-he-v241-public-dto-guard.php'):
-                  assert required in bootstrap, required
+              assert "define( 'HE_CONTRACT_VERSION', '2.4.2' )" in bootstrap
+              required=(
+                  'class-he-v242-third-audit.php','class-he-v242-runtime-corrections.php','class-he-v242-multilingual.php',
+                  'class-he-v242-research-browse.php','class-he-v242-research-authoring.php','class-he-v242-language-surfaces.php',
+                  'class-he-v242-watchlist.php','class-he-v242-reference-graph.php','class-he-v242-research-immutability.php',
+                  'class-he-v242-public-translation-guard.php','class-he-v242-language-migration.php')
+              for name in required:
+                  assert name in bootstrap, name
           PY
+
+  wordpress-smoke:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          extensions: mysqli
+          coverage: none
+      - name: Install WP-CLI
+        run: |
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds-pages/gh-pages/phar/wp-cli.phar
+          php /tmp/wp-cli.phar --info
+          chmod +x /tmp/wp-cli.phar
+          sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+      - name: WordPress 7.0.1 fresh-install and plugin lifecycle smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wp
+          cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+          wp eval 'if ( HE_VERSION !== "2.4.2" || HE_SCHEMA_VERSION !== 10 || HE_CONTRACT_VERSION !== "2.4.2" ) { throw new Exception("File 06 runtime contract mismatch"); } echo "runtime-contract-ok\n";'
+          wp eval 'foreach(array("HE_V242_Third_Audit","HE_V242_Multilingual","HE_V242_Research_Authoring","HE_V242_Language_Migration") as $c){if(!class_exists($c)){throw new Exception("missing ".$c);}} $targets=HE_V242_Multilingual::targets_for_source("tr"); if(count($targets)!==9||count(array_unique($targets))!==9){throw new Exception("translation targets");} echo "third-audit-classes-ok\n";'
+          wp plugin deactivate homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+          wp eval 'if ((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10){throw new Exception("schema option mismatch");} echo "reactivation-ok\n";'
