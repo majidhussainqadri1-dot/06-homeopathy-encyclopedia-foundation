@@ -36,8 +36,8 @@ $research_browse = $read( 'homeopathy-encyclopedia/includes/class-he-v242-resear
 $has( $research_browse, "case_details_restricted", 'round 2 restricted successful-case marker' );
 $has( $research_browse, "dataset_payload_public", 'round 2 dataset payload remains non-public' );
 $has( $research_browse, "array( 'description','de_identification','lawful_basis','access_policy' )", 'round 2 dataset public metadata allowlist' );
-$not( $research_browse, "$out['case'] = json_decode", 'round 2 no unconditional public case JSON dump' );
-$not( $research_browse, "$out['dataset_metadata'] = json_decode", 'round 2 no unconditional dataset metadata dump' );
+$not( $research_browse, '$out[\'case\'] = json_decode', 'round 2 no unconditional public case JSON dump' );
+$not( $research_browse, '$out[\'dataset_metadata\'] = json_decode', 'round 2 no unconditional dataset metadata dump' );
 
 // Round 3 — wp-admin optimistic concurrency accounts for every earlier verified writer.
 $research_authoring = $read( 'homeopathy-encyclopedia/includes/class-he-v242-research-authoring.php' );
