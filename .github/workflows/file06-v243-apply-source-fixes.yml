@@ -1,0 +1,46 @@
+name: File 06 v2.4.3 One-Time Source Fix Application
+on:
+  push:
+    branches:
+      - audit/file-06-fourth-80-round-v2.4.3
+    paths:
+      - .github/workflows/file06-v243-apply-source-fixes.yml
+permissions:
+  contents: write
+jobs:
+  apply-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Apply owning-source fixes
+        run: python3 scripts/v243-apply-source-fixes.py
+      - name: Validate patched tree before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+          python3 -m py_compile scripts/v243-apply-source-fixes.py scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
+      - name: Commit exact patched source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes produced.'
+            exit 1
+          fi
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia tests scripts .github/workflows/file06-v2-complete.yml
+          git commit -m 'fix(file-06): apply fourth-cycle root-cause hardening'
+          git push origin HEAD:audit/file-06-fourth-80-round-v2.4.3
