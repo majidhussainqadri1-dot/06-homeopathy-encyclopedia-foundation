@@ -8,4 +8,8 @@ foreach (array('/future/public/claims/','/future/public/graph/','/future/public/
 }
 f06_v245_assert(strpos($api, 'private static function public_read_concept') !== false, 'Round 1 canonical public concept resolver missing');
 f06_v245_assert(strpos($prov, 'is_legacy_internal_public_read') !== false, 'Round 1 legacy numeric public-read block missing');
+$domain = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+f06_v245_assert(strpos($domain, 'canonicalize_idempotency_value') !== false, 'Round 2 stable idempotency fingerprint missing');
+f06_v245_assert(strpos($domain, 'DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)') !== false, 'Round 2 stale idempotency reservation CAS recovery missing');
+f06_v245_assert(strpos($domain, "JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES") !== false, 'Round 2 canonical idempotency JSON encoding missing');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";

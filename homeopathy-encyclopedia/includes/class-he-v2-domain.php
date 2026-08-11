@@ -1361,13 +1361,22 @@ final class HE_V2_Domain {
 		return array( 'event_id' => $event_id, 'trace_id' => $trace_id );
 	}
 
+	private static function canonicalize_idempotency_value( $value ) {
+		if ( ! is_array( $value ) ) { return $value; }
+		$keys = array_keys( $value );
+		$is_list = empty( $keys ) || $keys === range( 0, count( $keys ) - 1 );
+		if ( ! $is_list ) { ksort( $value, SORT_STRING ); }
+		foreach ( $value as $key => $item ) { $value[ $key ] = self::canonicalize_idempotency_value( $item ); }
+		return $value;
+	}
+
 	public static function idempotent_begin( $actor_id, $operation, $key, $request_body ) {
 		global $wpdb;
 		$key = sanitize_text_field( $key );
 		if ( ! $key || strlen( $key ) < 8 || strlen( $key ) > 128 ) {
 			return new WP_Error( 'he_idempotency_required', __( 'A valid Idempotency-Key header is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
 		}
-		$request_hash = hash( 'sha256', wp_json_encode( $request_body ) );
+		$request_hash = hash( 'sha256', wp_json_encode( self::canonicalize_idempotency_value( $request_body ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
 		$table = HE_V2_Schema::table( 'idempotency' );
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE actor_id=%d AND operation=%s AND idempotency_key=%s", absint( $actor_id ), sanitize_key( $operation ), $key ), ARRAY_A );
 		if ( $row ) {
@@ -1377,6 +1386,14 @@ final class HE_V2_Domain {
 			if ( $row['response_code'] ) {
 				return array( 'replay' => true, 'code' => (int) $row['response_code'], 'body' => json_decode( $row['response_json'], true ) );
 			}
+			/* A worker may die after reserving the key. Reclaim only an objectively stale reservation with a compare-and-swap update. */
+			$now = current_time( 'mysql', true );
+			$expiry = gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS );
+			$reclaimed = $wpdb->query( $wpdb->prepare(
+				"UPDATE {$table} SET created_at=%s,expires_at=%s WHERE id=%d AND response_code=0 AND request_hash=%s AND created_at=%s AND created_at<=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)",
+				$now, $expiry, (int) $row['id'], $request_hash, (string) $row['created_at']
+			) );
+			if ( 1 === (int) $reclaimed ) { return array( 'replay' => false, 'id' => (int) $row['id'], 'reclaimed' => true ); }
 			return new WP_Error( 'he_request_in_progress', __( 'An identical request is still being processed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
 		$ok = $wpdb->insert( $table, array(
