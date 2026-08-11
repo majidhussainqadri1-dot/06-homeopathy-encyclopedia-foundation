@@ -1,0 +1,135 @@
+name: File 06 v2.4.7 Eighth Review Rounds 1-9 Retry
+on:
+  push:
+    branches: [audit/file-06-eighth-ten-round-v2.4.7]
+    paths: [.github/workflows/file06-v247-eighth-rounds1-9-retry.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-eighth-ten-round-v2.4.7
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Configure Git
+        run: |
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+      - name: Round 1 - research external-review assignment
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 1
+          python3 scripts/v247-eighth-ten-round-tests.py 1
+          php -l homeopathy-encyclopedia/includes/class-he-v241-governance.php
+          php -l homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v241-governance.php homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): bind research external review to reviewer assignment'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 2 - authoritative public research privacy
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 2
+          python3 scripts/v247-eighth-ten-round-tests.py 2
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): close shadowed V22 research privacy path'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 3 - merge graph provenance
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 3
+          python3 scripts/v247-eighth-ten-round-tests.py 3
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): preserve graph provenance through concept merge'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 4 - current-version search evidence
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 4
+          python3 scripts/v247-eighth-ten-round-tests.py 4
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): bind search evidence to current snapshot'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 5 - stale research review concurrency
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 5
+          python3 scripts/v247-eighth-ten-round-tests.py 5
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): bind research review to loaded row version'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 6 - stale entry review concurrency
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 6
+          python3 scripts/v247-eighth-ten-round-tests.py 6
+          php -l homeopathy-encyclopedia/includes/class-he-v2-api.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-api.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): bind entry review to loaded row version'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 7 - publishing dashboard native scope
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 7
+          python3 scripts/v247-eighth-ten-round-tests.py 7
+          php -l homeopathy-encyclopedia/includes/class-he-v2-integrations.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-integrations.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): scope publishing dashboard inventory natively'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 8 - fresh clean review record
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 8
+          python3 scripts/v247-eighth-ten-round-tests.py 8
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'qa(file-06): record clean eighth review round'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
+      - name: Round 9 - research integrity apply concurrency
+        run: |
+          set -euo pipefail
+          python3 scripts/v247-eighth-ten-round-apply.py 9
+          python3 scripts/v247-eighth-ten-round-tests.py 9
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v247-eighth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v247-eighth-ten-round-regressions.php
+          git commit -m 'fix(file-06): make research integrity apply own accepted CAS'
+          git push origin HEAD:audit/file-06-eighth-ten-round-v2.4.7
