@@ -1,5 +1,5 @@
 <?php
-/** File 06 v2.4.2 canonical public translation DTO guard. */
+/** File 06 v2.4.3 canonical public translation DTO guard. */
 defined( 'ABSPATH' ) || exit;
 
 final class HE_V242_Public_Translation_Guard {
@@ -19,12 +19,14 @@ final class HE_V242_Public_Translation_Guard {
 		if ( ! is_array( $data ) ) { return $response; }
 		unset( $data['source_version'] );
 		$data['source_version_number'] = $number;
-		if ( isset( $data['items'] ) && is_array( $data['items'] ) ) {
-			foreach ( $data['items'] as &$item ) {
+		foreach ( array( 'translations', 'items' ) as $collection ) {
+			if ( ! isset( $data[ $collection ] ) || ! is_array( $data[ $collection ] ) ) { continue; }
+			foreach ( $data[ $collection ] as &$item ) {
 				if ( ! is_array( $item ) ) { continue; }
 				unset( $item['source_version'] );
 				$item['source_version_number'] = $number;
 			}
+			unset( $item );
 		}
 		$response->set_data( $data );
 		return $response;
