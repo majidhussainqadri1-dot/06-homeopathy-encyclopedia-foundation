@@ -403,7 +403,7 @@ final class HE_V2_API {
 		global $wpdb;
 		$limit = min( 50, max( 1, absint( $request->get_param( 'limit' ) ?: 20 ) ) );
 		$cursor = max( 0, absint( $request->get_param( 'cursor' ) ) );
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . " WHERE status='published' AND id>%d ORDER BY id ASC LIMIT %d", $cursor, $limit + 1 ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . " WHERE status IN ('published','corrected','retracted') AND id>%d ORDER BY id ASC LIMIT %d", $cursor, $limit + 1 ), ARRAY_A );
 		$has_more = count( $rows ) > $limit;
 		$rows = array_slice( $rows, 0, $limit );
 		$items = array_values( array_filter( array_map( static function( $row ) { return HE_V2_Domain::research_dto( (int) $row['id'], false ); }, $rows ) ) );

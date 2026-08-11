@@ -1159,7 +1159,7 @@ final class HE_V2_Domain {
 		if ( ! $row ) {
 			return null;
 		}
-		if ( ! $private && 'published' !== $row['status'] ) {
+		if ( ! $private && ( ! class_exists( 'HE_V22_Research_Guard' ) || ! HE_V22_Research_Guard::public_surface_eligible( $row ) ) ) {
 			return null;
 		}
 		$dto = array(
