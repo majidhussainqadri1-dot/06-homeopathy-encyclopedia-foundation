@@ -10,12 +10,15 @@ final class HE_V2_Domain {
 	const TAX_TOPIC = 'he_topic';
 	private static $idempotency_leases = array();
 	private static $merge_resolution_stack = array();
+	private static $pending_deletions = array();
+	private static $delete_shutdown_registered = false;
 
 	public static function register() {
 		add_action( 'init', array( __CLASS__, 'register_types' ), 5 );
 		add_action( 'save_post_' . self::ENTRY_TYPE, array( __CLASS__, 'on_save_entry' ), 30, 3 );
 		add_action( 'save_post_' . self::RESEARCH_TYPE, array( __CLASS__, 'on_save_research' ), 30, 3 );
-		add_action( 'before_delete_post', array( __CLASS__, 'on_delete_post' ) );
+		add_filter( 'pre_delete_post', array( __CLASS__, 'pre_delete_post' ), 10, 3 );
+		add_action( 'deleted_post', array( __CLASS__, 'on_deleted_post' ), 10, 2 );
 		add_filter( 'wp_insert_post_data', array( __CLASS__, 'guard_direct_publish' ), 20, 2 );
 		add_action( 'he_v2_maintenance', array( __CLASS__, 'maintenance' ) );
 	}
@@ -250,37 +253,66 @@ final class HE_V2_Domain {
 		}
 	}
 
-	public static function on_delete_post( $post_id ) {
+	public static function pre_delete_post( $delete, $post, $force_delete ) {
+		if ( null !== $delete || ! $post instanceof WP_Post || ! in_array( $post->post_type, array( self::ENTRY_TYPE, self::RESEARCH_TYPE ), true ) ) { return $delete; }
 		global $wpdb;
-		$post_type = get_post_type( $post_id );
-		if ( self::ENTRY_TYPE === $post_type ) {
-			$table = HE_V2_Schema::table( 'concepts' );
-			$row = $wpdb->get_row( $wpdb->prepare( "SELECT id,row_version FROM {$table} WHERE post_id=%d", $post_id ), ARRAY_A );
-			if ( $row ) {
-				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='archived',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
+		$is_entry = self::ENTRY_TYPE === $post->post_type;
+		$table = HE_V2_Schema::table( $is_entry ? 'concepts' : 'research' );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id,row_version,status" . ( $is_entry ? "" : ",record_type" ) . " FROM {$table} WHERE post_id=%d", (int) $post->ID ), ARRAY_A );
+		if ( ! $row ) { return $delete; }
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'delete_lifecycle_transaction_start_failed', 'File 06 could not start the canonical hard-delete lifecycle transaction.' );
+			return false;
+		}
+		try {
+			$next = $is_entry ? 'archived' : 'retracted';
+			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $next, (int) $row['id'], (int) $row['row_version'] ) );
+			if ( 1 !== (int) $updated ) { throw new RuntimeException( 'delete-lifecycle-cas-failed' ); }
+			if ( $is_entry ) {
 				$index_deleted = $wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $row['id'] ), array( '%d' ) );
-				if ( 1 !== (int) $updated || false === $index_deleted ) {
-					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-					HE_V2_Schema::record_runtime_failure( 'entry_delete_lifecycle_failed', 'File 06 could not persist the canonical archive/search lifecycle before a WordPress entry deletion.' );
-					return;
-				}
-				self::emit_event( 'EncyclopediaEntryArchived.v1', 'concept', (int) $row['id'], array( 'post_id' => $post_id, 'reason' => 'wordpress-hard-delete' ) );
+				if ( false === $index_deleted ) { throw new RuntimeException( 'delete-index-delete-failed' ); }
 			}
-			return;
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'delete-lifecycle-commit-failed' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'delete_lifecycle_failed', 'File 06 prevented a WordPress hard delete because its canonical lifecycle state could not be persisted safely.' );
+			return false;
 		}
-		if ( self::RESEARCH_TYPE === $post_type ) {
-			$table = HE_V2_Schema::table( 'research' );
-			$row = $wpdb->get_row( $wpdb->prepare( "SELECT id,row_version,status,record_type FROM {$table} WHERE post_id=%d", $post_id ), ARRAY_A );
-			if ( $row ) {
-				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='retracted',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
-				if ( 1 !== (int) $updated ) {
-					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-					HE_V2_Schema::record_runtime_failure( 'research_delete_lifecycle_failed', 'File 06 could not persist a research retraction tombstone before the WordPress research object was deleted.' );
-					return;
-				}
-				self::emit_event( 'ResearchRecordRetracted.v1', 'research', (int) $row['id'], array( 'record_type' => $row['record_type'], 'reason' => 'wordpress-hard-delete' ) );
+		self::$pending_deletions[ (int) $post->ID ] = array( 'object_type' => $is_entry ? 'concept' : 'research', 'object_id' => (int) $row['id'], 'previous_status' => (string) $row['status'], 'row_version' => (int) $row['row_version'] + 1, 'record_type' => $row['record_type'] ?? '' );
+		if ( ! self::$delete_shutdown_registered ) { register_shutdown_function( array( __CLASS__, 'verify_pending_deletions' ) ); self::$delete_shutdown_registered = true; }
+		return $delete;
+	}
+
+	public static function on_deleted_post( $post_id, $post = null ) {
+		$post_id = absint( $post_id );
+		if ( empty( self::$pending_deletions[ $post_id ] ) ) { return; }
+		$pending = self::$pending_deletions[ $post_id ]; unset( self::$pending_deletions[ $post_id ] );
+		try {
+			if ( 'concept' === $pending['object_type'] ) {
+				self::emit_event( 'EncyclopediaEntryArchived.v1', 'concept', $pending['object_id'], array( 'post_id' => $post_id, 'reason' => 'wordpress-hard-delete-confirmed' ) );
+			} else {
+				self::emit_event( 'ResearchRecordRetracted.v1', 'research', $pending['object_id'], array( 'record_type' => $pending['record_type'], 'reason' => 'wordpress-hard-delete-confirmed' ) );
 			}
+		} catch ( Throwable $error ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'delete_lifecycle_event_failed', 'The WordPress object was deleted, but File 06 could not persist its post-delete lifecycle event; mutations were paused.' );
 		}
+	}
+
+	public static function verify_pending_deletions() {
+		global $wpdb;
+		foreach ( self::$pending_deletions as $post_id => $pending ) {
+			$still_exists = (bool) $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE ID=%d", (int) $post_id ) );
+			if ( ! $still_exists ) { continue; }
+			$table = HE_V2_Schema::table( 'concept' === $pending['object_type'] ? 'concepts' : 'research' );
+			$restored = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $pending['previous_status'], (int) $pending['object_id'], (int) $pending['row_version'] ) );
+			if ( 'concept' === $pending['object_type'] && 1 === (int) $restored ) { self::reindex_concept( (int) $pending['object_id'] ); }
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 1 === (int) $restored ? 'wordpress_delete_not_completed' : 'wordpress_delete_restore_failed', 'A requested WordPress hard delete did not complete after the canonical lifecycle transition; File 06 entered safe mode.' );
+		}
+		self::$pending_deletions = array();
 	}
 
 	public static function ensure_concept_for_post( $post_id ) {
