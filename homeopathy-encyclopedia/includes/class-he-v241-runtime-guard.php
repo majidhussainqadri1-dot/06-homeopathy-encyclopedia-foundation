@@ -128,18 +128,27 @@ final class HE_V241_Runtime_Guard {
 	}
 
 	private static function acquire_lease( $option, $ttl ) {
-		$existing = get_option( $option, array() );
-		if ( is_array( $existing ) && ! empty( $existing['time'] ) && ( time() - absint( $existing['time'] ) ) > absint( $ttl ) ) {
-			delete_option( $option );
-		}
+		global $wpdb;
 		$token = wp_generate_uuid4();
-		return add_option( $option, array( 'token' => $token, 'time' => time() ), '', false ) ? $token : '';
+		$value = array( 'token' => $token, 'time' => time() );
+		if ( add_option( $option, $value, '', false ) ) { return $token; }
+		$existing = get_option( $option, array() );
+		if ( ! is_array( $existing ) || empty( $existing['time'] ) || ( time() - absint( $existing['time'] ) ) <= absint( $ttl ) ) { return ''; }
+		$deleted = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+			$option, maybe_serialize( $existing )
+		) );
+		return 1 === (int) $deleted && add_option( $option, $value, '', false ) ? $token : '';
 	}
 
 	private static function release_lease( $option, $token ) {
+		global $wpdb;
 		$current = get_option( $option, array() );
 		if ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], (string) $token ) ) {
-			delete_option( $option );
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				$option, maybe_serialize( $current )
+			) );
 		}
 	}
 

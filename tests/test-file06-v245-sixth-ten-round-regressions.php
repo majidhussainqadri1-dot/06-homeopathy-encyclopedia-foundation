@@ -16,4 +16,8 @@ $schema = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/clas
 f06_v245_assert(strpos($schema, 'OPTION_MAINTENANCE_LEASE') !== false, 'Round 3 Future maintenance lease missing');
 f06_v245_assert(strpos($schema, 'acquire_maintenance_lease') !== false && strpos($schema, 'release_maintenance_lease') !== false, 'Round 3 serialized Future maintenance methods missing');
 f06_v245_assert(strpos($schema, 'DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s') !== false, 'Round 3 CAS stale-lease takeover missing');
+$runtime = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php');
+f06_v245_assert(strpos($runtime, 'maybe_serialize( $existing )') !== false, 'Round 4 stale core-maintenance lease CAS takeover missing');
+f06_v245_assert(strpos($runtime, 'maybe_serialize( $current )') !== false, 'Round 4 core-maintenance lease CAS release missing');
+f06_v245_assert(strpos($runtime, 'delete_option( $option )') === false, 'Round 4 unsafe unconditional core lease deletion remains');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";
