@@ -50,6 +50,7 @@ require_once HE_DIR . 'includes/class-he-v24-future-review-guard.php';
 require_once HE_DIR . 'includes/class-he-v24-public-provenance.php';
 require_once HE_DIR . 'includes/class-he-v241-governance.php';
 require_once HE_DIR . 'includes/class-he-v241-runtime-guard.php';
+require_once HE_DIR . 'includes/class-he-v241-before-callback-normalizer.php';
 require_once HE_DIR . 'includes/class-he-v241-public-dto-guard.php';
 
 /**
@@ -102,7 +103,7 @@ function he_contract_descriptor() {
 		'future_hardening_version' => '2.4.1',
 		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
-		'authorization'     => array( 'file00_claims_required' => true, 'native_object_scope_required' => true, 'editor_type_assignment_required' => true, 'reviewer_assignment_required' => true, 'admin_and_composer_scope_enforced' => true ),
+		'authorization'     => array( 'file00_claims_required' => true, 'native_object_scope_required' => true, 'editor_type_assignment_required' => true, 'reviewer_assignment_required' => true, 'admin_and_composer_scope_enforced' => true, 'successful_guards_continue_to_callback' => true ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true, 'bounded_postflight' => true, 'future_routes_fail_closed_until_ready' => true ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'legacy_unverified_scheduler_disabled' => true, 'core_maintenance_serialized' => true, 'future_maintenance_serialized' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true ),
 		'public_api'        => array( 'canonical_public_ids_only' => true, 'internal_ids_exposed' => false, 'core_numeric_enumeration_blocked' => true, 'public_provenance_types' => array( 'concept', 'claim' ) ),
@@ -159,6 +160,7 @@ function he_start_v2() {
 
 	HE_V241_Governance::hooks();
 	HE_V241_Runtime_Guard::hooks();
+	HE_V241_Before_Callback_Normalizer::hooks();
 	HE_V241_Public_DTO_Guard::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) {
