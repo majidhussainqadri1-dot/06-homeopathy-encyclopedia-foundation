@@ -416,21 +416,16 @@ final class HE_V2_Schema {
 	}
 
 	private static function migrate_legacy() {
-		if ( get_option( 'he_v2_legacy_migrated' ) ) {
-			return;
-		}
-		$query = new WP_Query( array(
-			'post_type'      => 'he_entry',
-			'post_status'    => array( 'publish', 'pending', 'draft', 'private' ),
-			'posts_per_page' => 200,
-			'fields'         => 'ids',
-			'orderby'        => 'ID',
-			'order'          => 'ASC',
-			'no_found_rows'  => true,
-		) );
-		foreach ( $query->posts as $post_id ) {
-			HE_V2_Domain::ensure_concept_for_post( $post_id );
-		}
+		if ( get_option( 'he_v2_legacy_migrated' ) ) { return; }
+		$page = 1;
+		do {
+			$query = new WP_Query( array(
+				'post_type' => 'he_entry', 'post_status' => array( 'publish','pending','draft','private' ), 'posts_per_page' => 200,
+				'fields' => 'ids', 'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => true, 'paged' => $page,
+			) );
+			foreach ( $query->posts as $post_id ) { HE_V2_Domain::ensure_concept_for_post( $post_id ); }
+			$count = count( $query->posts ); ++$page;
+		} while ( 200 === $count );
 		update_option( 'he_v2_legacy_migrated', 1, false );
 	}
 
