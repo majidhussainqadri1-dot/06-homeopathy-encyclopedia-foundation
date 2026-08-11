@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Build twice and inspect canonical v2.4.2 package
+      - name: Build twice, verify canonical package and committed checksum register
         shell: bash
         run: |
           set -euo pipefail
@@ -63,6 +63,8 @@ jobs:
           echo "PACKAGE_SHA256=$package_hash"
           echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
           echo "SOURCE_TREE_SHA256=$source_hash"
+          grep -q "^${package_hash}  06-homeopathy-encyclopedia-foundation-2.4.2.zip$" V2-CHECKSUMS.sha256
+          grep -q "^${source_hash}  SOURCE-TREE:homeopathy-encyclopedia/$" V2-CHECKSUMS.sha256
           python3 - <<'PY'
           import zipfile
           from pathlib import Path
