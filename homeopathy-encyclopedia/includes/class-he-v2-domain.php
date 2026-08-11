@@ -353,34 +353,47 @@ final class HE_V2_Domain {
 
 		if ( ! $type || ! isset( self::types()[ $type ] ) ) {
 			$type = 'clinical-terminology';
-			wp_set_object_terms( $post_id, array( $type ), self::TAX_TYPE, false );
+			$term_result = wp_set_object_terms( $post_id, array( $type ), self::TAX_TYPE, false );
+			if ( is_wp_error( $term_result ) || self::taxonomy_slug( $post_id, self::TAX_TYPE ) !== $type ) {
+				update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+				HE_V2_Schema::record_runtime_failure( 'entry_projection_taxonomy_failed', 'File 06 could not verify the canonical fallback knowledge taxonomy.' );
+				return 0;
+			}
 		}
 		$slug = $post->post_name ? $post->post_name : sanitize_title( $post->post_title );
 		$slug = self::unique_slug( $slug, 0 );
 		$status = 'publish' === $post->post_status ? 'published' : 'draft';
 		$now = current_time( 'mysql', true );
-		$ok = $wpdb->insert( $table, array(
-			'public_id' => wp_generate_uuid4(),
-			'post_id' => $post_id,
-			'type_slug' => $type,
-			'canonical_slug' => $slug,
-			'language' => $language,
-			'status' => $status,
-			'safety_status' => get_post_meta( $post_id, '_he_safety_status', true ) ?: 'unreviewed',
-			'review_status' => get_post_meta( $post_id, '_he_review_status', true ) ?: 'unreviewed',
-			'created_by' => (int) $post->post_author,
-			'created_at' => $now,
-			'updated_at' => $now,
-		), array( '%s','%d','%s','%s','%s','%s','%s','%s','%d','%s','%s' ) );
-		if ( ! $ok ) {
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'entry_projection_transaction_start_failed', 'File 06 could not start a new canonical concept projection transaction.' );
 			return 0;
 		}
-		$concept_id = (int) $wpdb->insert_id;
-		self::add_alias( $concept_id, $post->post_title, 'en-US', 'canonical', true, (int) $post->post_author );
-		if ( 'published' === $status ) {
-			$version_id = self::snapshot_version( $concept_id, 'Imported published baseline', 'published', (int) $post->post_author );
-			$wpdb->update( $table, array( 'current_version' => $version_id ), array( 'id' => $concept_id ), array( '%d' ), array( '%d' ) );
+		try {
+			$ok = $wpdb->insert( $table, array(
+				'public_id' => wp_generate_uuid4(), 'post_id' => $post_id, 'type_slug' => $type, 'canonical_slug' => $slug,
+				'language' => $language, 'status' => $status, 'safety_status' => get_post_meta( $post_id, '_he_safety_status', true ) ?: 'unreviewed',
+				'review_status' => get_post_meta( $post_id, '_he_review_status', true ) ?: 'unreviewed', 'created_by' => (int) $post->post_author,
+				'created_at' => $now, 'updated_at' => $now,
+			), array( '%s','%d','%s','%s','%s','%s','%s','%s','%d','%s','%s' ) );
+			if ( ! $ok ) { throw new RuntimeException( 'concept-insert-failed' ); }
+			$concept_id = (int) $wpdb->insert_id;
+			$alias_ok = self::add_alias( $concept_id, $post->post_title, $language, 'canonical', true, (int) $post->post_author );
+			if ( is_wp_error( $alias_ok ) || ! $alias_ok ) { throw new RuntimeException( 'canonical-alias-failed' ); }
+			if ( 'published' === $status ) {
+				$version_id = self::snapshot_version( $concept_id, 'Imported published baseline', 'published', (int) $post->post_author );
+				if ( ! $version_id ) { throw new RuntimeException( 'published-baseline-snapshot-failed' ); }
+				$finalized = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET current_version=%d WHERE id=%d AND current_version=0", $version_id, $concept_id ) );
+				if ( 1 !== (int) $finalized ) { throw new RuntimeException( 'published-baseline-finalize-failed' ); }
+			}
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'concept-projection-commit-failed' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'entry_projection_create_failed', 'File 06 rolled back a new canonical concept projection because a required child write or commit could not be verified.' );
+			return 0;
 		}
+
 		return $concept_id;
 	}
 
