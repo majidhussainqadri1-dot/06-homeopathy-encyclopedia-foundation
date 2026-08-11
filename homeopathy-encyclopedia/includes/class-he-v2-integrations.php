@@ -104,6 +104,23 @@ final class HE_V2_Integrations {
 		return $providers;
 	}
 
+	private static function dashboard_post_allowed( $post, $user_id ) {
+		if ( ! $post || ! $user_id ) { return false; }
+		if ( HE_V2_Auth::is_founder( $user_id ) ) { return true; }
+		if ( HE_V2_Domain::ENTRY_TYPE === $post->post_type ) {
+			$type = HE_V2_Domain::taxonomy_slug( (int) $post->ID, HE_V2_Domain::TAX_TYPE );
+			$editor = HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT, (int) $post->ID, 'file06-dashboard-entry-edit', $user_id ) && HE_V241_Governance::editor_type_allowed( $user_id, $type );
+			$reviewer = HE_V2_Auth::can( HE_V2_Auth::CAP_REVIEW, (int) $post->ID, 'file06-dashboard-entry-review', $user_id ) && HE_V241_Governance::reviewer_assigned( (int) $post->ID, $user_id );
+			return $editor || $reviewer;
+		}
+		if ( HE_V2_Domain::RESEARCH_TYPE === $post->post_type ) {
+			$research = HE_V2_Auth::can( HE_V2_Auth::CAP_RESEARCH, (int) $post->ID, 'file06-dashboard-research', $user_id );
+			$reviewer = HE_V2_Auth::can( HE_V2_Auth::CAP_REVIEW, (int) $post->ID, 'file06-dashboard-research-review', $user_id ) && HE_V241_Governance::reviewer_assigned( (int) $post->ID, $user_id );
+			return $research || $reviewer;
+		}
+		return false;
+	}
+
 	public function dashboard_inventory( $args = array() ) {
 		if ( ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT ) && ! HE_V2_Auth::can( HE_V2_Auth::CAP_REVIEW ) ) {
 			return new WP_Error( 'he_dashboard_forbidden', __( 'Dashboard inventory is not authorized.', 'homeopathy-encyclopedia' ) );
@@ -118,7 +135,9 @@ final class HE_V2_Integrations {
 			'order' => 'DESC',
 		) );
 		$items = array();
+		$user_id = get_current_user_id();
 		foreach ( $query->posts as $post ) {
+			if ( ! self::dashboard_post_allowed( $post, $user_id ) ) { continue; }
 			$items[] = array(
 				'universal_ref' => 'file-06:' . $post->post_type . ':' . $post->ID,
 				'native_id' => $post->ID,
@@ -130,7 +149,7 @@ final class HE_V2_Integrations {
 				'public_url' => 'publish' === $post->post_status ? get_permalink( $post->ID ) : '',
 			);
 		}
-		return array( 'items' => $items, 'total' => (int) $query->found_posts, 'pages' => (int) $query->max_num_pages );
+		return array( 'items' => $items, 'total' => count( $items ), 'pages' => $items ? 1 : 0, 'scope_filtered' => true );
 	}
 
 	public function dashboard_item( $native_id ) {
@@ -138,7 +157,7 @@ final class HE_V2_Integrations {
 		if ( ! $post || ! in_array( $post->post_type, array( HE_V2_Domain::ENTRY_TYPE, HE_V2_Domain::RESEARCH_TYPE ), true ) ) {
 			return null;
 		}
-		if ( ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT, $post->ID ) && ! HE_V2_Auth::can( HE_V2_Auth::CAP_REVIEW, $post->ID ) ) {
+		if ( ! self::dashboard_post_allowed( $post, get_current_user_id() ) ) {
 			return null;
 		}
 		return array(
