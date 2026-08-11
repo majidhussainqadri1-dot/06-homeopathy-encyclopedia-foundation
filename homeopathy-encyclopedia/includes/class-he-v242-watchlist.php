@@ -9,6 +9,7 @@ final class HE_V242_Watchlist {
 	}
 
 	public static function override_route() {
+		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready() ) { return; }
 		register_rest_route( HE_V2_API::NS, '/future/watchlist', array(
 			array( 'methods' => WP_REST_Server::READABLE, 'callback' => array( __CLASS__, 'read' ), 'permission_callback' => array( __CLASS__, 'permission' ) ),
 			array( 'methods' => WP_REST_Server::CREATABLE, 'callback' => array( __CLASS__, 'write' ), 'permission_callback' => array( __CLASS__, 'permission' ) ),

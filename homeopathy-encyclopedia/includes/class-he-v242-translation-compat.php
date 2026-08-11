@@ -8,6 +8,7 @@ final class HE_V242_Translation_Compat {
 	}
 
 	public static function override_public_route() {
+		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready() ) { return; }
 		register_rest_route( HE_V2_API::NS, '/future/public/translations/(?P<id>[a-fA-F0-9-]{36})', array(
 			'methods' => WP_REST_Server::READABLE,
 			'callback' => array( __CLASS__, 'read' ),

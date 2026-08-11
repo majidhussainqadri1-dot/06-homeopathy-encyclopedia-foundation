@@ -31,10 +31,11 @@ final class HE_V242_Language_Migration {
 	public static function ready() { return (bool) get_option( self::DONE, false ); }
 
 	public static function run_bounded() {
-		if ( self::ready() || ! class_exists( 'HE_V24_Future_Schema' ) || ! self::lock() ) { return; }
+		if ( self::ready() || ! class_exists( 'HE_V24_Future_Schema' ) || ! class_exists( 'HE_V24_Migration_Safety' ) ) { return; }
+		$translations = HE_V24_Future_Schema::table( 'translations' );
+		if ( ! HE_V24_Migration_Safety::table_exists( $translations ) || ! self::lock() ) { return; }
 		global $wpdb;
 		try {
-			$translations = HE_V24_Future_Schema::table( 'translations' );
 			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id,concept_id,locale,source_locale FROM {$translations} WHERE (locale='ur-PK' OR source_locale='ur-PK') AND id>%d ORDER BY id ASC LIMIT %d", absint( get_option( self::CURSOR, 0 ) ), self::BATCH ), ARRAY_A );
 			$conflicts = (array) get_option( self::CONFLICTS, array() );
 			$last = absint( get_option( self::CURSOR, 0 ) );

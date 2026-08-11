@@ -62,6 +62,7 @@ final class HE_V242_Multilingual {
 	}
 
 	public static function override_translation_route() {
+		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready() ) { return; }
 		register_rest_route( HE_V2_API::NS, '/future/translations/(?P<id>\\d+)', array(
 			array(
 				'methods' => 'GET',
