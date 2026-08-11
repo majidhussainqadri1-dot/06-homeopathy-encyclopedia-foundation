@@ -1,0 +1,128 @@
+name: File 06 v2.4.5 Sixth Review Round 3 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - '.github/workflows/file06-v245-sixth-round3-apply.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Serialize Future maintenance with CAS lease
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v24-future-schema.php')
+          s=p.read_text()
+          const="\tconst MAX_PROVIDER_BYTES = 524288;"
+          repl="""\tconst MAX_PROVIDER_BYTES = 524288;
+          \tconst OPTION_MAINTENANCE_LEASE = 'he_v24_future_maintenance_lease';
+          \tconst MAINTENANCE_LEASE_TTL = 20 * MINUTE_IN_SECONDS;
+          \tprivate static $maintenance_lease_token = '';"""
+          if 'OPTION_MAINTENANCE_LEASE' not in s:
+              if const not in s: raise SystemExit('constant marker missing')
+              s=s.replace(const,repl,1)
+          marker="\tpublic static function maintenance() {"
+          helper="""\tprivate static function acquire_maintenance_lease() {
+          \t\tglobal $wpdb;
+          \t\t$token = wp_generate_uuid4();
+          \t\t$value = array( 'token' => $token, 'time' => time() );
+          \t\tif ( add_option( self::OPTION_MAINTENANCE_LEASE, $value, '', false ) ) {
+          \t\t\tself::$maintenance_lease_token = $token;
+          \t\t\treturn true;
+          \t\t}
+          \t\t$existing = get_option( self::OPTION_MAINTENANCE_LEASE );
+          \t\tif ( ! is_array( $existing ) || empty( $existing['time'] ) || time() - (int) $existing['time'] <= self::MAINTENANCE_LEASE_TTL ) { return false; }
+          \t\t$deleted = $wpdb->query( $wpdb->prepare(
+          \t\t\t\"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s\",
+          \t\t\tself::OPTION_MAINTENANCE_LEASE, maybe_serialize( $existing )
+          \t\t) );
+          \t\tif ( 1 !== (int) $deleted || ! add_option( self::OPTION_MAINTENANCE_LEASE, $value, '', false ) ) { return false; }
+          \t\tself::$maintenance_lease_token = $token;
+          \t\treturn true;
+          \t}
+
+          \tprivate static function release_maintenance_lease() {
+          \t\tglobal $wpdb;
+          \t\tif ( ! self::$maintenance_lease_token ) { return; }
+          \t\t$current = get_option( self::OPTION_MAINTENANCE_LEASE );
+          \t\tif ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], self::$maintenance_lease_token ) ) {
+          \t\t\t$wpdb->query( $wpdb->prepare(
+          \t\t\t\t\"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s\",
+          \t\t\t\tself::OPTION_MAINTENANCE_LEASE, maybe_serialize( $current )
+          \t\t\t) );
+          \t\t}
+          \t\tself::$maintenance_lease_token = '';
+          \t}
+
+          \tpublic static function maintenance() {"""
+          if 'acquire_maintenance_lease' not in s:
+              if marker not in s: raise SystemExit('maintenance marker missing')
+              s=s.replace(marker,helper,1)
+          old="""\tpublic static function maintenance() {
+          \t\t$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );
+          \t\tforeach ( $fresh as $row ) { self::refresh_freshness( (int) $row['id'] ); }
+          \t\t$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );
+          \t\tforeach ( $gaps as $row ) { self::detect_gaps( (int) $row['id'] ); }
+          \t\tself::scan_retractions( self::BATCH );
+          \t\tself::process_impact_queue();
+          \t\tself::mark_outdated_translations();
+          \t}"""
+          new="""\tpublic static function maintenance() {
+          \t\tif ( ! self::acquire_maintenance_lease() ) { return; }
+          \t\ttry {
+          \t\t\t$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );
+          \t\t\tforeach ( $fresh as $row ) { self::refresh_freshness( (int) $row['id'] ); }
+          \t\t\t$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );
+          \t\t\tforeach ( $gaps as $row ) { self::detect_gaps( (int) $row['id'] ); }
+          \t\t\tself::scan_retractions( self::BATCH );
+          \t\t\tself::process_impact_queue();
+          \t\t\tself::mark_outdated_translations();
+          \t\t} finally {
+          \t\t\tself::release_maintenance_lease();
+          \t\t}
+          \t}"""
+          if old not in s: raise SystemExit('maintenance body not found after helper insertion')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          t=Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          x=t.read_text(); needle='echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          add="""$schema = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');
+          f06_v245_assert(strpos($schema, 'OPTION_MAINTENANCE_LEASE') !== false, 'Round 3 Future maintenance lease missing');
+          f06_v245_assert(strpos($schema, 'acquire_maintenance_lease') !== false && strpos($schema, 'release_maintenance_lease') !== false, 'Round 3 serialized Future maintenance methods missing');
+          f06_v245_assert(strpos($schema, 'DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s') !== false, 'Round 3 CAS stale-lease takeover missing');
+          """+needle
+          if 'Round 3 Future maintenance lease missing' not in x:
+              if needle not in x: raise SystemExit('test marker missing')
+              x=x.replace(needle,add,1)
+          t.write_text(x)
+          PY
+      - name: Validate Round 3 correction
+        run: |
+          set -euo pipefail
+          php -l homeopathy-encyclopedia/includes/class-he-v24-future-schema.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 3 correction
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/includes/class-he-v24-future-schema.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): serialize Future maintenance and impact delivery'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
