@@ -18,3 +18,4 @@ Repository-only corrective record. Staging/live/operational status is not establ
 14. **DEFECT** — Reference-create responses exposed raw reference row IDs and relation commands accepted those internal IDs as their public contract. The command surface now returns/accepts scope-bound opaque reference tokens.
 15. **DEFECT** — The admin repair UI labeled WP_Error repair outcomes as success. It now renders failed verified repair as an error and no longer presents a false recovery signal.
 16. **CLEAN** — Fresh authorization/IDOR review of corrected entry/research/dataset mutation routes found no additional repository-level defect after canonical-ID and object-scope corrections.
+17. **CLEAN** — Fresh idempotency, rate-limit, event/outbox, retry/dead-letter and transaction-callsite audit found no new actionable repository defect beyond the corrected paths.
