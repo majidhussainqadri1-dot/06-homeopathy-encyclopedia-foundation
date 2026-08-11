@@ -1,0 +1,124 @@
+name: File 06 v2.4.3 Fifth Fresh Ten-Round QA
+on:
+  push:
+    branches:
+      - audit/file-06-fifth-10-round-v2.4.3
+permissions:
+  contents: read
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file"; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+
+  inherited-and-fifth-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify inherited and fifth-cycle controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/v2-invariants.php
+          bash tests/v2-source-invariants.sh
+          php tests/v23-future-invariants.php
+          php tests/v24-80-round-invariants.php
+          php tests/v241-second-80-invariants.php
+          php tests/v242-third-80-final.php
+          php tests/v243-ten-round-regressions.php
+          php tests/v243-fifth-ten-round-regressions.php
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+          python3 -m py_compile scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
+
+  reproducible-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build candidate twice and report exact digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.3-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.3-b.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
+          cmp -s "$a" "$b"
+          echo "PACKAGE_SHA256=$(sha256sum "$a" | awk '{print $1}')"
+          echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
+          echo "SOURCE_TREE_SHA256=$(python3 scripts/source-tree-hash.py homeopathy-encyclopedia | tail -n1 | tr -d '[:space:]')"
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.4.3-a.zip')
+          with zipfile.ZipFile(path) as z:
+              names=z.namelist()
+              assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names)
+              bootstrap=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode('utf-8')
+              assert "define( 'HE_VERSION', '2.4.3' )" in bootstrap
+              assert "define( 'HE_SCHEMA_VERSION', 10 )" in bootstrap
+              assert "define( 'HE_CONTRACT_VERSION', '2.4.3' )" in bootstrap
+              assert "class-he-v243-fifth-audit.php" in bootstrap
+          PY
+
+  wordpress-smoke:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          extensions: mysqli
+          coverage: none
+      - name: Install WP-CLI
+        run: |
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          php /tmp/wp-cli.phar --info
+          chmod +x /tmp/wp-cli.phar
+          sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+      - name: WordPress 7.0.1 lifecycle smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wp
+          cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+          wp eval 'if ( HE_VERSION !== "2.4.3" || HE_SCHEMA_VERSION !== 10 || HE_CONTRACT_VERSION !== "2.4.3" ) { throw new Exception("File 06 runtime contract mismatch"); } echo "runtime-contract-ok\n";'
+          wp eval 'foreach(array("HE_V24_Migration_Safety","HE_V24_Future_API","HE_V241_Governance","HE_V242_Reference_Graph","HE_V243_Fifth_Audit") as $c){if(!class_exists($c)){throw new Exception("missing ".$c);}} echo "v243-fifth-runtime-classes-ok\n";'
+          wp plugin deactivate homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+          wp eval 'if ((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10){throw new Exception("schema option mismatch");} echo "reactivation-ok\n";'
