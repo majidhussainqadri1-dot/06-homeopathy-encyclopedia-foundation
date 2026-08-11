@@ -497,12 +497,29 @@ final class HE_V2_Domain {
 		return self::concept_by_id( $concept_id, true );
 	}
 
+	private static function sanitize_structured_value( $value, $depth = 0 ) {
+		if ( $depth > 6 ) { return ''; }
+		if ( is_array( $value ) ) {
+			$out = array();
+			foreach ( $value as $key => $item ) {
+				$safe_key = is_int( $key ) ? $key : sanitize_key( (string) $key );
+				$out[ $safe_key ] = self::sanitize_structured_value( $item, $depth + 1 );
+			}
+			return $out;
+		}
+		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) ) { return $value; }
+		if ( null === $value ) { return ''; }
+		if ( ! is_scalar( $value ) ) { return ''; }
+		return sanitize_textarea_field( (string) $value );
+	}
+
 	public static function sanitize_structured( $fields ) {
+		$fields = is_array( $fields ) ? $fields : array();
 		$output = array();
 		$allowed = array( 'source', 'key_points', 'symptoms', 'causes', 'modalities', 'red_flags', 'safety', 'limitations', 'emergency_boundary', 'evidence_summary' );
 		foreach ( $allowed as $key ) {
-			if ( isset( $fields[ $key ] ) ) {
-				$output[ $key ] = is_array( $fields[ $key ] ) ? array_values( array_filter( array_map( 'sanitize_text_field', $fields[ $key ] ) ) ) : sanitize_textarea_field( $fields[ $key ] );
+			if ( array_key_exists( $key, $fields ) ) {
+				$output[ $key ] = self::sanitize_structured_value( $fields[ $key ] );
 			}
 		}
 		return $output;
