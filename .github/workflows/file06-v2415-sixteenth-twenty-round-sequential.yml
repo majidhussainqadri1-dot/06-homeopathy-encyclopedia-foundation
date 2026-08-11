@@ -19,7 +19,7 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-      - name: Sequential review correction rounds 19-20 after historical QA compatibility repair
+      - name: Sequential review correction rounds 19-20 after ledger-depth repair
         run: |
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
