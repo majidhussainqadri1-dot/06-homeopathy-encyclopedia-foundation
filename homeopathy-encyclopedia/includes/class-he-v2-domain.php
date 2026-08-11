@@ -696,16 +696,27 @@ final class HE_V2_Domain {
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND version_id=%d ORDER BY id ASC", $concept_id, $previous_version_id ), ARRAY_A );
 		foreach ( $rows as $ref ) {
 			if ( ! is_array( $ref ) ) { continue; }
-			$exists = (int) $wpdb->get_var( $wpdb->prepare(
+			$old_reference_id = absint( $ref['id'] ?? 0 );
+			$new_reference_id = (int) $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$table} WHERE concept_id=%d AND version_id=%d AND source_type=%s AND title=%s AND edition=%s AND page_locator=%s AND url=%s AND doi=%s LIMIT 1",
 				$concept_id, $new_version_id, $ref['source_type'], $ref['title'], $ref['edition'], $ref['page_locator'], $ref['url'], $ref['doi']
 			) );
-			if ( $exists ) { continue; }
-			unset( $ref['id'] );
-			$ref['version_id'] = $new_version_id;
-			$ref['created_by'] = absint( $actor_id );
-			$ref['created_at'] = current_time( 'mysql', true );
-			$wpdb->insert( $table, $ref );
+			if ( ! $new_reference_id ) {
+				unset( $ref['id'] );
+				$ref['version_id'] = $new_version_id;
+				$ref['created_by'] = absint( $actor_id );
+				$ref['created_at'] = current_time( 'mysql', true );
+				if ( ! $wpdb->insert( $table, $ref ) ) {
+					continue;
+				}
+				$new_reference_id = (int) $wpdb->insert_id;
+			}
+			if ( $old_reference_id && $new_reference_id ) {
+				$wpdb->query( $wpdb->prepare(
+					'UPDATE ' . HE_V2_Schema::table( 'relations' ) . ' SET source_reference_id=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE source_concept_id=%d AND source_reference_id=%d',
+					$new_reference_id, $concept_id, $old_reference_id
+				) );
+			}
 		}
 	}
 
