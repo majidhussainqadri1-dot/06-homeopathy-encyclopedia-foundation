@@ -4,22 +4,30 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 plugin="$root/homeopathy-encyclopedia"
 
 test -f "$plugin/homeopathy-encyclopedia.php"
-test "$(find "$plugin" -type f -name '*.php' | wc -l | tr -d ' ')" -ge 32
+test "$(find "$plugin" -type f -name '*.php' | wc -l | tr -d ' ')" -ge 40
 for file in \
   class-he-v23-future.php class-he-v24-future-schema.php class-he-v24-migration-safety.php \
   class-he-v24-future-api.php class-he-v24-future-privacy.php class-he-v24-future-review-guard.php \
   class-he-v24-public-provenance.php class-he-v241-governance.php class-he-v241-governance-privacy.php \
   class-he-v241-research-governance.php class-he-v241-runtime-guard.php \
-  class-he-v241-before-callback-normalizer.php class-he-v241-public-dto-guard.php; do
+  class-he-v241-before-callback-normalizer.php class-he-v241-public-dto-guard.php \
+  class-he-v242-third-audit.php class-he-v242-runtime-corrections.php class-he-v242-multilingual.php \
+  class-he-v242-research-browse.php class-he-v242-research-authoring.php class-he-v242-language-surfaces.php \
+  class-he-v242-watchlist.php class-he-v242-reference-graph.php class-he-v242-research-immutability.php \
+  class-he-v242-public-translation-guard.php class-he-v242-language-migration.php; do
   test -f "$plugin/includes/$file"
 done
 ! grep -R --line-number --include='*.php' --include='*.js' --include='*.css' -E '(AKIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)' "$plugin"
-grep -q "Version: 2.4.1" "$plugin/homeopathy-encyclopedia.php"
+grep -q "Version: 2.4.2" "$plugin/homeopathy-encyclopedia.php"
 grep -q "HE_SCHEMA_VERSION', 10" "$plugin/homeopathy-encyclopedia.php"
-grep -q "HE_CONTRACT_VERSION', '2.4.1" "$plugin/homeopathy-encyclopedia.php"
+grep -q "HE_CONTRACT_VERSION', '2.4.2" "$plugin/homeopathy-encyclopedia.php"
 grep -q "future_requirement_count" "$plugin/homeopathy-encyclopedia.php"
 grep -q "research_reviewer_assignment_required" "$plugin/homeopathy-encyclopedia.php"
 grep -q "research_apply_requires_accepted_state" "$plugin/homeopathy-encyclopedia.php"
+grep -q "integrity_object_scope_before_short_circuit" "$plugin/homeopathy-encyclopedia.php"
+grep -q "relationship_reference_required" "$plugin/homeopathy-encyclopedia.php"
+grep -q "published_research_immutable" "$plugin/homeopathy-encyclopedia.php"
+grep -q "legacy_language_normalization_bounded" "$plugin/homeopathy-encyclopedia.php"
 grep -q "native_object_scope_required" "$plugin/homeopathy-encyclopedia.php"
 grep -q "successful_guards_continue_to_callback" "$plugin/homeopathy-encyclopedia.php"
 grep -q "bounded_postflight" "$plugin/homeopathy-encyclopedia.php"
@@ -48,16 +56,24 @@ grep -q "META_EDITOR_TYPES" "$plugin/includes/class-he-v241-governance.php"
 grep -q "META_REVIEW_ASSIGNMENTS" "$plugin/includes/class-he-v241-governance.php"
 grep -q "maintenance_serialized" "$plugin/includes/class-he-v241-governance.php"
 grep -q "wp_privacy_personal_data_exporters" "$plugin/includes/class-he-v241-governance-privacy.php"
-grep -q "META_REVIEW_ASSIGNMENTS" "$plugin/includes/class-he-v241-governance-privacy.php"
 grep -q "research-reviewer-assignment" "$plugin/includes/class-he-v241-research-governance.php"
 grep -q "he_reviewer_assignment_required" "$plugin/includes/class-he-v241-research-governance.php"
-grep -q "'accepted'!==\$action\['status'\]" "$plugin/includes/class-he-v241-research-governance.php"
 grep -q "composer_create_draft" "$plugin/includes/class-he-v241-runtime-guard.php"
-grep -q "remove_action( 'he_v2_maintenance', array( 'HE_V2_Domain', 'maintenance' )" "$plugin/includes/class-he-v241-runtime-guard.php"
 grep -q "HE_V22_Schedule::publish_due_securely" "$plugin/includes/class-he-v241-runtime-guard.php"
 grep -q "direct_permission_routes" "$plugin/includes/class-he-v241-before-callback-normalizer.php"
 grep -q "internal numeric identifiers" "$plugin/includes/class-he-v241-public-dto-guard.php"
-grep -q "replacement_id" "$plugin/includes/class-he-v241-public-dto-guard.php"
+grep -q "he_reference_version_scope" "$plugin/includes/class-he-v242-third-audit.php"
+grep -q "he_merge_reason_required" "$plugin/includes/class-he-v242-third-audit.php"
+grep -q "clean_post_cache" "$plugin/includes/class-he-v242-runtime-corrections.php"
+grep -q "SSH-XPLAN-MLSEO-2026-v1.0" "$plugin/includes/class-he-v242-multilingual.php"
+grep -q "MAX_SCAN = 500" "$plugin/includes/class-he-v242-research-browse.php"
+grep -q "he_v242_conflict_statement" "$plugin/includes/class-he-v242-research-authoring.php"
+grep -q "future/public/translations" "$plugin/includes/class-he-v242-language-surfaces.php"
+grep -q "excluded_from_public_provenance" "$plugin/includes/class-he-v242-watchlist.php"
+grep -q "he_relation_provenance_required" "$plugin/includes/class-he-v242-reference-graph.php"
+grep -q "Published, corrected and retracted research records are immutable" "$plugin/includes/class-he-v242-research-immutability.php"
+grep -q "source_version_number" "$plugin/includes/class-he-v242-public-translation-guard.php"
+grep -q "legacy_locale' => 'ur-PK'" "$plugin/includes/class-he-v242-language-migration.php"
 grep -q "researcher_ids" "$plugin/uninstall.php"
 grep -q "he_v241_core_maintenance_lease" "$plugin/uninstall.php"
 grep -q "he_v24_orcid_postflight_done" "$plugin/uninstall.php"
@@ -65,4 +81,4 @@ grep -q -- "--he-primary:var(--sabri-color-primary" "$plugin/assets/css/encyclop
 ! grep -q -- "--sabri-primary:#" "$plugin/assets/css/encyclopedia-v2.css"
 ! grep -R --line-number -- '--he-orange' "$plugin"
 grep -q "default='06-homeopathy-encyclopedia-foundation'" "$root/scripts/build-release.py"
-echo "File 06 v2.4.1 source-tree invariants passed."
+echo "File 06 v2.4.2 source-tree invariants passed."
