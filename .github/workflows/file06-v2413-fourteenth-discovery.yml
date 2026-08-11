@@ -1,0 +1,47 @@
+name: File 06 v2.4.13 Fourteenth Discovery Audit
+on:
+  push:
+    branches: [audit/file-06-fourteenth-ten-round-v2.4.13]
+    paths: [.github/workflows/file06-v2413-fourteenth-discovery.yml]
+permissions:
+  contents: read
+jobs:
+  discovery:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Enumerate residual risk patterns
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('homeopathy-encyclopedia/includes')
+          patterns={
+            'unchecked-start': re.compile(r"(?<!false === )\$wpdb->query\(\s*['\"]START TRANSACTION"),
+            'unchecked-commit': re.compile(r"(?<!false === )\$wpdb->query\(\s*['\"]COMMIT"),
+            'raw-delete': re.compile(r"^\s*\$wpdb->delete\("),
+            'raw-update': re.compile(r"^\s*\$wpdb->update\("),
+            'raw-insert': re.compile(r"^\s*\$wpdb->insert\("),
+            'shallow-sanitize-array-map': re.compile(r"array_map\(\s*['\"]sanitize_text_field['\"]"),
+            'raw-term-write': re.compile(r"^\s*wp_set_object_terms\("),
+            'raw-meta-write': re.compile(r"^\s*update_post_meta\("),
+          }
+          for p in sorted(root.glob('*.php')):
+              lines=p.read_text().splitlines()
+              for i,line in enumerate(lines,1):
+                  for label,rx in patterns.items():
+                      if rx.search(line): print(f'{label}|{p.name}:{i}|{line.strip()}')
+          print('--- public static functions mentioning merge/publish/research/privacy ---')
+          for p in sorted(root.glob('*.php')):
+              for i,line in enumerate(p.read_text().splitlines(),1):
+                  if re.search(r'public static function .*?(merge|publish|research|privacy|transition|schedule|delete|erase)',line):
+                      print(f'fn|{p.name}:{i}|{line.strip()}')
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
