@@ -30,4 +30,8 @@ f06_v245_assert(strpos($gov, 'he_v241_future_maintenance_lease') === false, 'Rou
 $watch = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v242-watchlist.php');
 f06_v245_assert(strpos($watch, 'rest_sanitize_boolean') !== false, 'Round 7 explicit watchlist false normalization missing');
 f06_v245_assert(strpos($watch, '! empty( $data') === false, 'Round 7 truthy-string watchlist activation bug remains');
+$schema = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');
+f06_v245_assert(strpos($schema, '$last_completed_id = $cursor') !== false, 'Round 9 retry-safe retraction cursor missing');
+f06_v245_assert(strpos($schema, 'if ( is_wp_error( $data ) ) { break; }') !== false, 'Round 9 provider failure still skips ahead');
+f06_v245_assert(strpos($schema, "end( $rows )['id']") === false, 'Round 9 batch-end cursor can still skip failed rows');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";
