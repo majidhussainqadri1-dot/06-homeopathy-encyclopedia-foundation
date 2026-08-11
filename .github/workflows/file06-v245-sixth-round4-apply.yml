@@ -1,0 +1,99 @@
+name: File 06 v2.4.5 Sixth Review Round 4 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - '.github/workflows/file06-v245-sixth-round4-apply.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Make core maintenance stale takeover and release compare-and-delete safe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php')
+          s=p.read_text()
+          old="""\tprivate static function acquire_lease( $option, $ttl ) {
+          \t\t$existing = get_option( $option, array() );
+          \t\tif ( is_array( $existing ) && ! empty( $existing['time'] ) && ( time() - absint( $existing['time'] ) ) > absint( $ttl ) ) {
+          \t\t\tdelete_option( $option );
+          \t\t}
+          \t\t$token = wp_generate_uuid4();
+          \t\treturn add_option( $option, array( 'token' => $token, 'time' => time() ), '', false ) ? $token : '';
+          \t}
+
+          \tprivate static function release_lease( $option, $token ) {
+          \t\t$current = get_option( $option, array() );
+          \t\tif ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], (string) $token ) ) {
+          \t\t\tdelete_option( $option );
+          \t\t}
+          \t}"""
+          new="""\tprivate static function acquire_lease( $option, $ttl ) {
+          \t\tglobal $wpdb;
+          \t\t$token = wp_generate_uuid4();
+          \t\t$value = array( 'token' => $token, 'time' => time() );
+          \t\tif ( add_option( $option, $value, '', false ) ) { return $token; }
+          \t\t$existing = get_option( $option, array() );
+          \t\tif ( ! is_array( $existing ) || empty( $existing['time'] ) || ( time() - absint( $existing['time'] ) ) <= absint( $ttl ) ) { return ''; }
+          \t\t$deleted = $wpdb->query( $wpdb->prepare(
+          \t\t\t\"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s\",
+          \t\t\t$option, maybe_serialize( $existing )
+          \t\t) );
+          \t\treturn 1 === (int) $deleted && add_option( $option, $value, '', false ) ? $token : '';
+          \t}
+
+          \tprivate static function release_lease( $option, $token ) {
+          \t\tglobal $wpdb;
+          \t\t$current = get_option( $option, array() );
+          \t\tif ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], (string) $token ) ) {
+          \t\t\t$wpdb->query( $wpdb->prepare(
+          \t\t\t\t\"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s\",
+          \t\t\t\t$option, maybe_serialize( $current )
+          \t\t\t) );
+          \t\t}
+          \t}"""
+          if old not in s: raise SystemExit('legacy core lease block not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          t=Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          x=t.read_text(); needle='echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          add="""$runtime = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php');
+          f06_v245_assert(strpos($runtime, 'maybe_serialize( $existing )') !== false, 'Round 4 stale core-maintenance lease CAS takeover missing');
+          f06_v245_assert(strpos($runtime, 'maybe_serialize( $current )') !== false, 'Round 4 core-maintenance lease CAS release missing');
+          f06_v245_assert(strpos($runtime, 'delete_option( $option )') === false, 'Round 4 unsafe unconditional core lease deletion remains');
+          """+needle
+          if 'Round 4 stale core-maintenance lease CAS takeover missing' not in x:
+              if needle not in x: raise SystemExit('test marker missing')
+              x=x.replace(needle,add,1)
+          t.write_text(x)
+          PY
+      - name: Validate Round 4 correction
+        run: |
+          set -euo pipefail
+          php -l homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 4 correction
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/includes/class-he-v241-runtime-guard.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): make core maintenance lease CAS-safe'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
