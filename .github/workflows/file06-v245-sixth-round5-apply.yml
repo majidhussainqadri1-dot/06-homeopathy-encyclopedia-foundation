@@ -1,0 +1,106 @@
+name: File 06 v2.4.5 Sixth Review Round 5 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - '.github/workflows/file06-v245-sixth-round5-apply.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Make governance privacy erasure cursor-progressive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v241-governance-privacy.php')
+          s=p.read_text()
+          marker="\tprivate static function public_object_id( $post_id ) {"
+          helper="""\tprivate static function erasure_cursor_option( $uid ) {
+          \t\treturn 'he_v241_privacy_assignment_cursor_' . absint( $uid );
+          \t}
+
+          \tprivate static function assigned_posts_after( $cursor ) {
+          \t\tglobal $wpdb;
+          \t\t$types = array( HE_V2_Domain::ENTRY_TYPE, HE_V2_Domain::RESEARCH_TYPE );
+          \t\treturn array_map( 'absint', $wpdb->get_col( $wpdb->prepare(
+          \t\t\t\"SELECT DISTINCT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} pm ON pm.post_id=p.ID AND pm.meta_key=%s WHERE p.ID>%d AND p.post_type IN (%s,%s) ORDER BY p.ID ASC LIMIT %d\",
+          \t\t\tHE_V241_Governance::META_REVIEW_ASSIGNMENTS, absint( $cursor ), $types[0], $types[1], self::PAGE_SIZE
+          \t\t) ) );
+          \t}
+
+          \tprivate static function public_object_id( $post_id ) {"""
+          if 'erasure_cursor_option' not in s:
+              if marker not in s: raise SystemExit('public_object_id marker missing')
+              s=s.replace(marker,helper,1)
+          old="""\t\t/* Erasure mutates the qualifying set, so always process the first remaining batch. */
+          \t\t$post_ids = self::assigned_posts_page( 1 );
+          \t\tforeach ( $post_ids as $post_id ) {"""
+          new="""\t\t/* Progress by immutable post ID, not by a mutating result-set offset; unrelated assignment rows must never stall erasure. */
+          \t\t$cursor_option = self::erasure_cursor_option( $uid );
+          \t\tif ( 1 === max( 1, absint( $page ) ) ) { delete_option( $cursor_option ); }
+          \t\t$cursor = absint( get_option( $cursor_option, 0 ) );
+          \t\t$post_ids = self::assigned_posts_after( $cursor );
+          \t\tforeach ( $post_ids as $post_id ) {"""
+          if old not in s: raise SystemExit('old erasure batch block missing')
+          s=s.replace(old,new,1)
+          oldret="""\t\treturn array(
+          \t\t\t'items_removed' => $removed,
+          \t\t\t'items_retained' => false,
+          \t\t\t'messages' => array(),
+          \t\t\t'done' => count( $post_ids ) < self::PAGE_SIZE,
+          \t\t);
+          \t}"""
+          newret="""\t\t$done = count( $post_ids ) < self::PAGE_SIZE;
+          \t\tif ( $post_ids && ! $done ) { update_option( $cursor_option, (int) end( $post_ids ), false ); }
+          \t\telse { delete_option( $cursor_option ); }
+          \t\treturn array(
+          \t\t\t'items_removed' => $removed,
+          \t\t\t'items_retained' => false,
+          \t\t\t'messages' => array(),
+          \t\t\t'done' => $done,
+          \t\t);
+          \t}"""
+          if oldret not in s: raise SystemExit('old erasure return block missing')
+          s=s.replace(oldret,newret,1)
+          p.write_text(s)
+
+          t=Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          x=t.read_text(); needle='echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          add="""$gprivacy = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v241-governance-privacy.php');
+          f06_v245_assert(strpos($gprivacy, 'assigned_posts_after') !== false, 'Round 5 cursor-based governance privacy scan missing');
+          f06_v245_assert(strpos($gprivacy, 'he_v241_privacy_assignment_cursor_') !== false, 'Round 5 per-user privacy cursor missing');
+          f06_v245_assert(strpos($gprivacy, 'assigned_posts_page( 1 )') === false, 'Round 5 stalling first-batch eraser pattern remains');
+          """+needle
+          if 'Round 5 cursor-based governance privacy scan missing' not in x:
+              if needle not in x: raise SystemExit('test marker missing')
+              x=x.replace(needle,add,1)
+          t.write_text(x)
+          PY
+      - name: Validate Round 5 correction
+        run: |
+          set -euo pipefail
+          php -l homeopathy-encyclopedia/includes/class-he-v241-governance-privacy.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 5 correction
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/includes/class-he-v241-governance-privacy.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): guarantee governance privacy eraser progress'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
