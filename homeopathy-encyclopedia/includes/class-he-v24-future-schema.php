@@ -610,9 +610,6 @@ final class HE_V24_Future_Schema {
 			$cursor = 0;
 			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id>%d AND status IN ('published','corrected') ORDER BY id ASC LIMIT %d", 0, self::BATCH ), ARRAY_A );
 		}
-		if ( $rows ) {
-			update_option( $option, (int) end( $rows )['id'], false );
-		}
 		return $rows;
 	}
 
@@ -636,6 +633,7 @@ final class HE_V24_Future_Schema {
 			$safety_missing = (bool) array_intersect( $fields, array( 'red-flags-required','remedy-safety-limitations-required','emergency-boundary-required' ) );
 		}
 		$gaps = array();
+		$write_ok = true;
 		if ( $refs < 2 ) { $gaps['insufficient-references'] = array( $refs ? 'medium' : 'high', $refs ? 55 : 80, 'Fewer than two governed references.' ); }
 		if ( $claims < 1 ) { $gaps['claim-structure-missing'] = array( 'medium', 55, 'No structured claims are recorded.' ); }
 		if ( $without_evidence > 0 ) { $gaps['claims-without-evidence'] = array( 'high', 85, 'One or more approved claims lack linked evidence.' ); }
@@ -647,7 +645,7 @@ final class HE_V24_Future_Schema {
 		$existing = $wpdb->get_col( $wpdb->prepare( "SELECT gap_type FROM " . self::table( 'research_gaps' ) . " WHERE concept_id=%d AND state='open'", $concept['id'] ) );
 		foreach ( $existing as $gap_type ) {
 			if ( ! in_array( $gap_type, $active, true ) ) {
-				$wpdb->update( self::table( 'research_gaps' ), array( 'state' => 'resolved', 'resolved_at' => $now, 'updated_at' => $now ), array( 'concept_id' => $concept['id'], 'gap_type' => $gap_type ) );
+				if ( false === $wpdb->update( self::table( 'research_gaps' ), array( 'state' => 'resolved', 'resolved_at' => $now, 'updated_at' => $now ), array( 'concept_id' => $concept['id'], 'gap_type' => $gap_type ) ) ) { $write_ok = false; }
 			}
 		}
 		foreach ( $gaps as $type => $data ) {
@@ -655,12 +653,13 @@ final class HE_V24_Future_Schema {
 			$id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::table( 'research_gaps' ) . ' WHERE concept_id=%d AND gap_type=%s', $concept['id'], $type ) );
 			$row = array( 'severity' => $data[0], 'priority_score' => $data[1], 'rationale' => $data[2], 'metrics_json' => wp_json_encode( $metrics ), 'state' => 'open', 'resolved_at' => null, 'updated_at' => $now );
 			if ( $id ) {
-				$wpdb->update( self::table( 'research_gaps' ), $row, array( 'id' => $id ) );
+				if ( false === $wpdb->update( self::table( 'research_gaps' ), $row, array( 'id' => $id ) ) ) { $write_ok = false; }
 			} else {
 				$row['concept_id'] = $concept['id']; $row['gap_type'] = $type; $row['detected_at'] = $now;
-				$wpdb->insert( self::table( 'research_gaps' ), $row );
+				if ( false === $wpdb->insert( self::table( 'research_gaps' ), $row ) ) { $write_ok = false; }
 			}
 		}
+		if ( ! $write_ok ) { return new WP_Error( 'he_future_gap_write_failed', __( 'Research-gap state could not be stored.', 'homeopathy-encyclopedia' ) ); }
 		return count( $gaps );
 	}
 
@@ -757,9 +756,17 @@ final class HE_V24_Future_Schema {
 		if ( ! self::acquire_maintenance_lease() ) { return; }
 		try {
 			$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );
-			foreach ( $fresh as $row ) { self::refresh_freshness( (int) $row['id'] ); }
+			foreach ( $fresh as $row ) {
+				$result = self::refresh_freshness( (int) $row['id'] );
+				if ( is_wp_error( $result ) || ! is_array( $result ) ) { break; }
+				update_option( 'he_v24_freshness_cursor', (int) $row['id'], false );
+			}
 			$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );
-			foreach ( $gaps as $row ) { self::detect_gaps( (int) $row['id'] ); }
+			foreach ( $gaps as $row ) {
+				$result = self::detect_gaps( (int) $row['id'] );
+				if ( is_wp_error( $result ) ) { break; }
+				update_option( 'he_v24_gap_cursor', (int) $row['id'], false );
+			}
 			self::scan_retractions( self::BATCH );
 			self::process_impact_queue();
 			self::mark_outdated_translations();

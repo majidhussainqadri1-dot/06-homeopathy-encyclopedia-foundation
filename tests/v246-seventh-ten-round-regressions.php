@@ -26,6 +26,10 @@ $dto=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v241-public-dto
 v246_ok(substr_count($dto,"status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0")>=2,'R7 public DTO concept lookups are not publication-gated');
 $future_privacy=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-privacy.php');
 v246_ok(false!==strpos($future_privacy,"he_v2_privacy_legal_hold") && false!==strpos($future_privacy,"DELETE FROM") && false!==strpos($future_privacy,"deidentify"),'R8 Future privacy lifecycle controls missing');
+$schema=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');
+v246_ok(false===strpos($schema,"update_option( $option, (int) end( $rows )['id'], false )"),'R9 maintenance scan still pre-advances cursor');
+v246_ok(false!==strpos($schema,"update_option( 'he_v24_freshness_cursor', (int) \$row['id'], false )") && false!==strpos($schema,"update_option( 'he_v24_gap_cursor', (int) \$row['id'], false )"),'R9 per-row successful cursor advance missing');
+v246_ok(false!==strpos($schema,"he_future_gap_write_failed") && false!==strpos($schema,"he_future_freshness_write_failed"),'R9 maintenance write failure propagation missing');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("
