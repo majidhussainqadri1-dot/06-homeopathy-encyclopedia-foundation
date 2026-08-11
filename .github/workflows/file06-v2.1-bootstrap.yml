@@ -1,0 +1,71 @@
+name: File 06 v2.1 Four-Round Materialization
+
+on:
+  push:
+    branches: [ audit/file-06-four-round-completion-v2.1.0 ]
+    paths:
+      - '.bootstrap/**'
+      - '.github/workflows/file06-v2.1-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-four-round-completion-v2.1.0
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Reassemble and verify corrective payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/patch-00 .bootstrap/p0102-00 .bootstrap/p0102-01 .bootstrap/p0102-02 .bootstrap/p0102-03 .bootstrap/p0304-00 .bootstrap/p0304-01 .bootstrap/p0304-02 .bootstrap/p0304-03 .bootstrap/patch-0506 > /tmp/file06.patch.gz.b64
+          echo '5efa08cf1085619d1d896b25bf374f56533fcd5a0e90fd9a829a8cdf4847e416  /tmp/file06.patch.gz.b64' | sha256sum --check --strict
+          base64 -d /tmp/file06.patch.gz.b64 > /tmp/file06.patch.gz
+          echo '1aabdcdd14a37d18cef476e5b2dc6d155cbd62b7256c1f52279aff5956a35ec7  /tmp/file06.patch.gz' | sha256sum --check --strict
+          gzip -dc /tmp/file06.patch.gz > /tmp/file06.patch
+
+          cat .bootstrap/m0001-00 .bootstrap/m0001-01 .bootstrap/m0001-02 .bootstrap/m0001-03 .bootstrap/m0203-00 .bootstrap/m0203-01 .bootstrap/m0203-02 .bootstrap/m0203-03 > /tmp/file06-meta.tgz.b64
+          echo '2e9a0e9e105df9a6a930a8735eae836613bd01893b772464ae9c04918262949b  /tmp/file06-meta.tgz.b64' | sha256sum --check --strict
+          base64 -d /tmp/file06-meta.tgz.b64 > /tmp/file06-meta.tgz
+          echo '19c5234d0989f38973a3d20804e0444dfa69e937eb0ff8917aebf21d14a3f50f  /tmp/file06-meta.tgz' | sha256sum --check --strict
+          tar -tzf /tmp/file06-meta.tgz >/dev/null
+      - name: Apply four-round code remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --dry-run --batch --forward -p1 < /tmp/file06.patch
+          patch --batch --forward -p1 < /tmp/file06.patch
+          rm -rf docs tests scripts
+          rm -f README.md CHANGELOG.md STATUS.md SBOM.json V2-MANIFEST.md V2-CHECKSUMS.sha256
+          rm -f .github/workflows/file06-v2-complete.yml
+          tar -xzf /tmp/file06-meta.tgz -C .
+      - name: Verify corrected source and deterministic release
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/run-all.sh
+          python3 scripts/source-tree-hash.py homeopathy-encyclopedia | grep -F 'd846ab8dda626f4a165cd38bc10ad648bee5cc0275da3ec33ec34d2b540af85a'
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/file06-a.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/file06-b.zip
+          cmp -s /tmp/file06-a.zip /tmp/file06-b.zip
+          echo 'd4c84fe89baf24dbd050f56ff063d81e3d621805810d84dc80f073cfcedc2434  /tmp/file06-a.zip' | sha256sum --check --strict
+      - name: Commit four-round complete source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(file-06): four-round complete v2.1.0'
+          git push origin HEAD:audit/file-06-four-round-completion-v2.1.0
