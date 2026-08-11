@@ -35,6 +35,12 @@ final class HE_V24_Future_API {
 		self::route( $ns, '/future/translations/(?P<id>\\d+)', 'POST', 'rest_translation_write', HE_V2_Auth::CAP_EDIT );
 		self::route( $ns, '/future/translations/(?P<id>\\d+)/review', 'POST', 'rest_translation_review', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/translations/(?P<id>\\d+)/publish', 'POST', 'rest_translation_publish', HE_V2_Auth::CAP_PUBLISH );
+		/* Canonical public-ID surfaces for public Future intelligence reads. Legacy numeric reads remain blocked by HE_V24_Public_Provenance. */
+		self::route( $ns, '/future/public/claims/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_claims', 'read' );
+		self::route( $ns, '/future/public/graph/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_graph', 'read' );
+		self::route( $ns, '/future/public/time-machine/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_time_machine', 'read' );
+		self::route( $ns, '/future/public/freshness/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_freshness', 'read' );
+		self::route( $ns, '/future/public/citations/(?P<id>[a-fA-F0-9-]{36})/(?P<format>[a-z0-9_-]+)', 'GET', 'rest_citations', 'read' );
 		self::route( $ns, '/future/command-center', 'GET', 'rest_command_center', HE_V2_Auth::CAP_REVIEW );
 	}
 
@@ -101,12 +107,26 @@ final class HE_V24_Future_API {
 		return is_array( $data ) ? $data : $request->get_params();
 	}
 
+	private static function public_read_concept( WP_REST_Request $request ) {
+		global $wpdb;
+		$identifier = trim( (string) $request->get_param( 'id' ) );
+		if ( '' === $identifier ) { $identifier = trim( (string) $request->get_param( 'concept_id' ) ); }
+		if ( '' === $identifier ) { return null; }
+		if ( ctype_digit( $identifier ) ) { return HE_V24_Future_Schema::concept_row( absint( $identifier ), true ); }
+		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $identifier ) ) { return null; }
+		$public_id = strtolower( $identifier );
+		return $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE public_id=%s AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0",
+			$public_id
+		), ARRAY_A );
+	}
+
 	public static function rest_claims( WP_REST_Request $request ) {
-		$concept_id = absint( $request->get_param( 'concept_id' ) );
-		if ( ! $concept_id ) {
-			return new WP_Error( 'he_future_concept_required', __( 'concept_id is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
+		$concept = self::public_read_concept( $request );
+		if ( ! $concept ) {
+			return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
-		return rest_ensure_response( HE_V24_Future_Schema::public_claims( $concept_id ) );
+		return rest_ensure_response( HE_V24_Future_Schema::public_claims( (int) $concept['id'] ) );
 	}
 
 	public static function rest_claims_write( WP_REST_Request $request ) {
@@ -380,7 +400,7 @@ final class HE_V24_Future_API {
 
 	public static function rest_graph( WP_REST_Request $request ) {
 		global $wpdb;
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), true );
+		$concept = self::public_read_concept( $request );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$relations = $wpdb->get_results( $wpdb->prepare( 'SELECT r.relation_type,r.owner_file,r.source_concept_id,r.target_concept_id,r.source_reference_id FROM ' . HE_V2_Schema::table( 'relations' ) . ' r INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' sc ON sc.id=r.source_concept_id INNER JOIN ' . HE_V2_Schema::table( 'references' ) . " sr ON sr.id=r.source_reference_id AND sr.concept_id=r.source_concept_id AND sr.version_id=sc.current_version WHERE (r.source_concept_id=%d OR r.target_concept_id=%d) AND r.status='active' AND sc.current_version>0 ORDER BY r.id DESC LIMIT 300", $concept['id'], $concept['id'] ), ARRAY_A );
 		$edges = array(); $nodes = array();
@@ -404,7 +424,7 @@ final class HE_V24_Future_API {
 
 	public static function rest_time_machine( WP_REST_Request $request ) {
 		global $wpdb;
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), true );
+		$concept = self::public_read_concept( $request );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$as_of = trim( (string) $request->get_param( 'as_of' ) );
 		$params = array( $concept['id'] );
@@ -437,7 +457,7 @@ final class HE_V24_Future_API {
 
 	public static function rest_freshness( WP_REST_Request $request ) {
 		global $wpdb;
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), true );
+		$concept = self::public_read_concept( $request );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT freshness_state,risk_tier,priority_score,last_evidence_scan,last_human_review,review_due_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'freshness' ) . ' WHERE concept_id=%d', $concept['id'] ), ARRAY_A );
 		if ( ! $row ) { $row = HE_V24_Future_Schema::refresh_freshness( $concept['id'] ); unset( $row['concept_id'] ); }
@@ -475,7 +495,7 @@ final class HE_V24_Future_API {
 	}
 
 	public static function rest_citations( WP_REST_Request $request ) {
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), true );
+		$concept = self::public_read_concept( $request );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$format = sanitize_key( $request['format'] );
 		if ( ! in_array( $format, array( 'json','jsonld','bibtex','ris','csl-json' ), true ) ) { return new WP_Error( 'he_future_citation_format', __( 'Unsupported citation format.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
@@ -522,7 +542,7 @@ final class HE_V24_Future_API {
 
 	public static function rest_translations( WP_REST_Request $request ) {
 		global $wpdb;
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), true );
+		$concept = self::public_read_concept( $request );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT locale,source_locale,source_version,translation_version,content_json,content_hash,published_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'translations' ) . " WHERE concept_id=%d AND status='published' AND source_version=%d ORDER BY locale ASC LIMIT 20", $concept['id'], $concept['current_version'] ), ARRAY_A );
 		foreach ( $rows as &$row ) { $row['content'] = json_decode( $row['content_json'], true ); unset( $row['content_json'] ); $row['translation_version'] = (int) $row['translation_version']; }
