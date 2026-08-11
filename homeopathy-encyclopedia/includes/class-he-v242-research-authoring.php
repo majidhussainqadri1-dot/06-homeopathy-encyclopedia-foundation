@@ -111,8 +111,18 @@ final class HE_V242_Research_Authoring {
 		$metadata['lawful_basis'] = sanitize_key( wp_unslash( $_POST['he_v242_lawful_basis'] ?? ( $metadata['lawful_basis'] ?? '' ) ) );
 		$metadata['access_policy'] = sanitize_textarea_field( wp_unslash( $_POST['he_v242_access_policy'] ?? ( $metadata['access_policy'] ?? '' ) ) );
 		$expected_loaded = isset( $_POST[ HE_V242_Third_Audit::RESEARCH_EXPECTED_VERSION ] ) ? absint( $_POST[ HE_V242_Third_Audit::RESEARCH_EXPECTED_VERSION ] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		/* HE_V2_Admin::save_research_meta runs at priority 20 and increments exactly once before this saver. */
-		$expected_now = $expected_loaded ? $expected_loaded + 1 : (int) $row['row_version'];
+		/* Account for every verified same-request writer that runs before priority 170. */
+		$expected_now = $expected_loaded;
+		if ( $expected_loaded ) {
+			if ( isset( $_POST['he_v2_research_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['he_v2_research_nonce'] ) ), 'he_v2_save_research' ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+				++$expected_now;
+			}
+			if ( isset( $_POST['he_v22_research_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['he_v22_research_nonce'] ) ), 'he_v22_research_completeness' ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+				++$expected_now;
+			}
+		} else {
+			$expected_now = (int) $row['row_version'];
+		}
 		if ( (int) $row['row_version'] !== $expected_now ) {
 			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
 			HE_V2_Schema::record_runtime_failure( 'research_authoring_concurrency_conflict', 'Research governance fields were not written because the domain row moved during the same admin request.' );
