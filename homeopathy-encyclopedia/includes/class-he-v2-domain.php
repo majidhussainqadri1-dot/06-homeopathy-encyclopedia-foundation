@@ -230,7 +230,7 @@ final class HE_V2_Domain {
 				'public_id' => wp_generate_uuid4(),
 				'post_id' => $post_id,
 				'record_type' => 'publication',
-				'status' => 'draft' === $post->post_status ? 'proposal' : 'published',
+				'status' => 'publish' === $post->post_status ? 'published' : 'proposal',
 				'title' => $post->post_title,
 				'question' => $post->post_excerpt,
 				'protocol' => $post->post_content,
