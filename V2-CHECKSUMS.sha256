@@ -1,0 +1,6 @@
+# File 06 v2.4.2 reproducible release checksum evidence
+# Generated/confirmed by GitHub Actions run 31454206508.
+# The ZIP is a generated release artifact and is intentionally not committed to this source branch.
+b031e5bfec3130713fe812cf14614a83c43d35ed92c130f02e98b0c98fd7975a  06-homeopathy-encyclopedia-foundation-2.4.2.zip
+# Canonical source-tree digest produced by scripts/source-tree-hash.py over homeopathy-encyclopedia/:
+4e36b9f8ecd6346861b17f44b5eded0fa0d2210bbb16178030d8ff111100829a  SOURCE-TREE:homeopathy-encyclopedia/
