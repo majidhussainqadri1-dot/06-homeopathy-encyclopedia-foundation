@@ -28,7 +28,7 @@ $has( $governance, 'maybe_serialize( $existing )', 'maintenance stale lease comp
 
 $translation_guard = $read( 'homeopathy-encyclopedia/includes/class-he-v242-public-translation-guard.php' );
 $has( $translation_guard, "array( 'translations', 'items' )", 'public translation collections are both sanitized' );
-$has( $translation_guard, "unset( $item['source_version'] )", 'internal translation source-version id is stripped' );
+$has( $translation_guard, 'unset( $item[\'source_version\'] )', 'internal translation source-version id is stripped' );
 
 $language = $read( 'homeopathy-encyclopedia/includes/class-he-v242-language-surfaces.php' );
 $has( $language, "HE_V2_Schema::table( 'concepts' )", 'source-language metadata syncs canonical concept truth' );
