@@ -77,30 +77,41 @@ final class HE_V241_Public_DTO_Guard {
 
 	private static function public_graph_edges( $edges ) {
 		global $wpdb;
-		$ids = array();
+		$numeric_ids = array();
 		foreach ( $edges as $edge ) {
-			if ( is_array( $edge ) ) {
-				$ids[] = absint( $edge['source'] ?? 0 );
-				$ids[] = absint( $edge['target'] ?? 0 );
+			if ( ! is_array( $edge ) ) { continue; }
+			foreach ( array( 'source', 'target' ) as $key ) {
+				$value = (string) ( $edge[ $key ] ?? '' );
+				if ( ctype_digit( $value ) ) { $numeric_ids[] = absint( $value ); }
 			}
 		}
-		$ids = array_values( array_unique( array_filter( $ids ) ) );
+		$numeric_ids = array_values( array_unique( array_filter( $numeric_ids ) ) );
 		$map = array();
-		if ( $ids ) {
-			$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id IN ({$placeholders}) AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0", $ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $numeric_ids ) {
+			$placeholders = implode( ',', array_fill( 0, count( $numeric_ids ), '%d' ) );
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id IN ({$placeholders}) AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0", $numeric_ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			foreach ( $rows as $row ) { $map[ (int) $row['id'] ] = $row['public_id']; }
 		}
 		$out = array();
 		foreach ( $edges as $edge ) {
 			if ( ! is_array( $edge ) ) { continue; }
-			$source = absint( $edge['source'] ?? 0 );
-			$target = absint( $edge['target'] ?? 0 );
-			if ( empty( $map[ $source ] ) || empty( $map[ $target ] ) ) { continue; }
-			$edge['source'] = $map[ $source ];
-			$edge['target'] = $map[ $target ];
+			$resolved = array();
+			foreach ( array( 'source', 'target' ) as $key ) {
+				$value = (string) ( $edge[ $key ] ?? '' );
+				if ( preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value ) ) {
+					$resolved[ $key ] = strtolower( $value );
+				} elseif ( ctype_digit( $value ) && ! empty( $map[ (int) $value ] ) ) {
+					$resolved[ $key ] = $map[ (int) $value ];
+				} else {
+					$resolved = array(); break;
+				}
+			}
+			if ( count( $resolved ) !== 2 ) { continue; }
+			$edge['source'] = $resolved['source'];
+			$edge['target'] = $resolved['target'];
 			$out[] = $edge;
 		}
 		return $out;
 	}
+
 }
