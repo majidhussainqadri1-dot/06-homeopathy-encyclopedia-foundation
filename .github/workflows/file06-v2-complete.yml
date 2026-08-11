@@ -69,8 +69,8 @@ jobs:
               for required in (
                   'class-he-v24-future-schema.php','class-he-v24-migration-safety.php','class-he-v24-future-api.php',
                   'class-he-v24-future-privacy.php','class-he-v24-future-review-guard.php','class-he-v24-public-provenance.php',
-                  'class-he-v241-governance.php','class-he-v241-runtime-guard.php','class-he-v241-before-callback-normalizer.php',
-                  'class-he-v241-public-dto-guard.php'):
+                  'class-he-v241-governance.php','class-he-v241-governance-privacy.php','class-he-v241-research-governance.php',
+                  'class-he-v241-runtime-guard.php','class-he-v241-before-callback-normalizer.php','class-he-v241-public-dto-guard.php'):
                   assert required in bootstrap, required
           print('PACKAGE_SHA256=' + hashlib.sha256(path.read_bytes()).hexdigest())
           PY
