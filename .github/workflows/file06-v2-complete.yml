@@ -46,17 +46,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Build twice, compare and inspect canonical package
+      - name: Build twice, compare, inspect and verify release checksum register
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip
-          python3 scripts/build-release.py --source homeopathy-encyclopedia --output /tmp/06-homeopathy-encyclopedia-foundation-2.4.1-b.zip
-          cmp -s /tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip /tmp/06-homeopathy-encyclopedia-foundation-2.4.1-b.zip
-          sha256sum /tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip
-          stat -c 'PACKAGE_BYTES=%s' /tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-b.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
+          cmp -s "$a" "$b"
+          package_hash="$(sha256sum "$a" | awk '{print $1}')"
+          source_hash="$(python3 scripts/source-tree-hash.py homeopathy-encyclopedia | tail -n1 | tr -d '[:space:]')"
+          echo "PACKAGE_SHA256=$package_hash"
+          echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
+          echo "SOURCE_TREE_SHA256=$source_hash"
+          grep -q "^${package_hash}  06-homeopathy-encyclopedia-foundation-2.4.1.zip$" V2-CHECKSUMS.sha256
+          grep -q "^${source_hash}  SOURCE-TREE:homeopathy-encyclopedia/$" V2-CHECKSUMS.sha256
           python3 - <<'PY'
-          import zipfile, hashlib
+          import zipfile
           from pathlib import Path
           path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.4.1-a.zip')
           with zipfile.ZipFile(path) as z:
@@ -72,6 +79,4 @@ jobs:
                   'class-he-v241-governance.php','class-he-v241-governance-privacy.php','class-he-v241-research-governance.php',
                   'class-he-v241-runtime-guard.php','class-he-v241-before-callback-normalizer.php','class-he-v241-public-dto-guard.php'):
                   assert required in bootstrap, required
-          print('PACKAGE_SHA256=' + hashlib.sha256(path.read_bytes()).hexdigest())
           PY
-          python3 scripts/source-tree-hash.py homeopathy-encyclopedia
