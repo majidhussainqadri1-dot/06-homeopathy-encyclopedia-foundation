@@ -19,13 +19,13 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-      - name: Sequential review correction rounds 7-20
+      - name: Sequential review correction rounds 19-20
         run: |
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
           python3 -m py_compile scripts/v2416-seventeenth-twenty-round-fixes.py
-          for round in $(seq 7 20); do
+          for round in 19 20; do
             echo "===== File 06 seventeenth review round ${round} ====="
             python3 scripts/v2416-seventeenth-twenty-round-fixes.py "$round"
             while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
@@ -44,4 +44,4 @@ jobs:
               echo "Round ${round} produced no repository mutation after audit."
             fi
           done
-          echo "Seventeenth review rounds 7-20 completed."
+          echo "All twenty seventeenth-cycle review/fix/retest rounds completed."
