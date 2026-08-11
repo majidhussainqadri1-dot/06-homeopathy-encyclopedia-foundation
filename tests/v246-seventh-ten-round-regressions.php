@@ -30,6 +30,12 @@ $schema=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-s
 v246_ok(false===strpos($schema,"update_option( $option, (int) end( $rows )['id'], false )"),'R9 maintenance scan still pre-advances cursor');
 v246_ok(false!==strpos($schema,"update_option( 'he_v24_freshness_cursor', (int) \$row['id'], false )") && false!==strpos($schema,"update_option( 'he_v24_gap_cursor', (int) \$row['id'], false )"),'R9 per-row successful cursor advance missing');
 v246_ok(false!==strpos($schema,"he_future_gap_write_failed") && false!==strpos($schema,"he_future_freshness_write_failed"),'R9 maintenance write failure propagation missing');
+$bootstrap=v246_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
+$runall=v246_read($root.'/tests/run-all.sh');
+v246_ok(false!==strpos($bootstrap,' * Version: 2.4.6') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.6' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.6' );"),'R10 runtime/contract version truth not 2.4.6');
+v246_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.6'"),'R10 hardening version drift');
+v246_ok(false!==strpos($runall,'v246-seventh-ten-round-regressions.php'),'R10 seventh-cycle suite absent from aggregate gate');
+v246_ok(false!==strpos($runall,'file06-v2.4.6-a.zip') && false!==strpos($runall,'file06-v2.4.6-b.zip'),'R10 package labels not 2.4.6');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("
