@@ -1,31 +1,33 @@
-# File 06 Status — 2.4.5 Sixth Fresh Ten-Round Candidate
+# File 06 Status — 2.4.6 Seventh Fresh Ten-Round Candidate
 
 | Status | Evidence |
 |---|---|
-| Specified | Current File 06 v1.1: FR-001–019 + NFR-001–010 + F06-FUT-001–018, plus later ten-language public-publishing constitution where applicable |
-| Coded | `audit/file-06-sixth-ten-round-v2.4.5`; exact final HEAD is the commit evaluated by the final v2.4.5 workflow |
-| Reviewed | Sixth fresh ten-round review/fix cycle completed |
-| Sixth ten-round defect rounds | `1, 2, 3, 4, 5, 6, 7, 9, 10` |
-| Sixth ten-round clean rounds | `8` |
-| Plugin / Contract | `2.4.5 / 2.4.5` |
-| Global schema / Future schema | `10 / 2` |
-| Packaged | Deterministic double-build digest/bytes are emitted by the final exact-HEAD workflow |
-| Automated QA | Authoritative only from the completed `File 06 v2.4.5 Sixth Ten-Round Final QA` run whose `head_sha` equals the exact branch HEAD |
-| Staging accepted | **No / unverified** — target Hostinger/WordPress evidence still required |
+| Specified | Current File 06 v1.1 + Future Knowledge Intelligence 18 + applicable later ten-language public-publishing constitution |
+| Coded | `audit/file-06-seventh-ten-round-v2.4.6`; exact final HEAD is determined after final QA workflow creation |
+| Reviewed | Seventh fresh ten-round review/fix cycle completed |
+| Defect rounds | `1, 2, 3, 4, 5, 6, 7, 9, 10` |
+| Clean rounds | `8` |
+| Runtime | `2.4.6 / schema 10 / contract 2.4.6 / Future schema 2` |
+| Packaged | Final deterministic double-build evidence is emitted by the final exact-head workflow |
+| Automated QA | Authoritative only from the completed final exact-head v2.4.6 workflow |
+| Package SHA-256 | See final exact-head workflow log; not self-embedded |
+| Package bytes | See final exact-head workflow log |
+| Source-tree SHA-256 | See final exact-head workflow log |
+| Staging accepted | **No / unverified** |
 | Live deployed | **No / unverified** |
 | Operational | **No / unverified** |
 
-## Sixth-cycle corrections
+## Seventh-cycle corrections
 
-- canonical UUID public Future-read reachability without re-exposing numeric internal IDs;
-- stable idempotency fingerprints and CAS stale-reservation recovery;
-- V24-owned serialized Future maintenance and removal of split V241 maintenance ownership;
-- CAS-safe core maintenance lease takeover/release;
-- cursor-progressive governance privacy erasure;
-- explicit watchlist boolean normalization;
-- retry-safe retraction-watch cursor behavior on provider failure;
-- current `2.4.5` runtime/contract/release identity and inherited QA semantic alignment;
-- multilingual/source-language/translation governance re-review in Round 8 with no new source defect.
+- fail-closed research first-save publication state;
+- side-effect-free public freshness GET;
+- File 00-backed protected health authorization;
+- governed taxonomy REST ownership;
+- successful-case page privacy/consent/anonymization gating;
+- fail-closed non-public research title/excerpt/robots;
+- publication-gated replacement/graph public identifiers;
+- retry-safe freshness/research-gap maintenance cursors with write-failure propagation;
+- v2.4.6 runtime, contract, inherited/current invariant and aggregate-QA truth alignment.
 
 ## Release-truth warning
 
