@@ -9,3 +9,4 @@ Repository-only corrective record. Staging/live/operational status is not establ
 5. **DEFECT** — Entry wp-admin editing displayed an expected row version but did not enforce or advance it. A stale-form preflight and CAS row-version/review invalidation now fence content/meta changes.
 6. **DEFECT** — The legacy research admin writer used a freshly re-read row version, leaving a race after stale-form preflight. Its CAS now binds to the version loaded into the editor form.
 7. **DEFECT** — Create compensation committed canonical-row deletion before WordPress object deletion, allowing a split orphan state. Entry/research compensation now performs both sides in one transaction with lifecycle guards narrowly suppressed and restored.
+8. **DEFECT** — An existing same-concept synonym caused add_alias() to return success without promoting/updating a requested canonical primary alias. Same-concept canonical promotion is now persisted and other primary flags are cleared.

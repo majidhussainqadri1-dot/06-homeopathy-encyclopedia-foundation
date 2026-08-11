@@ -660,11 +660,16 @@ final class HE_V2_Domain {
 		if ( ! $alias || ! $normalized ) {
 			return new WP_Error( 'he_empty_alias', __( 'Alias cannot be empty.', 'homeopathy-encyclopedia' ) );
 		}
-		$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT concept_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE normalized_alias=%s AND language=%s', $normalized, $language ), ARRAY_A );
+		$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT id,concept_id,alias_type,is_primary FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE normalized_alias=%s AND language=%s', $normalized, $language ), ARRAY_A );
 		if ( $existing && (int) $existing['concept_id'] !== absint( $concept_id ) ) {
 			return new WP_Error( 'he_alias_collision', __( 'This alias already belongs to another canonical concept.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
 		if ( $existing ) {
+			if ( $primary || 'canonical' === $type ) {
+				$wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'aliases' ) . ' SET is_primary=0 WHERE concept_id=%d AND id<>%d AND is_primary=1', absint( $concept_id ), (int) $existing['id'] ) );
+				$updated = $wpdb->update( HE_V2_Schema::table( 'aliases' ), array( 'alias' => $alias, 'alias_type' => $type, 'is_primary' => $primary ? 1 : 0 ), array( 'id' => (int) $existing['id'] ), array( '%s','%s','%d' ), array( '%d' ) );
+				return false !== $updated;
+			}
 			return true;
 		}
 		return (bool) $wpdb->insert( HE_V2_Schema::table( 'aliases' ), array(
