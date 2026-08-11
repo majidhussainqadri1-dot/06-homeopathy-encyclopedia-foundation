@@ -976,6 +976,27 @@ final class HE_V2_Domain {
 		}
 	}
 
+	public static function sanitize_text_list( $value ) {
+		if ( ! is_array( $value ) ) { $value = preg_split( '/[\r\n,;]+/u', (string) $value ); }
+		if ( isset( $value['statement'] ) && is_scalar( $value['statement'] ) ) { $value = array( $value['statement'] ); }
+		elseif ( isset( $value['name'] ) && is_scalar( $value['name'] ) ) { $value = array( $value['name'] ); }
+		$out = array();
+		$walk = static function( $item ) use ( &$out, &$walk ) {
+			if ( is_array( $item ) ) {
+				foreach ( array( 'statement','name','text','value' ) as $key ) {
+					if ( isset( $item[ $key ] ) && is_scalar( $item[ $key ] ) ) { $walk( $item[ $key ] ); return; }
+				}
+				foreach ( $item as $child ) { $walk( $child ); }
+				return;
+			}
+			if ( ! is_scalar( $item ) ) { return; }
+			$text = sanitize_text_field( (string) $item );
+			if ( '' !== $text ) { $out[] = $text; }
+		};
+		$walk( $value );
+		return array_values( array_unique( $out ) );
+	}
+
 	public static function create_research( $data, $actor_id ) {
 		global $wpdb;
 		$type = sanitize_key( $data['record_type'] ?? 'proposal' );
@@ -1025,10 +1046,10 @@ final class HE_V2_Domain {
 			'title' => $title,
 			'question' => $question,
 			'protocol' => $protocol,
-			'investigators_json' => wp_json_encode( array_values( array_map( 'sanitize_text_field', (array) ( $data['investigators'] ?? array() ) ) ) ),
+			'investigators_json' => wp_json_encode( self::sanitize_text_list( $data['investigators'] ?? array() ) ),
 			'ethics_json' => wp_json_encode( array( 'review_required' => true, 'approval_reference' => sanitize_text_field( $data['ethics_reference'] ?? '' ) ) ),
 			'consent_json' => wp_json_encode( array( 'verified' => $consent, 'version' => sanitize_text_field( $data['consent_version'] ?? '' ) ) ),
-			'conflicts_json' => wp_json_encode( array_values( array_map( 'sanitize_text_field', (array) ( $data['conflicts'] ?? array() ) ) ) ),
+			'conflicts_json' => wp_json_encode( self::sanitize_text_list( $data['conflicts'] ?? array() ) ),
 			'data_class' => sanitize_key( $data['data_class'] ?? 'restricted' ),
 			'case_anonymized' => $anonymized ? 1 : 0,
 			'case_consent_verified' => $consent ? 1 : 0,

@@ -218,7 +218,7 @@ final class HE_V242_Third_Audit {
 
 	private static function validate_research_create_conflicts( WP_REST_Request $request ) {
 		$data = (array) $request->get_json_params();
-		$conflicts = array_values( array_filter( array_map( 'sanitize_text_field', (array) ( $data['conflicts'] ?? array() ) ) ) );
+		$conflicts = HE_V2_Domain::sanitize_text_list( $data['conflicts'] ?? array() );
 		if ( ! $conflicts ) {
 			return self::error( 'he_conflict_disclosure_required', __( 'Research submission requires an explicit conflict-of-interest statement, including an explicit declaration when none exists.', 'homeopathy-encyclopedia' ), 422 );
 		}
@@ -341,7 +341,7 @@ final class HE_V242_Third_Audit {
 			return $response;
 		}
 		$input = (array) $request->get_json_params();
-		$parts = array_values( array_filter( array_map( 'sanitize_text_field', (array) ( $input['conflicts'] ?? array() ) ) ) );
+		$parts = HE_V2_Domain::sanitize_text_list( $input['conflicts'] ?? array() );
 		if ( ! $parts ) {
 			return $response;
 		}

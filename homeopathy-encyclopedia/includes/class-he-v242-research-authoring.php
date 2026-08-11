@@ -15,7 +15,8 @@ final class HE_V242_Research_Authoring {
 	}
 
 	private static function conflicts( $value ) {
-		$statement = sanitize_textarea_field( (string) $value );
+		$parts = HE_V2_Domain::sanitize_text_list( $value );
+		$statement = sanitize_textarea_field( implode( '; ', $parts ) );
 		if ( '' === trim( $statement ) ) { return array(); }
 		$none = (bool) preg_match( '/\b(?:no|none)\s+(?:conflict|conflicts)\b/i', $statement );
 		return array( 'recorded' => true, 'statement' => $statement, 'none_declared' => $none );
