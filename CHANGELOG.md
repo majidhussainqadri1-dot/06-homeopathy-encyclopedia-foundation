@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.4.2 — Third fresh 80-round hardening candidate
+
+- Performed a third independent 80-round source/QA review and immediately corrected defects found in 24 rounds.
+- Repaired canonical source-language/alias consistency and made ambiguous cross-language aliases fail closed.
+- Bound references to versions of the same concept, bounded rights statuses and required source provenance for knowledge relationships.
+- Bound integrity transition/apply authorization to the actual concept/research object before early REST short-circuit execution; validated replacement objects.
+- Required merge authorization on source and target plus a documented decision reason.
+- Hardened research domain/WordPress publication-state parity, bounded public browse, investigator/conflict/dataset authoring, stale-form concurrency and published-research immutability.
+- Bound dataset request/approval flows to public research state and research external-evidence review to assigned research reviewers.
+- Added transactional pristine entry/research composer compensation, hard-delete guards, rollback cache repair and complete v2.4.2 uninstall cleanup.
+- Replaced arbitrary watchlist objects with private validated concept/topic/research watches while keeping File 19 as notification delivery owner.
+- Harmonized governed knowledge translations with the later ten-language policy: dynamic source language + nine translations, human review, current-source-version binding, canonical public translation read API and internal-ID stripping.
+- Added bounded `ur-PK` → `ur` normalization with collision refusal and compatibility reads during migration.
+- Corrected third-cycle CI assertion drift and the WP-CLI smoke-install URL; added WordPress 7.0.1/PHP 8.3 fresh-install and plugin lifecycle smoke evidence.
+- Completed two separate fresh post-final-code review rounds with no new source defects.
+- Final automated run `31454206508` passed PHP 7.4/8.3 lint, all invariant suites, deterministic packaging and WordPress runtime smoke.
+- Staging/live/operational states remain explicitly unverified.
+
 ## 2.4.1 — Second fresh 80-round hardening candidate
 
 - Added File 06-native editor knowledge-type assignments while preserving File 00 identity/current-claim authority.
