@@ -1,24 +1,36 @@
-# File 06 Status — 2.3.0 Future Knowledge Intelligence 18
+# File 06 Status — 2.4.1 Second Fresh 80-Round Candidate
 
 | Status | Evidence |
 |---|---|
-| Specified | Original File 06 FR-001–019 and NFR-001–010 plus F06-FUT-001–018 are mapped |
-| Coded | Complete v2.3 source tree on `codex/file-06-new-plans-completion-v2.2.0` |
-| Reviewed | Existing v2.2 post-coding review records plus Future-18 source invariants; no live/staging claim |
-| Packaged | Deterministic double build PASS at exact head `2703de4c27fe122157488ba5183ea614d7891eae` |
-| Automated QA | GitHub Actions run 31412056622 PASS: PHP 7.4 lint, PHP 8.3 lint, Future-18 invariants, source invariants, JS/Python checks, reproducible package |
-| Package SHA-256 | `48f07aa43d5524178c51fbc333049be11b72d19f1782a9c5dd67a0565ca0e45b` |
-| Package bytes | `99914` |
-| Source tree SHA-256 | `cd072dfe5072372df0853324d3bbea6c94530a9883c6c687f005fb4acdd2c3e8` |
-| Staging accepted | Requires target Hostinger/WordPress staging evidence |
-| Live deployed | Not performed from this repository task |
-| Operational | Not accepted until live verification, monitoring, backup/restore and rollback evidence |
+| Specified | Latest File 06 v1.1: FR-001–019 + NFR-001–010 + F06-FUT-001–018 |
+| Coded | `audit/file-06-second-80-round-v2.4.1` |
+| Reviewed | Second fresh 80-round review/fix cycle completed; report in `docs/FILE-06-SECOND-80-ROUND-AUDIT-v2.4.1.md` |
+| Packaged | Deterministic double build PASS |
+| Automated QA | GitHub Actions run `31449216962`: PHP 7.4 PASS, PHP 8.3 PASS, core/first-80/Future-18/second-80 invariants PASS, reproducible package PASS |
+| Package SHA-256 | `f54719fac6f3f973850848ab449a3ab8f715f463ffe4121b78d5e97305ce7956` |
+| Package bytes | `147923` |
+| Source-tree SHA-256 | `4d4324ddbfbfefb6f2196b85603768b7676604b1ace41a8c0946ba5e99dcfcf3` |
+| Staging accepted | **No / unverified** — target Hostinger/WordPress evidence still required |
+| Live deployed | **No / unverified** |
+| Operational | **No / unverified** |
 
 ## Runtime contract
 
-- Plugin: `2.3.0`
-- Schema: `9`
-- Contract: `2.3`
+- Plugin: `2.4.1`
+- Schema: `10`
+- Contract: `2.4.1`
 - Future requirement count: `18`
+- Identity/current-claim authority: File 00
+- Notification delivery: File 19
+- Shell/layout: File 20
+- Security/privacy assurance: File 24
+- Public visual/graph rendering: File 25
+- Global search/ranking: File 26
 
-Repository, staging and live remain separate realities. A green CI/package is not evidence of staging or live deployment.
+## Second-80 hardening highlights
+
+Native object/type scope, explicit editor and reviewer assignments, research accepted-only integrity application, admin/composer scope enforcement, serialized maintenance, secure scheduled-publication ownership, bounded/resumable postflight readiness, canonical public DTOs, and governance-metadata privacy lifecycle are now represented in source and automated invariants.
+
+## Release-truth warning
+
+Repository, staging and live are separate realities. Green CI and a reproducible package establish repository/automated-QA evidence only. They do not establish deployed version, live DB/schema/migration state, live configuration, cache/provider behavior, backup/restore, rollback or Founder acceptance.
