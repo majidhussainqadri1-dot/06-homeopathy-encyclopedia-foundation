@@ -252,12 +252,33 @@ final class HE_V2_Domain {
 
 	public static function on_delete_post( $post_id ) {
 		global $wpdb;
-		if ( self::ENTRY_TYPE === get_post_type( $post_id ) ) {
-			$concept_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', $post_id ) );
-			if ( $concept_id ) {
-				$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'status' => 'archived', 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => $concept_id ), array( '%s', '%s' ), array( '%d' ) );
-				$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => $concept_id ), array( '%d' ) );
-				self::emit_event( 'EncyclopediaEntryArchived.v1', 'concept', $concept_id, array( 'post_id' => $post_id ) );
+		$post_type = get_post_type( $post_id );
+		if ( self::ENTRY_TYPE === $post_type ) {
+			$table = HE_V2_Schema::table( 'concepts' );
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT id,row_version FROM {$table} WHERE post_id=%d", $post_id ), ARRAY_A );
+			if ( $row ) {
+				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='archived',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
+				$index_deleted = $wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $row['id'] ), array( '%d' ) );
+				if ( 1 !== (int) $updated || false === $index_deleted ) {
+					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+					HE_V2_Schema::record_runtime_failure( 'entry_delete_lifecycle_failed', 'File 06 could not persist the canonical archive/search lifecycle before a WordPress entry deletion.' );
+					return;
+				}
+				self::emit_event( 'EncyclopediaEntryArchived.v1', 'concept', (int) $row['id'], array( 'post_id' => $post_id, 'reason' => 'wordpress-hard-delete' ) );
+			}
+			return;
+		}
+		if ( self::RESEARCH_TYPE === $post_type ) {
+			$table = HE_V2_Schema::table( 'research' );
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT id,row_version,status,record_type FROM {$table} WHERE post_id=%d", $post_id ), ARRAY_A );
+			if ( $row ) {
+				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='retracted',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
+				if ( 1 !== (int) $updated ) {
+					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+					HE_V2_Schema::record_runtime_failure( 'research_delete_lifecycle_failed', 'File 06 could not persist a research retraction tombstone before the WordPress research object was deleted.' );
+					return;
+				}
+				self::emit_event( 'ResearchRecordRetracted.v1', 'research', (int) $row['id'], array( 'record_type' => $row['record_type'], 'reason' => 'wordpress-hard-delete' ) );
 			}
 		}
 	}
