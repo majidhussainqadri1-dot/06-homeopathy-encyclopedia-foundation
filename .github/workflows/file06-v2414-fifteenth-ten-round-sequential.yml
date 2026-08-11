@@ -1,0 +1,40 @@
+name: File 06 v2.4.14 Fifteenth Sequential Ten-Round Review
+on:
+  push:
+    branches: [audit/file-06-fifteenth-ten-round-v2.4.14]
+    paths: [.github/workflows/file06-v2414-fifteenth-ten-round-sequential.yml]
+permissions:
+  contents: write
+jobs:
+  review-fix-retest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Ten sequential review correction rounds
+        run: |
+          set -euo pipefail
+          git config user.name "majidhussainqadri1-dot"
+          git config user.email "majidhussainqadri1@gmail.com"
+          for round in 1 2 3 4 5 6 7 8 9 10; do
+            echo "===== File 06 fifteenth review round ${round} ====="
+            python3 scripts/v2414-fifteenth-ten-round-fixes.py "$round"
+            V2414_ROUND="$round" php tests/v2414-fifteenth-ten-round-regressions.php
+            bash tests/run-all.sh 2>&1 | tee "/tmp/v2414-round-${round}.log"
+            if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' "/tmp/v2414-round-${round}.log"; then
+              echo "Unexpected PHP warning/error in round ${round}" >&2
+              exit 1
+            fi
+            git add -A
+            git commit -m "fix(file-06): fifteenth review round ${round} correction"
+            git push origin HEAD:audit/file-06-fifteenth-ten-round-v2.4.14
+          done
+          echo "All ten sequential review/fix/retest rounds completed."
