@@ -3,9 +3,13 @@
 defined( 'ABSPATH' ) || exit;
 
 final class HE_V243_Fifth_Audit {
+	const PRIVACY_PAGE_SIZE = 50;
+
 	public static function hooks() {
 		add_filter( 'wp_insert_post_data', array( __CLASS__, 'normalize_research_admin_input' ), 4, 2 );
 		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'reconcile_research_case_topic' ), 190, 2 );
+		add_filter( 'wp_privacy_personal_data_exporters', array( __CLASS__, 'privacy_exporters' ), 30 );
+		add_filter( 'wp_privacy_personal_data_erasers', array( __CLASS__, 'privacy_erasers' ), 30 );
 	}
 
 	public static function normalize_research_admin_input( $data, $postarr ) {
@@ -53,5 +57,79 @@ final class HE_V243_Fifth_Audit {
 		} else {
 			wp_remove_object_terms( $post_id, array( 'کامیاب کیس' ), HE_V2_Domain::TAX_TOPIC );
 		}
+	}
+
+	public static function privacy_exporters( $exporters ) {
+		$exporters = is_array( $exporters ) ? $exporters : array();
+		$exporters['he-v243-idempotency'] = array(
+			'exporter_friendly_name' => __( 'Homeopathy Encyclopedia Request Safety Records', 'homeopathy-encyclopedia' ),
+			'callback' => array( __CLASS__, 'export_idempotency' ),
+		);
+		return $exporters;
+	}
+
+	public static function privacy_erasers( $erasers ) {
+		$erasers = is_array( $erasers ) ? $erasers : array();
+		$erasers['he-v243-idempotency'] = array(
+			'eraser_friendly_name' => __( 'Homeopathy Encyclopedia Request Safety Records', 'homeopathy-encyclopedia' ),
+			'callback' => array( __CLASS__, 'erase_idempotency' ),
+		);
+		return $erasers;
+	}
+
+	public static function export_idempotency( $email, $page = 1 ) {
+		$user = get_user_by( 'email', $email );
+		if ( ! $user ) {
+			return array( 'data' => array(), 'done' => true );
+		}
+		global $wpdb;
+		$page = max( 1, absint( $page ) );
+		$limit = self::PRIVACY_PAGE_SIZE;
+		$offset = ( $page - 1 ) * $limit;
+		$table = HE_V2_Schema::table( 'idempotency' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id,operation,idempotency_key,request_hash,response_code,expires_at,created_at FROM {$table} WHERE actor_id=%d ORDER BY id ASC LIMIT %d OFFSET %d",
+			absint( $user->ID ), $limit + 1, $offset
+		), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$data = array();
+		foreach ( array_slice( $rows, 0, $limit ) as $row ) {
+			$values = array();
+			foreach ( $row as $key => $value ) {
+				$values[] = array( 'name' => (string) $key, 'value' => (string) $value );
+			}
+			$data[] = array(
+				'group_id' => 'he-v243-idempotency',
+				'group_label' => __( 'Request Safety and Idempotency Records', 'homeopathy-encyclopedia' ),
+				'item_id' => 'idempotency-' . absint( $row['id'] ),
+				'data' => $values,
+			);
+		}
+		return array( 'data' => $data, 'done' => count( $rows ) <= $limit );
+	}
+
+	public static function erase_idempotency( $email, $page = 1 ) {
+		$user = get_user_by( 'email', $email );
+		if ( ! $user ) {
+			return array( 'items_removed' => false, 'items_retained' => false, 'messages' => array(), 'done' => true );
+		}
+		$uid = absint( $user->ID );
+		if ( (bool) apply_filters( 'he_v2_privacy_legal_hold', false, $uid ) ) {
+			return array(
+				'items_removed' => false,
+				'items_retained' => true,
+				'messages' => array( __( 'A documented legal or research-integrity hold is active.', 'homeopathy-encyclopedia' ) ),
+				'done' => true,
+			);
+		}
+		global $wpdb;
+		$table = HE_V2_Schema::table( 'idempotency' );
+		$deleted = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE actor_id=%d LIMIT 250", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$remaining = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE actor_id=%d", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return array(
+			'items_removed' => $deleted > 0,
+			'items_retained' => false,
+			'messages' => array(),
+			'done' => 0 === $remaining,
+		);
 	}
 }
