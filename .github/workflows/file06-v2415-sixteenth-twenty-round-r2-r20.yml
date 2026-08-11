@@ -1,0 +1,40 @@
+name: File 06 v2.4.15 Sixteenth Review R2-R20 Continuation
+on:
+  push:
+    branches: [audit/file-06-sixteenth-twenty-round-v2.4.15]
+    paths: [.github/workflows/file06-v2415-sixteenth-twenty-round-r2-r20.yml]
+permissions:
+  contents: write
+jobs:
+  review-fix-retest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', coverage: none}
+      - name: Continue sequential correction rounds 2 through 20
+        run: |
+          set -euo pipefail
+          git config user.name "majidhussainqadri1-dot"
+          git config user.email "majidhussainqadri1@gmail.com"
+          for round in $(seq 2 20); do
+            echo "===== File 06 sixteenth review round ${round} ====="
+            python3 scripts/v2415-sixteenth-twenty-round-fixes.py "$round"
+            python3 scripts/v2415-sixteenth-twenty-round-overlay.py "$round"
+            if [ "$round" = 19 ]; then python3 scripts/v2415-round19-recovery-audit.py; fi
+            V2415_ROUND="$round" php tests/v2415-sixteenth-twenty-round-regressions.php
+            bash tests/run-all.sh 2>&1 | tee "/tmp/v2415-round-${round}.log"
+            if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' "/tmp/v2415-round-${round}.log"; then
+              echo "Unexpected PHP warning/error in round ${round}" >&2
+              exit 1
+            fi
+            git add -A
+            if ! git diff --cached --quiet; then
+              git commit -m "fix(file-06): sixteenth review round ${round} correction"
+              git push origin HEAD:audit/file-06-sixteenth-twenty-round-v2.4.15
+            fi
+          done
+          echo "Rounds 2-20 completed on the corrected sequential state."
