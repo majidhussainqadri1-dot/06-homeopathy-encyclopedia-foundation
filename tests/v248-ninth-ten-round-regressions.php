@@ -13,6 +13,8 @@ $domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.ph
 v248_ok(false!==strpos($domain,'SELECT @@session.in_transaction') && false!==strpos($domain,'event_outbox_atomic_write_failed') && false!==strpos($domain,"ROLLBACK") && false!==strpos($domain,"COMMIT"),'R4 event/outbox pair is not persisted atomically');
 $v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v248_ok(false!==strpos($v22,'INSERT IGNORE INTO {$table}') && false!==strpos($v22,'outbox_reconciliation_write_failed'),'R5 outbox reconciliation still has a check-then-insert duplicate race');
+$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+v248_ok(false!==strpos($v22,'failed_concept_id') && false!==strpos($v22,'reindex_row_failed') && false!==strpos($v22,'update_option( self::REINDEX_CURSOR, $last, false )'),'R6 reindex cursor can advance past an index persistence failure');
 /*__V248_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.8 ninth-review regressions FAILED:
 - ".implode("

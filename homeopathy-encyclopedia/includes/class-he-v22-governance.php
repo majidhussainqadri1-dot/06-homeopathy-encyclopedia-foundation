@@ -965,25 +965,16 @@ final class HE_V22_Governance {
 		global $wpdb;
 		$row = HE_V2_Domain::concept_by_id( absint( $concept_id ), true );
 		if ( ! $row || ! HE_V2_Domain::is_public_concept( $row ) || ! $row['current_version'] ) {
-			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => absint( $concept_id ) ), array( '%d' ) );
-			return false;
+			return false !== $wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => absint( $concept_id ) ), array( '%d' ) );
 		}
 		$version = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'versions' ) . ' WHERE id=%d AND concept_id=%d', (int) $row['current_version'], (int) $row['id'] ), ARRAY_A );
 		if ( ! $version ) {
-			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $row['id'] ), array( '%d' ) );
-			return false;
+			return false !== $wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $row['id'] ), array( '%d' ) );
 		}
 		$aliases = $wpdb->get_col( $wpdb->prepare( 'SELECT alias FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d ORDER BY id ASC', (int) $row['id'] ) );
 		$grades = $wpdb->get_col( $wpdb->prepare( 'SELECT evidence_grade FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND version_id=%d', (int) $row['id'], (int) $row['current_version'] ) );
-		$best_grade = 'ungraded';
-		$best_rank = 0;
-		foreach ( $grades as $grade ) {
-			$rank = self::evidence_rank( $grade );
-			if ( $rank > $best_rank ) {
-				$best_rank = $rank;
-				$best_grade = sanitize_key( $grade );
-			}
-		}
+		$best_grade = 'ungraded'; $best_rank = 0;
+		foreach ( $grades as $grade ) { $rank = self::evidence_rank( $grade ); if ( $rank > $best_rank ) { $best_rank = $rank; $best_grade = sanitize_key( $grade ); } }
 		$search_text = HE_V2_Domain::normalize( implode( ' ', array_merge( array( $version['title'], $version['summary'], wp_strip_all_tags( $version['body'] ) ), $aliases ) ) );
 		$first = mb_substr( HE_V2_Domain::normalize( $version['title'] ), 0, 1, 'UTF-8' );
 		$data = array(
@@ -999,18 +990,21 @@ final class HE_V22_Governance {
 		global $wpdb;
 		$limit = min( 100, max( 1, absint( $limit ) ) );
 		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id>%d ORDER BY id ASC LIMIT %d', absint( $cursor ), $limit ) );
-		$processed = 0;
-		$last = absint( $cursor );
+		$processed = 0; $last = absint( $cursor ); $failed = 0;
 		foreach ( $rows as $id ) {
-			$last = absint( $id );
-			self::reindex_concept_secure( $last );
-			$processed++;
+			$id = absint( $id );
+			if ( ! self::reindex_concept_secure( $id ) ) { $failed = $id; break; }
+			$last = $id; $processed++;
+			update_option( self::REINDEX_CURSOR, $last, false );
+		}
+		if ( $failed ) {
+			update_option( self::REINDEX_REQUIRED, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'reindex_row_failed', 'File 06 retained the last successful reindex cursor so the failed concept can be retried.' );
+			return array( 'processed' => $processed, 'next_cursor' => $last, 'done' => false, 'failed_concept_id' => $failed );
 		}
 		$more = $processed === $limit && (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id>%d ORDER BY id ASC LIMIT 1', $last ) );
 		update_option( self::REINDEX_CURSOR, $more ? $last : 0, false );
-		if ( ! $more ) {
-			delete_option( self::REINDEX_REQUIRED );
-		}
+		if ( ! $more ) { delete_option( self::REINDEX_REQUIRED ); }
 		return array( 'processed' => $processed, 'next_cursor' => $more ? $last : null, 'done' => ! $more );
 	}
 
