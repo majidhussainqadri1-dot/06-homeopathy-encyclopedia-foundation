@@ -1059,13 +1059,18 @@ final class HE_V22_Governance {
 		$sql = 'SELECT e.event_id,e.event_name,e.payload_json,e.created_at FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL ORDER BY e.id ASC LIMIT %d';
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $limit ), ARRAY_A );
 		$created = 0;
+		$table = HE_V2_Schema::table( 'outbox' );
 		foreach ( $rows as $row ) {
-			$ok = $wpdb->insert( HE_V2_Schema::table( 'outbox' ), array(
-				'event_id' => $row['event_id'], 'event_name' => $row['event_name'], 'payload_json' => $row['payload_json'],
-				'status' => 'pending', 'attempts' => 0, 'next_attempt_at' => current_time( 'mysql', true ), 'last_error' => '',
-				'created_at' => $row['created_at'], 'updated_at' => current_time( 'mysql', true ),
+			$now = current_time( 'mysql', true );
+			$inserted = $wpdb->query( $wpdb->prepare(
+				"INSERT IGNORE INTO {$table} (event_id,event_name,payload_json,status,attempts,next_attempt_at,last_error,created_at,updated_at) VALUES (%s,%s,%s,'pending',0,%s,'',%s,%s)",
+				$row['event_id'], $row['event_name'], $row['payload_json'], $now, $row['created_at'], $now
 			) );
-			$created += $ok ? 1 : 0;
+			if ( false === $inserted ) {
+				HE_V2_Schema::record_runtime_failure( 'outbox_reconciliation_write_failed', 'File 06 could not reconcile a missing outbox row.' );
+				break;
+			}
+			$created += 1 === (int) $inserted ? 1 : 0;
 		}
 		return array( 'recreated' => $created, 'checked' => count( $rows ) );
 	}
