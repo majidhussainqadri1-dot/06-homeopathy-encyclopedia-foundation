@@ -1648,8 +1648,11 @@ final class HE_V2_Domain {
 	public static function reindex_all() {
 		global $wpdb;
 		$ids = $wpdb->get_col( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' ORDER BY id ASC' ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		foreach ( $ids as $id ) {
-			self::reindex_concept( (int) $id );
+		$failed = array();
+		foreach ( $ids as $id ) { if ( ! self::reindex_concept( (int) $id ) ) { $failed[] = (int) $id; } }
+		if ( $failed ) {
+			HE_V2_Schema::record_runtime_failure( 'reindex_all_failed', 'File 06 could not rebuild every canonical search-index projection.' );
+			return new WP_Error( 'he_reindex_failed', __( 'One or more encyclopedia search-index projections could not be rebuilt safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503, 'failed_count' => count( $failed ) ) );
 		}
 		return count( $ids );
 	}
