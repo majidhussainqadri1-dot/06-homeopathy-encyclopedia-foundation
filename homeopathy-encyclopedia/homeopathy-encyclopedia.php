@@ -102,7 +102,7 @@ function he_contract_descriptor() {
 		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
 		'authorization'     => array( 'file00_claims_required' => true, 'native_object_scope_required' => true, 'editor_type_assignment_required' => true, 'reviewer_assignment_required' => true, 'admin_and_composer_scope_enforced' => true ),
-		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true, 'future_routes_fail_closed_until_ready' => true ),
+		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true, 'bounded_postflight' => true, 'future_routes_fail_closed_until_ready' => true ),
 		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'legacy_unverified_scheduler_disabled' => true, 'core_maintenance_serialized' => true, 'future_maintenance_serialized' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true ),
 		'public_api'        => array( 'canonical_public_ids_only' => true, 'internal_ids_exposed' => false, 'public_provenance_types' => array( 'concept', 'claim' ) ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
@@ -115,11 +115,11 @@ function he_start_v2() {
 
 	try {
 		HE_V22_Governance::maybe_upgrade();
-		$future_v24_before = (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 );
-		if ( $future_v24_before < HE_V24_Future_Schema::VERSION ) {
+		if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) {
 			HE_V23_Future::maybe_upgrade();
-			HE_V24_Migration_Safety::maybe_upgrade();
 		}
+		/* Always resume bounded pre/postflight work until the hardening layer reports ready. */
+		HE_V24_Migration_Safety::maybe_upgrade();
 	} catch ( Throwable $error ) {
 		HE_V2_Schema::record_runtime_failure( 'schema_upgrade_failed', $error->getMessage() );
 	}
@@ -142,7 +142,7 @@ function he_start_v2() {
 	HE_V22_Consumers::hooks();
 	HE_V22_Operations::hooks();
 
-	$future_v24_ready = (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) >= HE_V24_Future_Schema::VERSION;
+	$future_v24_ready = HE_V24_Migration_Safety::ready();
 	if ( $future_v24_ready ) {
 		HE_V23_Future::hooks();
 		HE_V24_Future_Schema::hooks();
