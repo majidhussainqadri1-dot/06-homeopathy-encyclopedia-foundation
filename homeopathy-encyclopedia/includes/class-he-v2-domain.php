@@ -696,23 +696,22 @@ final class HE_V2_Domain {
 		$scope = in_array( $scope, array( 'scientific', 'clinical', 'source', 'language', 'shariah', 'privacy' ), true ) ? $scope : 'scientific';
 		$decision = in_array( $decision, array( 'approved', 'changes_required', 'rejected' ), true ) ? $decision : 'changes_required';
 		$content_hash = HE_V22_Governance::entry_content_hash( $row );
-		$ok = $wpdb->insert( HE_V2_Schema::table( 'reviews' ), array(
-			'object_type' => 'concept',
-			'object_id' => $row['id'],
-			'reviewer_id' => absint( $reviewer_id ),
-			'scope' => $scope,
-			'decision' => $decision,
-			'conflict_declared' => $conflict ? 1 : 0,
-			'note' => sanitize_textarea_field( $note ),
-			'content_hash' => $content_hash,
-			'reviewed_row_version' => (int) $row['row_version'],
-			'review_subject_author' => $post ? (int) $post->post_author : 0,
-			'created_at' => current_time( 'mysql', true ),
-		), array( '%s','%d','%d','%s','%s','%d','%s','%s','%d','%d','%s' ) );
-		if ( $ok ) {
-			self::emit_event( 'EncyclopediaEntryReviewed.v1', 'concept', $row['id'], array( 'scope' => $scope, 'decision' => $decision ) );
+		$reviews = HE_V2_Schema::table( 'reviews' );
+		$concepts = HE_V2_Schema::table( 'concepts' );
+		$ok = $wpdb->query( $wpdb->prepare(
+			"INSERT INTO {$reviews} (object_type,object_id,reviewer_id,scope,decision,conflict_declared,note,content_hash,reviewed_row_version,review_subject_author,created_at) SELECT 'concept',c.id,%d,%s,%s,%d,%s,%s,c.row_version,%d,%s FROM {$concepts} c WHERE c.id=%d AND c.row_version=%d",
+			absint( $reviewer_id ), $scope, $decision, $conflict ? 1 : 0, sanitize_textarea_field( $note ), $content_hash,
+			$post ? (int) $post->post_author : 0, current_time( 'mysql', true ), (int) $row['id'], $expected_version
+		) );
+		if ( false === $ok ) {
+			return new WP_Error( 'he_review_write_failed', __( 'Review could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
 		}
-		return $ok ? (int) $wpdb->insert_id : new WP_Error( 'he_review_write_failed', __( 'Review could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+		if ( 1 !== (int) $ok ) {
+			return new WP_Error( 'he_version_conflict', __( 'The entry changed while the review decision was being stored. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+		}
+		$review_id = (int) $wpdb->insert_id;
+		self::emit_event( 'EncyclopediaEntryReviewed.v1', 'concept', $row['id'], array( 'scope' => $scope, 'decision' => $decision ) );
+		return $review_id;
 	}
 
 	private static function bind_references_to_snapshot( $concept_id, $previous_version_id, $new_version_id, $actor_id ) {
