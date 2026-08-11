@@ -147,7 +147,7 @@ final class HE_V2_API {
 			'callback' => array( $this, 'transition_research' ),
 			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_RESEARCH ); },
 		) );
-		register_rest_route( self::NS, '/datasets/(?P<id>[A-Za-z0-9-]+)/access', array(
+		register_rest_route( self::NS, '/datasets/(?P<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})/access', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( $this, 'request_dataset_access' ),
 			'permission_callback' => function() { return is_user_logged_in() && HE_V2_Auth::membership_allowed(); },

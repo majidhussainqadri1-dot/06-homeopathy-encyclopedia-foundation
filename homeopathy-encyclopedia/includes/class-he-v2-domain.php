@@ -1352,11 +1352,11 @@ final class HE_V2_Domain {
 	public static function request_dataset_access( $research_identifier, $purpose, $lawful_basis, $requester_id ) {
 		global $wpdb;
 		$research_table = HE_V2_Schema::table( 'research' );
-		if ( is_numeric( $research_identifier ) ) {
-			$research = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$research_table} WHERE id=%d", absint( $research_identifier ) ), ARRAY_A );
-		} else {
-			$research = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$research_table} WHERE public_id=%s", sanitize_text_field( (string) $research_identifier ) ), ARRAY_A );
+		$research_identifier = strtolower( sanitize_text_field( (string) $research_identifier ) );
+		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $research_identifier ) ) {
+			return new WP_Error( 'he_canonical_public_id_required', __( 'Dataset access requests require the canonical public dataset identifier.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
+		$research = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$research_table} WHERE public_id=%s", $research_identifier ), ARRAY_A );
 		$post = $research && ! empty( $research['post_id'] ) ? get_post( (int) $research['post_id'] ) : null;
 		if ( ! $research || 'dataset' !== $research['record_type'] || ! in_array( $research['status'], array( 'published','corrected' ), true ) || ! $post || self::RESEARCH_TYPE !== $post->post_type || 'publish' !== $post->post_status || ! class_exists( 'HE_V22_Research_Guard' ) || ! HE_V22_Research_Guard::public_surface_eligible( $research ) ) {
 			return new WP_Error( 'he_dataset_not_found', __( 'Dataset metadata could not be found or is not currently eligible for access requests.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
