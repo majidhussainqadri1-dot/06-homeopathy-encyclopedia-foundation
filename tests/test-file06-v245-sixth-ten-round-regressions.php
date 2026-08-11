@@ -27,4 +27,7 @@ f06_v245_assert(strpos($gprivacy, 'assigned_posts_page( 1 )') === false, 'Round 
 $gov = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v241-governance.php');
 f06_v245_assert(strpos($gov, 'maintenance_serialized') === false, 'Round 6 obsolete outer Future maintenance lease remains');
 f06_v245_assert(strpos($gov, 'he_v241_future_maintenance_lease') === false, 'Round 6 split Future maintenance lease ownership remains');
+$watch = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v242-watchlist.php');
+f06_v245_assert(strpos($watch, 'rest_sanitize_boolean') !== false, 'Round 7 explicit watchlist false normalization missing');
+f06_v245_assert(strpos($watch, '! empty( $data') === false, 'Round 7 truthy-string watchlist activation bug remains');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";

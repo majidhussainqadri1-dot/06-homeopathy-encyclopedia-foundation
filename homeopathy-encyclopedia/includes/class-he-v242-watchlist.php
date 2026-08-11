@@ -79,7 +79,7 @@ final class HE_V242_Watchlist {
 		$allowed = array( 'update','correction','retraction','freshness','evidence','translation' );
 		$events = array_values( array_unique( array_intersect( $allowed, array_map( 'sanitize_key', preg_split( '/[,\s]+/', $mask ) ) ) ) );
 		if ( ! $events ) { return self::finish( $reservation, new WP_Error( 'he_watch_event_mask_invalid', __( 'Select at least one governed knowledge event.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
-		$active = ! array_key_exists( 'active', $data ) || ! empty( $data['active'] );
+		$active = ! array_key_exists( 'active', $data ) ? true : (bool) rest_sanitize_boolean( $data['active'] );
 		$now = current_time( 'mysql', true );
 		global $wpdb; $table = HE_V24_Future_Schema::table( 'watchlists' );
 		$ok = $wpdb->query( $wpdb->prepare(
