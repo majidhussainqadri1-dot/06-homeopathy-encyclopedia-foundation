@@ -162,7 +162,7 @@ final class HE_V242_Research_Authoring {
 		if ( ! in_array( $type, array( 'proposal','protocol','publication','successful-case','dataset' ), true ) ) { return new WP_Error( 'he_invalid_research_type', __( 'Invalid research record type.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
 		$class = sanitize_key( $data['data_class'] ?? 'restricted' );
 		if ( ! in_array( $class, array( 'public','restricted','highly-restricted' ), true ) ) { return new WP_Error( 'he_invalid_data_class', __( 'Invalid research data class.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
-		if ( ! self::investigators( $data['investigators'] ?? array() ) || ! self::conflicts( implode( '; ', (array) ( $data['conflicts'] ?? array() ) ) ) ) { return new WP_Error( 'he_research_governance_required', __( 'At least one investigator and an explicit conflict-of-interest statement are required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+		if ( ! HE_V2_Domain::sanitize_text_list( $data['investigators'] ?? array() ) || ! HE_V2_Domain::normalize_conflicts( $data['conflicts'] ?? array() ) ) { return new WP_Error( 'he_research_governance_required', __( 'At least one investigator and an explicit conflict-of-interest statement are required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
 		if ( 'successful-case' === $type ) {
 			foreach ( array( 'baseline','intervention','follow_up','adverse_events','limitations' ) as $field ) { if ( '' === trim( (string) ( $data[ $field ] ?? '' ) ) ) { return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require complete baseline, intervention, follow-up, adverse-events and limitations fields.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); } }
 			if ( empty( $data['consent_verified'] ) || empty( $data['anonymized'] ) ) { return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require verified consent and anonymization.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
@@ -181,16 +181,15 @@ final class HE_V242_Research_Authoring {
 		if ( is_wp_error( $valid ) ) { return $valid; }
 		$result = HE_V2_Domain::create_research( $payload, $actor );
 		if ( is_wp_error( $result ) ) { return $result; }
-		/* Normalize the conflict structure immediately; composer does not traverse REST after-callback normalization. */
+		/* Domain creation now persists the canonical conflict structure before success. Verify it without a second mutation. */
 		global $wpdb;
-		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT id,row_version FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $result['id'] ?? '' ), ARRAY_A );
-		if ( ! $row ) { return new WP_Error( 'he_research_normalization_missing', __( 'The research record could not be reloaded.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ); }
-		$statement = implode( '; ', array_map( 'sanitize_text_field', (array) $payload['conflicts'] ) );
-		$conflicts = self::conflicts( $statement );
-		$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'research' ) . ' SET conflicts_json=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d', wp_json_encode( $conflicts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), (int) $row['id'], (int) $row['row_version'] ) );
-		if ( 1 !== (int) $updated ) {
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT id,conflicts_json FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $result['id'] ?? '' ), ARRAY_A );
+		$expected_conflicts = HE_V2_Domain::normalize_conflicts( $payload['conflicts'] ?? array() );
+		$stored_conflicts = $row ? json_decode( (string) $row['conflicts_json'], true ) : null;
+		if ( ! $row || $stored_conflicts !== $expected_conflicts ) {
 			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-			return new WP_Error( 'he_research_normalization_conflict', __( 'Research governance normalization failed; mutations have been paused.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+			HE_V2_Schema::record_runtime_failure( 'research_conflict_canonicalization_failed', 'Research creation did not persist the canonical conflict disclosure shape.' );
+			return new WP_Error( 'he_research_normalization_conflict', __( 'Research governance normalization could not be verified; mutations have been paused.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
 		}
 		return HE_V2_Domain::research_dto( (int) $row['id'], true );
 	}

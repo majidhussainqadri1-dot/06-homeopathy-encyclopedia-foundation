@@ -995,6 +995,14 @@ final class HE_V2_Domain {
 		return array_values( array_unique( $out ) );
 	}
 
+	public static function normalize_conflicts( $value ) {
+		$parts = self::sanitize_text_list( $value );
+		if ( ! $parts ) { return array(); }
+		$statement = sanitize_textarea_field( implode( '; ', $parts ) );
+		$none = (bool) preg_match( '/\b(?:no|none)\s+(?:conflict|conflicts)\b/i', $statement );
+		return array( 'recorded' => true, 'statement' => $statement, 'none_declared' => $none );
+	}
+
 	public static function create_research( $data, $actor_id ) {
 		global $wpdb;
 		$type = sanitize_key( $data['record_type'] ?? 'proposal' );
@@ -1007,6 +1015,11 @@ final class HE_V2_Domain {
 		$protocol = sanitize_textarea_field( $data['protocol'] ?? '' );
 		if ( ! $title || ! $question || ! $protocol ) {
 			return new WP_Error( 'he_research_required_fields', __( 'Research title, question and protocol are required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
+		}
+		$investigators = self::sanitize_text_list( $data['investigators'] ?? array() );
+		$conflicts = self::normalize_conflicts( $data['conflicts'] ?? array() );
+		if ( ! $investigators || ! $conflicts ) {
+			return new WP_Error( 'he_research_governance_required', __( 'At least one investigator and an explicit conflict-of-interest statement are required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
 		$consent = ! empty( $data['consent_verified'] );
 		$anonymized = ! empty( $data['anonymized'] );
@@ -1044,10 +1057,10 @@ final class HE_V2_Domain {
 			'title' => $title,
 			'question' => $question,
 			'protocol' => $protocol,
-			'investigators_json' => wp_json_encode( self::sanitize_text_list( $data['investigators'] ?? array() ) ),
+			'investigators_json' => wp_json_encode( $investigators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'ethics_json' => wp_json_encode( array( 'review_required' => true, 'approval_reference' => sanitize_text_field( $data['ethics_reference'] ?? '' ) ) ),
 			'consent_json' => wp_json_encode( array( 'verified' => $consent, 'version' => sanitize_text_field( $data['consent_version'] ?? '' ) ) ),
-			'conflicts_json' => wp_json_encode( self::sanitize_text_list( $data['conflicts'] ?? array() ) ),
+			'conflicts_json' => wp_json_encode( $conflicts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'data_class' => sanitize_key( $data['data_class'] ?? 'restricted' ),
 			'case_anonymized' => $anonymized ? 1 : 0,
 			'case_consent_verified' => $consent ? 1 : 0,
