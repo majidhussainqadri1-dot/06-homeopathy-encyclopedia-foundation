@@ -1,0 +1,37 @@
+name: File 06 v2.4.9 Round 5 Apply
+on:
+  push:
+    paths:
+      - .github/workflows/file06-v249-round5-apply.yml
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-tenth-ten-round-v2.4.9
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: python3 scripts/v249-round5-fix.py
+      - run: |
+          set -euo pipefail
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php -l tests/v249-tenth-ten-round-regressions.php
+          php tests/v249-tenth-ten-round-regressions.php
+          bash tests/run-all.sh 2>&1 | tee /tmp/file06-r5.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/file06-r5.log; then exit 1; fi
+          git diff --check
+      - run: |
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v249-tenth-ten-round-regressions.php
+          git commit -m 'fix(file-06): make entry publication state and snapshot atomic'
+          git push origin HEAD:audit/file-06-tenth-ten-round-v2.4.9
