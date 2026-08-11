@@ -97,14 +97,20 @@ final class HE_V22_Research_Guard {
 		$metadata['lawful_basis'] = sanitize_textarea_field( wp_unslash( $_POST['he_v22_dataset_lawful_basis'] ?? '' ) );
 		$metadata['access_policy'] = sanitize_textarea_field( wp_unslash( $_POST['he_v22_dataset_access_policy'] ?? '' ) );
 		global $wpdb;
-		$wpdb->update( HE_V2_Schema::table( 'research' ), array(
-			'investigators_json' => wp_json_encode( $investigators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'conflicts_json' => wp_json_encode( $conflicts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'case_json' => wp_json_encode( $case, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'metadata_json' => wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'row_version' => (int) $row['row_version'] + 1,
-			'updated_at' => current_time( 'mysql', true ),
-		), array( 'id' => (int) $row['id'] ), array( '%s','%s','%s','%s','%d','%s' ), array( '%d' ) );
+		$table = HE_V2_Schema::table( 'research' );
+		$updated = $wpdb->query( $wpdb->prepare(
+			"UPDATE {$table} SET investigators_json=%s,conflicts_json=%s,case_json=%s,metadata_json=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d",
+			wp_json_encode( $investigators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			wp_json_encode( $conflicts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			wp_json_encode( $case, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			(int) $row['id'], (int) $row['row_version']
+		) );
+		if ( 1 !== (int) $updated ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'research_completeness_concurrency_conflict', 'Research completeness fields were not stored because the row changed concurrently.' );
+		}
+
 	}
 
 	private static function has_direct_identifier( $text ) {
