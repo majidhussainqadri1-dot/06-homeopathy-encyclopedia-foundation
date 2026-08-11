@@ -1100,19 +1100,42 @@ final class HE_V2_Domain {
 			'created_at' => current_time( 'mysql', true ),
 			'updated_at' => current_time( 'mysql', true ),
 		);
+		$write_ok = false;
 		if ( $existing_id ) {
-			$wpdb->update( HE_V2_Schema::table( 'research' ), $payload, array( 'id' => $existing_id ) );
+			$written = $wpdb->update( HE_V2_Schema::table( 'research' ), $payload, array( 'id' => $existing_id ) );
 			$research_id = $existing_id;
+			$write_ok = false !== $written;
 		} else {
-			$wpdb->insert( HE_V2_Schema::table( 'research' ), $payload );
-			$research_id = (int) $wpdb->insert_id;
+			$written = $wpdb->insert( HE_V2_Schema::table( 'research' ), $payload );
+			$research_id = $written ? (int) $wpdb->insert_id : 0;
+			$write_ok = false !== $written && $research_id > 0;
 		}
-		if ( ! $research_id ) {
-			wp_delete_post( $post_id, true );
-			return new WP_Error( 'he_research_write_failed', __( 'Research record could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+		$persisted = $research_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT public_id,post_id,record_type,title,question,protocol FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', $research_id ), ARRAY_A ) : null;
+		$write_ok = $write_ok && is_array( $persisted ) && (string) $persisted['public_id'] === (string) $payload['public_id'] && (int) $persisted['post_id'] === (int) $post_id && (string) $persisted['record_type'] === (string) $type;
+		if ( ! $write_ok ) {
+			self::rollback_new_research( $research_id ?: $existing_id, $post_id );
+			HE_V2_Schema::record_runtime_failure( 'research_create_persistence_failed', 'A newly created research post could not be bound to a verified File 06 research row.' );
+			return new WP_Error( 'he_research_write_failed', __( 'Research record could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
 		}
 		self::emit_event( 'ResearchRecordSubmitted.v1', 'research', $research_id, array( 'record_type' => $type ) );
 		return self::research_dto( $research_id, true );
+	}
+
+	private static function rollback_new_research( $research_id, $post_id ) {
+		global $wpdb;
+		$ok = true;
+		$research_id = absint( $research_id );
+		$post_id = absint( $post_id );
+		if ( $research_id ) {
+			$deleted = $wpdb->delete( HE_V2_Schema::table( 'research' ), array( 'id' => $research_id ), array( '%d' ) );
+			if ( false === $deleted ) { $ok = false; }
+		}
+		if ( $ok && $post_id && get_post( $post_id ) && ! wp_delete_post( $post_id, true ) ) { $ok = false; }
+		if ( ! $ok ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'research_create_compensation_failed', 'File 06 could not fully compensate a failed research create operation; mutations were paused.' );
+		}
+		return $ok;
 	}
 
 	private static function contains_direct_identifiers( $text ) {
