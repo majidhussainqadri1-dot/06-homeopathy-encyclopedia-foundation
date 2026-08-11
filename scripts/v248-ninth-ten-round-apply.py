@@ -128,7 +128,7 @@ def round2():
 \t}'''
     replace_block(rel, '\tpublic static function idempotent_begin(', '\tpublic static function maintenance(', new)
     append_test('''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
-v248_ok(false!==strpos($domain,'private static $idempotency_leases') && false!==strpos($domain,"AND response_code=0 AND created_at=%s") && false!==strpos($domain,"self::$idempotency_leases[ (int) $row['id'] ] = $now"),'R2 reclaimed idempotency reservations are not fenced against stale-worker completion');''')
+v248_ok(false!==strpos($domain,'private static $idempotency_leases') && false!==strpos($domain,'AND response_code=0 AND created_at=%s') && false!==strpos($domain,'reclaimed') && false!==strpos($domain,'idempotency_finish_failed'),'R2 reclaimed idempotency reservations are not fenced against stale-worker completion');''')
 
 def round3():
     rel='homeopathy-encyclopedia/includes/class-he-v2-integrations.php'

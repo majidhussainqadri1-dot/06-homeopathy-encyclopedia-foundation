@@ -8,6 +8,7 @@ final class HE_V2_Domain {
 	const TAX_TYPE = 'he_type';
 	const TAX_SYSTEM = 'he_body_system';
 	const TAX_TOPIC = 'he_topic';
+	private static $idempotency_leases = array();
 
 	public static function register() {
 		add_action( 'init', array( __CLASS__, 'register_types' ), 5 );
@@ -1394,26 +1395,46 @@ final class HE_V2_Domain {
 			if ( $row['response_code'] ) {
 				return array( 'replay' => true, 'code' => (int) $row['response_code'], 'body' => json_decode( $row['response_json'], true ) );
 			}
-			/* A worker may die after reserving the key. Reclaim only an objectively stale reservation with a compare-and-swap update. */
 			$now = current_time( 'mysql', true );
 			$expiry = gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS );
 			$reclaimed = $wpdb->query( $wpdb->prepare(
 				"UPDATE {$table} SET created_at=%s,expires_at=%s WHERE id=%d AND response_code=0 AND request_hash=%s AND created_at=%s AND created_at<=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)",
 				$now, $expiry, (int) $row['id'], $request_hash, (string) $row['created_at']
 			) );
-			if ( 1 === (int) $reclaimed ) { return array( 'replay' => false, 'id' => (int) $row['id'], 'reclaimed' => true ); }
+			if ( 1 === (int) $reclaimed ) {
+				self::$idempotency_leases[ (int) $row['id'] ] = $now;
+				return array( 'replay' => false, 'id' => (int) $row['id'], 'reclaimed' => true );
+			}
 			return new WP_Error( 'he_request_in_progress', __( 'An identical request is still being processed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
+		$created_at = current_time( 'mysql', true );
 		$ok = $wpdb->insert( $table, array(
 			'actor_id' => absint( $actor_id ), 'operation' => sanitize_key( $operation ), 'idempotency_key' => $key, 'request_hash' => $request_hash,
-			'response_code' => 0, 'response_json' => '', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ), 'created_at' => current_time( 'mysql', true ),
+			'response_code' => 0, 'response_json' => '', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ), 'created_at' => $created_at,
 		), array( '%d','%s','%s','%s','%d','%s','%s','%s' ) );
-		return $ok ? array( 'replay' => false, 'id' => (int) $wpdb->insert_id ) : new WP_Error( 'he_idempotency_write_failed', __( 'The request could not be reserved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+		if ( ! $ok ) {
+			return new WP_Error( 'he_idempotency_write_failed', __( 'The request could not be reserved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+		}
+		$id = (int) $wpdb->insert_id;
+		self::$idempotency_leases[ $id ] = $created_at;
+		return array( 'replay' => false, 'id' => $id );
 	}
 
 	public static function idempotent_finish( $id, $code, $body ) {
 		global $wpdb;
-		$wpdb->update( HE_V2_Schema::table( 'idempotency' ), array( 'response_code' => absint( $code ), 'response_json' => wp_json_encode( $body ) ), array( 'id' => absint( $id ) ), array( '%d','%s' ), array( '%d' ) );
+		$id = absint( $id );
+		$lease = isset( self::$idempotency_leases[ $id ] ) ? (string) self::$idempotency_leases[ $id ] : '';
+		if ( ! $id || ! $lease ) { return false; }
+		$updated = $wpdb->query( $wpdb->prepare(
+			'UPDATE ' . HE_V2_Schema::table( 'idempotency' ) . ' SET response_code=%d,response_json=%s WHERE id=%d AND response_code=0 AND created_at=%s',
+			absint( $code ), wp_json_encode( $body ), $id, $lease
+		) );
+		unset( self::$idempotency_leases[ $id ] );
+		if ( false === $updated ) {
+			HE_V2_Schema::record_runtime_failure( 'idempotency_finish_failed', 'The reserved File 06 response could not be persisted.' );
+			return false;
+		}
+		return 1 === (int) $updated;
 	}
 
 	public static function maintenance() {
