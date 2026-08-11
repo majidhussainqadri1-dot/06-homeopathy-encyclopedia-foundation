@@ -1,0 +1,134 @@
+name: File 06 v2.4.8 Ninth Review Rounds 1-9 Apply
+on:
+  push:
+    branches: [audit/file-06-ninth-ten-round-v2.4.8]
+    paths: [.github/workflows/file06-v248-ninth-rounds1-9-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-ninth-ten-round-v2.4.8
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Configure Git and repair review driver escaping
+        run: |
+          set -euo pipefail
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/v248-ninth-ten-round-apply.py')
+          s=p.read_text()
+          s=s.replace("r'''", "'''")
+          p.write_text(s)
+          PY
+          python3 -m py_compile scripts/v248-ninth-ten-round-apply.py
+      - name: Round 1 - rate limiter DB failure fail-closed
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 1
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add scripts/v248-ninth-ten-round-apply.py homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): fail closed when mutation rate-limit state is unverifiable'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 2 - fence reclaimed idempotency reservations
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 2
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): fence reclaimed idempotency reservation completion'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 3 - serialize outbox delivery claims
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 3
+          php -l homeopathy-encyclopedia/includes/class-he-v2-integrations.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-integrations.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): claim outbox deliveries with recoverable CAS leases'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 4 - make event and outbox pair atomic
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 4
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): persist event and outbox pair atomically'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 5 - close outbox reconciliation duplicate race
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 5
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): make outbox reconciliation race safe'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 6 - preserve reindex cursor on persistence failure
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 6
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): retain reindex cursor until row persistence succeeds'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 7 - bind admin maintenance to File00 authority
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 7
+          php -l homeopathy-encyclopedia/includes/class-he-v22-governance.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-governance.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): bind admin maintenance to File00-backed repair authority'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 8 - make consumed-event idempotency atomic
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 8
+          php -l homeopathy-encyclopedia/includes/class-he-v2-integrations.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-integrations.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): make consumed-event idempotency atomic'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
+      - name: Round 9 - close WordPress research archive state leak
+        run: |
+          set -euo pipefail
+          python3 scripts/v248-ninth-ten-round-apply.py 9
+          php -l homeopathy-encyclopedia/includes/class-he-v22-public-guard.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-public-guard.php tests/v248-ninth-ten-round-regressions.php
+          git commit -m 'fix(file-06): enforce domain research eligibility on front-end queries'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
