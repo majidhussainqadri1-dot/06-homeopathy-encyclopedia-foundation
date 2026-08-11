@@ -142,10 +142,15 @@ final class HE_V2_API {
 				'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_RESEARCH ); },
 			),
 		) );
-		register_rest_route( self::NS, '/research/(?P<id>\d+)/transition', array(
+		register_rest_route( self::NS, '/research/(?P<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})/transition', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( $this, 'transition_research' ),
-			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_RESEARCH ); },
+			'permission_callback' => function( $request ) {
+				global $wpdb;
+				$row = $wpdb->get_row( $wpdb->prepare( 'SELECT post_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( (string) $request['id'] ) ) ), ARRAY_A );
+				if ( ! $row ) { return new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+				return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_RESEARCH, (int) $row['post_id'], 'file06-rest' );
+			},
 		) );
 		register_rest_route( self::NS, '/datasets/(?P<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})/access', array(
 			'methods' => WP_REST_Server::CREATABLE,
@@ -417,9 +422,13 @@ final class HE_V2_API {
 	}
 
 	public function transition_research( WP_REST_Request $request ) {
-		$reservation = $this->require_mutation_guards( $request, 'transition-research-' . $request['id'] );
+		global $wpdb;
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
+		if ( ! $row ) { return new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+		$reservation = $this->require_mutation_guards( $request, 'transition-research-' . $public_id );
 		$data = (array) $request->get_json_params();
-		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::transition_research( absint( $request['id'] ), sanitize_key( $data['state'] ?? '' ), absint( $data['expected_version'] ?? 0 ), get_current_user_id(), $data['note'] ?? '' );
+		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::transition_research( (int) $row['id'], sanitize_key( $data['state'] ?? '' ), absint( $data['expected_version'] ?? 0 ), get_current_user_id(), $data['note'] ?? '' );
 		return $this->mutation_response( $reservation, $result );
 	}
 
