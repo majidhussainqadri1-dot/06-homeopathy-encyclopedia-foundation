@@ -15,6 +15,8 @@ $v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.
 v248_ok(false!==strpos($v22,'INSERT IGNORE INTO {$table}') && false!==strpos($v22,'outbox_reconciliation_write_failed'),'R5 outbox reconciliation still has a check-then-insert duplicate race');
 $v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v248_ok(false!==strpos($v22,'failed_concept_id') && false!==strpos($v22,'reindex_row_failed') && false!==strpos($v22,'update_option( self::REINDEX_CURSOR, $last, false )'),'R6 reindex cursor can advance past an index persistence failure');
+$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+v248_ok(false===strpos($v22,"if ( current_user_can( 'activate_plugins' ) )") && false!==strpos($v22,"HE_V2_Auth::can( HE_V2_Auth::CAP_REPAIR, 0, 'file06-background-maintenance' )"),'R7 admin-init maintenance bypasses File00-backed File06 repair authorization');
 /*__V248_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.8 ninth-review regressions FAILED:
 - ".implode("

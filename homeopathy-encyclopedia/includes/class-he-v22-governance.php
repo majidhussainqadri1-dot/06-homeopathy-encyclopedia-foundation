@@ -1079,7 +1079,7 @@ final class HE_V22_Governance {
 	}
 
 	public static function resume_background_work() {
-		if ( current_user_can( 'activate_plugins' ) ) {
+		if ( HE_V2_Auth::provider_ready() && HE_V2_Auth::can( HE_V2_Auth::CAP_REPAIR, 0, 'file06-background-maintenance' ) ) {
 			self::maintenance();
 		}
 	}
