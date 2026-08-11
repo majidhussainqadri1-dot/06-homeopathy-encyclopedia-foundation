@@ -6,11 +6,12 @@ $b = file_get_contents( $plugin . '/homeopathy-encyclopedia.php' );
 $fail = array();
 function fut_assert( $ok, $msg ) { global $fail; if ( ! $ok ) { $fail[] = $msg; } }
 
-fut_assert( false !== strpos( $b, "define( 'HE_VERSION', '2.4.0' )" ), 'runtime version' );
+fut_assert( false !== strpos( $b, "define( 'HE_VERSION', '2.4.1' )" ), 'runtime version' );
 fut_assert( false !== strpos( $b, "define( 'HE_SCHEMA_VERSION', 10 )" ), 'schema version' );
-fut_assert( false !== strpos( $b, "HE_CONTRACT_VERSION', '2.4" ), 'contract version' );
+fut_assert( false !== strpos( $b, "HE_CONTRACT_VERSION', '2.4.1" ), 'contract version' );
 fut_assert( false !== strpos( $b, 'class-he-v23-future.php' ), 'bootstrap Future-18 baseline layer' );
 fut_assert( false !== strpos( $b, 'class-he-v24-future-api.php' ), 'bootstrap v2.4 hardening layer' );
+fut_assert( false !== strpos( $b, 'class-he-v241-governance.php' ), 'bootstrap second-80 governance layer' );
 fut_assert( false !== strpos( $b, "'future_requirement_count' => 18" ), '18 requirement count' );
 
 $requirements = array(
@@ -38,4 +39,4 @@ if ( $fail ) {
  fwrite( STDERR, "File 06 Future-18 baseline invariants FAILED:\n- " . implode( "\n- ", $fail ) . "\n" );
  exit( 1 );
 }
-echo "File 06 v2.3 Future-18 baseline remains present under v2.4 hardening.\n";
+echo "File 06 v2.3 Future-18 baseline remains present under v2.4.1 second-80 hardening.\n";
