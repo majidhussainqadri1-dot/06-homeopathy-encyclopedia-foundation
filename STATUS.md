@@ -3,15 +3,15 @@
 | Status | Evidence |
 |---|---|
 | Specified | Current File 06 v1.1: FR-001–019 + NFR-001–010 + F06-FUT-001–018, plus later ten-language public-publishing constitution where applicable |
-| Coded | `audit/file-06-fifth-ten-round-v2.4.4` — exact final HEAD pending round 10 |
-| Reviewed | Fifth fresh ten-round corrective cycle in progress; rounds 1–9 completed, final QA round pending |
-| Packaged | Pending round-10 exact-head deterministic double build |
-| Automated QA | Per-round source validation/regression suites green; final exact-head matrix pending round 10 |
-| Package SHA-256 | Pending round 10 |
-| Package bytes | Pending round 10 |
-| Source-tree SHA-256 | Pending round 10 |
-| Third-cycle defect rounds | `4, 5, 7, 11, 17, 18, 19, 20, 21, 22, 28, 29, 30, 31, 32, 38, 39, 58, 61, 72, 73, 74, 75, 78` |
-| Clean rounds | `56 / 80` |
+| Coded | `audit/file-06-fifth-ten-round-v2.4.4`; exact final HEAD is the commit evaluated by the v2.4.4 final workflow |
+| Reviewed | Fifth fresh ten-round review/fix cycle completed; defects found and corrected in rounds `1, 2, 3, 4, 6, 8, 9, 10`; rounds `5, 7` clean |
+| Packaged | Deterministic double-build evidence is emitted by the final exact-head workflow; digest is deliberately not embedded in-source |
+| Automated QA | Final status is authoritative only from the completed `File 06 v2.4.4 Fifth Ten-Round Final QA` run on the exact branch HEAD |
+| Package SHA-256 | See final exact-head workflow log; not embedded here to avoid digest self-reference/drift |
+| Package bytes | See final exact-head workflow log |
+| Source-tree SHA-256 | See final exact-head workflow log |
+| Fifth ten-round defect rounds | `1, 2, 3, 4, 6, 8, 9, 10` |
+| Fifth ten-round clean rounds | `5, 7` |
 | Staging accepted | **No / unverified** — target Hostinger/WordPress evidence still required |
 | Live deployed | **No / unverified** |
 | Operational | **No / unverified** |
@@ -30,7 +30,7 @@
 - Global search/ranking: File 26
 - Public multilingual policy: source language + nine governed translations; localized URL/SEO/sitemap ownership remains cross-file
 
-## Third-80 hardening highlights
+## Inherited hardening and fifth ten-round corrections
 
 - canonical source-language/alias repair and ambiguous cross-language alias fail-closed behavior;
 - same-concept reference-version validation, bounded reference-rights vocabulary and mandatory relationship provenance;
@@ -41,6 +41,8 @@
 - private validated concept/topic/research watchlists with File 19 delivery boundary;
 - ten-language knowledge-translation policy, canonical dynamic source language, public translation read contract, public internal-ID stripping, and bounded `ur-PK` → `ur` migration with compatibility reads;
 - CI corrected to use the current third-80 matrix and a working WordPress/WP-CLI runtime lifecycle smoke test.
+
+Fifth ten-round corrections additionally enforce fail-closed Future routes during migration; public research DTO minimization; multi-writer research save concurrency; canonical BCP-47 source-language ownership; research reviewer privacy export/erasure; nonce-shape-independent published research immutability; truthful v2.4.4 release metadata; and a dedicated aggregate v2.4.4 regression gate.
 
 ## Release-truth warning
 

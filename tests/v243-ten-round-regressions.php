@@ -14,8 +14,7 @@ $not = static function( $haystack, $needle, $label ) {
 };
 
 $bootstrap = $read( 'homeopathy-encyclopedia/homeopathy-encyclopedia.php' );
-$has( $bootstrap, "define( 'HE_VERSION', '2.4.3' );", 'candidate version 2.4.3' );
-$has( $bootstrap, "define( 'HE_CONTRACT_VERSION', '2.4.3' );", 'contract version 2.4.3' );
+$has( $bootstrap, "define( 'HE_SCHEMA_VERSION', 10 );", 'schema lineage retained for v2.4.3 regressions' );
 
 $domain = $read( 'homeopathy-encyclopedia/includes/class-he-v2-domain.php' );
 $has( $domain, 'bind_references_to_snapshot', 'snapshot reference binding exists' );

@@ -18,7 +18,7 @@ File 06 owns permanent canonical knowledge concepts/IDs, the fixed sixteen-type 
 - Future enhancements: `F06-FUT-001..018`
 - Multilingual policy: original/source language + nine governed translations
 
-## Third-80 hardening
+## Inherited hardening plus fifth ten-round corrections
 
 - canonical source-language/alias repair, legacy Urdu normalization and ambiguous cross-language aliases fail closed;
 - references bind only to a version of the same concept, reference rights use a bounded vocabulary, and knowledge relations require source provenance;
@@ -33,6 +33,7 @@ File 06 owns permanent canonical knowledge concepts/IDs, the fixed sixteen-type 
 - watchlists validate concept/topic/research objects, remain private, and delegate notification transport to File 19;
 - ten-language translations bind to the current source version, remain human-review gated, expose a canonical public read surface, hide internal source-version IDs, and support bounded `ur-PK` → `ur` migration/compatibility reads;
 - PHP 7.4/8.3 lint, deterministic packaging and WordPress 7.0.1/PHP 8.3 fresh-install + activation/deactivation/reactivation CI smoke are enforced.
+- fifth-ten-round corrections add migration-ready route gating, minimized public research DTOs, deterministic research save concurrency, canonical source-language ownership, research-reviewer privacy coverage, unconditional immutable-state admin protection, v2.4.4 release-truth alignment and dedicated regression coverage.
 
 ## Verification
 
@@ -43,7 +44,7 @@ bash tests/run-all.sh
 python3 scripts/build-release.py --source homeopathy-encyclopedia --output dist/06-homeopathy-encyclopedia-foundation-2.4.4.zip
 ```
 
-Final reviewed package evidence: **pending the round-10 exact-head reproducible-package gate.**
+Final package digest, byte count and source-tree digest are emitted by the exact-head v2.4.4 final workflow; historical hashes are not reused as current evidence.
 
 ## Release truth
 
