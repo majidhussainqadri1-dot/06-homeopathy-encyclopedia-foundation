@@ -90,6 +90,8 @@ final class HE_V242_Runtime_Corrections {
 			$wpdb->query( 'COMMIT' );
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
+			/* wp_delete_post() can invalidate object cache before SQL rollback restores rows. */
+			clean_post_cache( $post_id );
 			HE_V2_Schema::record_runtime_failure( 'composer_rollback_failed', sanitize_text_field( $error->getMessage() ) );
 			return false;
 		} finally {
