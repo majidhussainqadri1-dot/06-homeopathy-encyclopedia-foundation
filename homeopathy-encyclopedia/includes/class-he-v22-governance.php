@@ -757,6 +757,7 @@ final class HE_V22_Governance {
 					$wpdb->update( HE_V2_Schema::table( 'aliases' ), array( 'concept_id' => (int) $target['id'], 'alias_type' => 'redirect', 'is_primary' => 0 ), array( 'id' => (int) $alias['id'] ), array( '%d','%s','%d' ), array( '%d' ) );
 				}
 			}
+			$reference_map = array();
 			$edges = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'relations' ) . ' WHERE source_concept_id=%d OR target_concept_id=%d FOR UPDATE', (int) $source['id'], (int) $source['id'] ), ARRAY_A );
 			foreach ( $edges as $edge ) {
 				$new_source = (int) $edge['source_concept_id'] === (int) $source['id'] ? (int) $target['id'] : (int) $edge['source_concept_id'];
@@ -764,12 +765,32 @@ final class HE_V22_Governance {
 				if ( $new_source !== $new_target ) {
 					$exists = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'relations' ) . ' WHERE source_concept_id=%d AND target_concept_id=%d AND relation_type=%s', $new_source, $new_target, $edge['relation_type'] ) );
 					if ( ! $exists ) {
-						$wpdb->update( HE_V2_Schema::table( 'relations' ), array( 'source_concept_id' => $new_source, 'target_concept_id' => $new_target, 'row_version' => (int) $edge['row_version'] + 1, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $edge['id'] ) );
+						$new_reference_id = (int) $edge['source_reference_id'];
+						if ( (int) $edge['source_concept_id'] === (int) $source['id'] ) {
+							if ( ! isset( $reference_map[ $new_reference_id ] ) ) {
+								$reference = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE id=%d FOR UPDATE', $new_reference_id ), ARRAY_A );
+								if ( ! $reference || (int) $reference['concept_id'] !== (int) $source['id'] || ( (int) $reference['version_id'] !== 0 && (int) $reference['version_id'] !== (int) $source['current_version'] ) ) {
+									throw new RuntimeException( 'relation-provenance-invalid' );
+								}
+								unset( $reference['id'] );
+								$reference['concept_id'] = (int) $target['id'];
+								$reference['version_id'] = (int) $target['current_version'];
+								$reference['created_by'] = get_current_user_id();
+								$reference['created_at'] = current_time( 'mysql', true );
+								if ( false === $wpdb->insert( HE_V2_Schema::table( 'references' ), $reference ) ) {
+									throw new RuntimeException( 'relation-provenance-clone-failed' );
+								}
+								$reference_map[ $new_reference_id ] = (int) $wpdb->insert_id;
+							}
+							$new_reference_id = (int) $reference_map[ $new_reference_id ];
+						}
+						$relation_updated = $wpdb->update( HE_V2_Schema::table( 'relations' ), array( 'source_concept_id' => $new_source, 'target_concept_id' => $new_target, 'source_reference_id' => $new_reference_id, 'row_version' => (int) $edge['row_version'] + 1, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $edge['id'] ) );
+						if ( false === $relation_updated ) { throw new RuntimeException( 'relation-write-failed' ); }
 					} else {
-						$wpdb->delete( HE_V2_Schema::table( 'relations' ), array( 'id' => (int) $edge['id'] ), array( '%d' ) );
+						if ( false === $wpdb->delete( HE_V2_Schema::table( 'relations' ), array( 'id' => (int) $edge['id'] ), array( '%d' ) ) ) { throw new RuntimeException( 'relation-write-failed' ); }
 					}
 				} else {
-					$wpdb->delete( HE_V2_Schema::table( 'relations' ), array( 'id' => (int) $edge['id'] ), array( '%d' ) );
+					if ( false === $wpdb->delete( HE_V2_Schema::table( 'relations' ), array( 'id' => (int) $edge['id'] ), array( '%d' ) ) ) { throw new RuntimeException( 'relation-write-failed' ); }
 				}
 			}
 			$u1 = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . " SET status='archived',merged_into_id=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $target['id'], (int) $source['id'], $sv ) );
@@ -784,6 +805,12 @@ final class HE_V22_Governance {
 			return HE_V2_Domain::concept_by_id( (int) $target['id'], true );
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
+			if ( in_array( $error->getMessage(), array( 'relation-provenance-invalid', 'relation-provenance-clone-failed' ), true ) ) {
+				return new WP_Error( 'he_relation_provenance_invalid', __( 'Merged graph edges could not be rebound to valid target-concept provenance.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			}
+			if ( 'relation-write-failed' === $error->getMessage() ) {
+				return new WP_Error( 'he_merge_failed', __( 'The graph could not be rewritten atomically during the concept merge.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+			}
 			$code = 'alias-third-party-collision' === $error->getMessage() ? 'he_alias_collision' : 'he_version_conflict';
 			$message = 'he_alias_collision' === $code ? __( 'A source alias belongs to a third canonical concept; manual reconciliation is required.', 'homeopathy-encyclopedia' ) : __( 'One of the concepts changed before the merge.', 'homeopathy-encyclopedia' );
 			return new WP_Error( $code, $message, array( 'status' => 409 ) );

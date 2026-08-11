@@ -9,5 +9,7 @@ $runtime=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v241-runtim
 v247_ok(false!==strpos($runtime,'HE_V241_Governance::reviewer_assigned') && false!==strpos($runtime,'file06-external-review-research'),'R1 research external-review assignment');
 $v22=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v247_ok(false!==strpos($v22,'case_details_restricted') && false!==strpos($v22,'dataset_payload_public') && false!==strpos($v22,'case_consent_verified'),'R2 authoritative research public privacy');
+$v22m=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+v247_ok(false!==strpos($v22m,'relation-provenance-clone-failed') && false!==strpos($v22m,'relation-provenance-invalid') && false!==strpos($v22m,'source_reference_id'),'R3 merge graph provenance rebinding');
 /*__V247_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.7 eighth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.7 eighth-review regressions: PASS\n";
