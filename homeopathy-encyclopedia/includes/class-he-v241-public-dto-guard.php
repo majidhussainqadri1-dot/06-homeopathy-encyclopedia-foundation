@@ -67,7 +67,7 @@ final class HE_V241_Public_DTO_Guard {
 				$replacement = absint( $notice['replacement_object_id'] ?? 0 );
 				unset( $notice['replacement_object_id'] );
 				if ( $replacement ) {
-					$public = $wpdb->get_var( $wpdb->prepare( 'SELECT public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id=%d', $replacement ) );
+					$public = $wpdb->get_var( $wpdb->prepare( 'SELECT public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id=%d AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0", $replacement ) );
 					if ( $public ) { $notice['replacement_id'] = $public; }
 				}
 			}
@@ -88,7 +88,7 @@ final class HE_V241_Public_DTO_Guard {
 		$map = array();
 		if ( $ids ) {
 			$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id IN ({$placeholders})", $ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id IN ({$placeholders}) AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0", $ids ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			foreach ( $rows as $row ) { $map[ (int) $row['id'] ] = $row['public_id']; }
 		}
 		$out = array();
