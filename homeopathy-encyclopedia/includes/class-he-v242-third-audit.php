@@ -387,20 +387,15 @@ final class HE_V242_Third_Audit {
 	}
 
 	public static function reconcile_manual_research_state( $post_id, $post, $update ) {
-		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) || ! $post ) {
-			return;
-		}
-		global $wpdb;
-		$table = HE_V2_Schema::table( 'research' );
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) || ! $post ) { return; }
+		global $wpdb; $table = HE_V2_Schema::table( 'research' );
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE post_id=%d", absint( $post_id ) ), ARRAY_A );
-		if ( ! $row || 'published' !== $row['status'] || 'publish' === $post->post_status ) {
-			return;
-		}
+		if ( ! $row || 'published' !== $row['status'] || 'publish' === $post->post_status ) { return; }
 		$approved_reviews = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'reviews' ) . " WHERE object_type='research' AND object_id=%d AND decision='approved' AND conflict_declared=0", (int) $row['id'] ) );
-		if ( 0 === $approved_reviews ) {
-			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='proposal',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='published'", (int) $row['id'], (int) $row['row_version'] ) );
-			HE_V2_Domain::emit_event( 'ResearchStateFailClosed.v1', 'research', (int) $row['id'], array( 'reason' => 'non-published-wordpress-post-without-approved-review' ) );
-		}
+		$next = $approved_reviews > 0 ? 'peer_review' : 'proposal';
+		$changed = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='published'", $next, (int) $row['id'], (int) $row['row_version'] ) );
+		if ( 1 === (int) $changed ) { HE_V2_Domain::emit_event( 'ResearchStateFailClosed.v1', 'research', (int) $row['id'], array( 'reason' => 'authoritative-wordpress-post-not-published', 'fallback_state' => $next ) ); }
+		else { update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false ); HE_V2_Schema::record_runtime_failure( 'research_post_state_reconciliation_failed', 'Research domain/WordPress publication parity could not be reconciled safely.' ); }
 	}
 
 	public static function language_meta_changed( $meta_id, $object_id, $meta_key, $meta_value ) {
