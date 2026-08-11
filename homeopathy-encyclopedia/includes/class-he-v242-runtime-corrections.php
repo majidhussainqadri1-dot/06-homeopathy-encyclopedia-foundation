@@ -7,7 +7,6 @@ final class HE_V242_Runtime_Corrections {
 		/* Replace the earlier rollback callback with schema-accurate Future-18 child checks. */
 		add_filter( 'sabri_composer_content_types', array( __CLASS__, 'composer_contract' ), 1002 );
 		/* Verify research-create conflict normalization before returning success, then return the exact row version. */
-		add_filter( 'rest_request_after_callbacks', array( __CLASS__, 'verify_research_create_normalization' ), 365, 3 );
 		add_filter( 'rest_request_after_callbacks', array( __CLASS__, 'research_create_response_parity' ), 370, 3 );
 	}
 
@@ -114,36 +113,18 @@ final class HE_V242_Runtime_Corrections {
 	}
 
 	public static function verify_research_create_normalization( $response, $handler, $request ) {
-		if ( ! $request instanceof WP_REST_Request || ! $response instanceof WP_REST_Response || is_wp_error( $response ) || 'POST' !== $request->get_method() || '/' . HE_V2_API::NS . '/research' !== $request->get_route() ) {
-			return $response;
-		}
+		/* Retained as a verification helper for diagnostics; it must never mutate state after route/idempotency success. */
+		if ( ! $request instanceof WP_REST_Request || ! $response instanceof WP_REST_Response || is_wp_error( $response ) || 'POST' !== $request->get_method() || '/' . HE_V2_API::NS . '/research' !== $request->get_route() ) { return $response; }
 		$public_id = self::response_public_id( $response );
-		if ( ! $public_id ) {
-			return $response;
-		}
+		if ( ! $public_id ) { return $response; }
 		global $wpdb;
-		$table = HE_V2_Schema::table( 'research' );
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id,row_version,conflicts_json FROM {$table} WHERE public_id=%s", $public_id ), ARRAY_A );
-		if ( ! $row ) {
-			return new WP_Error( 'he_research_normalization_missing', __( 'The newly created research record could not be reloaded for governance verification.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
-		}
-		$conflicts = json_decode( (string) $row['conflicts_json'], true );
-		if ( is_array( $conflicts ) && array_key_exists( 'recorded', $conflicts ) && ! empty( $conflicts['recorded'] ) ) {
-			return $response;
-		}
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT conflicts_json FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
 		$input = (array) $request->get_json_params();
-		$parts = array_values( array_filter( array_map( 'sanitize_text_field', (array) ( $input['conflicts'] ?? array() ) ) ) );
-		if ( ! $parts ) {
-			return new WP_Error( 'he_conflict_disclosure_required', __( 'Research submission requires an explicit conflict-of-interest statement.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
-		}
-		$statement = implode( '; ', $parts );
-		$none = (bool) preg_match( '/\b(?:no|none)\s+(?:conflict|conflicts)\b/i', $statement );
-		$normalized = wp_json_encode( array( 'recorded' => true, 'statement' => $statement, 'none_declared' => $none ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-		$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET conflicts_json=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $normalized, (int) $row['id'], (int) $row['row_version'] ) );
-		if ( 1 !== (int) $updated ) {
+		$expected = HE_V2_Domain::normalize_conflicts( $input['conflicts'] ?? array() );
+		$stored = $row ? json_decode( (string) $row['conflicts_json'], true ) : null;
+		if ( ! $row || ! $expected || $stored !== $expected ) {
 			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'research_conflict_normalization_failed', 'A newly created research record could not be normalized to the governed conflict-disclosure shape.' );
-			return new WP_Error( 'he_research_normalization_conflict', __( 'The research record was created but governance normalization could not be completed safely. File 06 entered safe mode for mutations.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+			HE_V2_Schema::record_runtime_failure( 'research_conflict_postsuccess_invariant_failed', 'A completed research create response failed canonical conflict verification; no post-success mutation was attempted.' );
 		}
 		return $response;
 	}
