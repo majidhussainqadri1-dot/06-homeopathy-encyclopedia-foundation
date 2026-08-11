@@ -1,49 +1,41 @@
-# File 06 v2.4.2 Automated Test Report
+# File 06 v2.4.5 Automated Test Report
 
 Date: 2026-08-11
-Candidate: `2.4.2 / schema 10 / contract 2.4.2`
-Branch: `audit/file-06-third-80-round-v2.4.2`
+Candidate: `2.4.5 / global schema 10 / Future schema 2 / contract 2.4.5`
+Branch: `audit/file-06-sixth-ten-round-v2.4.5`
 
-## Final automated evidence
+## Authoritative automated evidence
 
-GitHub Actions run `31454206508` passed all jobs on the reviewed source state:
+The authoritative automated result is the completed `File 06 v2.4.5 Sixth Ten-Round Final QA` run on the exact final branch HEAD. That workflow must pass:
 
-- PHP syntax — PHP 7.4: PASS
-- PHP syntax — PHP 8.3: PASS
-- Core current invariants: PASS
-- First 80-round regression controls: PASS
-- Future Knowledge Intelligence 18 controls: PASS
-- Second 80-round regression controls: PASS
-- Corrected third fresh 80-round matrix: PASS (`80/80`)
-- JavaScript syntax: PASS
-- Python release-script syntax: PASS
-- Deterministic package double-build: PASS
-- WordPress 7.0.1 / PHP 8.3 fresh install: PASS
-- Plugin activation and runtime contract assertions: PASS
-- Plugin deactivate/reactivate lifecycle: PASS
-- Schema option persistence after reactivation: PASS
+- PHP syntax — PHP 7.4
+- PHP syntax — PHP 8.3
+- Core current invariants
+- File 06 source-tree invariants
+- Future Knowledge Intelligence 18 baseline invariants
+- first/second/third inherited hardening matrices
+- v2.4.3 and v2.4.4 regression suites
+- v2.4.5 sixth-cycle regression suite
+- JavaScript syntax and Python release-script syntax
+- deterministic double package build
+- WordPress 7.0.1 / PHP 8.3 / MySQL 8 fresh installation
+- strict plugin activation/deactivation/reactivation lifecycle
+- runtime contract `2.4.5 / schema 10 / Future schema 2 / contract 2.4.5`
+- Future migration readiness and expected Future-table existence
+- failure on File 06 WordPress database errors or PHP warning/fatal/parse runtime noise during lifecycle smoke
 
-## Third 80-round defect result
+## Sixth ten-round result
 
 Defects or QA discrepancies were found and corrected in rounds:
 
-`4, 5, 7, 11, 17, 18, 19, 20, 21, 22, 28, 29, 30, 31, 32, 38, 39, 58, 61, 72, 73, 74, 75, 78`
+`1, 2, 3, 4, 5, 6, 7, 9, 10`
 
-The remaining 56 rounds were clean. The two required fresh post-final-code reviews (Rounds 79 and 80) found no new product/source defect.
+Round `8` was clean.
 
 ## Exact package evidence
 
-- File: `06-homeopathy-encyclopedia-foundation-2.4.2.zip`
-- Bytes: `183423`
-- SHA-256: `b031e5bfec3130713fe812cf14614a83c43d35ed92c130f02e98b0c98fd7975a`
-- Plugin source-tree SHA-256: `4e36b9f8ecd6346861b17f44b5eded0fa0d2210bbb16178030d8ff111100829a`
+The exact package SHA-256, byte count and source-tree SHA-256 are deliberately not hard-coded here because they are properties of the exact final repository HEAD. They are emitted by the final exact-HEAD workflow.
 
-## Runtime smoke scope
+## Scope limitation
 
-The WordPress CI job proves that a clean WordPress 7.0.1 database can install under PHP 8.3, the plugin can activate, the `2.4.2 / 10 / 2.4.2` runtime contract loads, v2.4.2 hardening classes load, the ten-language target resolver returns exactly nine distinct translations for a non-core source language, and deactivate/reactivate preserves the expected schema option.
-
-This is deliberately narrower than staging acceptance. It does not prove upgrade behavior from the actual Hostinger deployed build/database, real companion contract compatibility, production theme/cache/browser behavior, backup/restore or rollback.
-
-## Manual target-environment matrix
-
-Environment-specific acceptance remains in `docs/STAGING-ACCEPTANCE.md` and requires the actual Hostinger staging instance, deployed predecessor version/database, real File 00/19/20/24/25/26 versions, production theme/LiteSpeed/cache, browser/accessibility devices, provider credentials, backup/restore and rollback facilities.
+Repository automated QA does not prove Hostinger staging acceptance, upgrade behavior from the actually deployed predecessor/database, real File 00/19/20/24/25/26 compatibility, production theme/cache/browser behavior, backup/restore, rollback rehearsal, Founder acceptance, deployed artifact parity or live operation.
