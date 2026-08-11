@@ -49,6 +49,7 @@ require_once HE_DIR . 'includes/class-he-v24-future-privacy.php';
 require_once HE_DIR . 'includes/class-he-v24-future-review-guard.php';
 require_once HE_DIR . 'includes/class-he-v24-public-provenance.php';
 require_once HE_DIR . 'includes/class-he-v241-governance.php';
+require_once HE_DIR . 'includes/class-he-v241-runtime-guard.php';
 
 /**
  * Build the legacy Future-18 base tables, then harden/migrate them before any
@@ -100,9 +101,9 @@ function he_contract_descriptor() {
 		'future_hardening_version' => '2.4.1',
 		'consumer_files'    => array( 'file-05', 'file-12', 'file-15', 'file-16', 'file-21', 'file-26' ),
 		'search_semantics'  => array( 'exact', 'phrase', 'token', 'alias', 'transliteration-alias', 'spelling-recovery', 'safe-autocomplete' ),
-		'authorization'     => array( 'file00_claims_required' => true, 'native_object_scope_required' => true, 'editor_type_assignment_required' => true, 'reviewer_assignment_required' => true ),
+		'authorization'     => array( 'file00_claims_required' => true, 'native_object_scope_required' => true, 'editor_type_assignment_required' => true, 'reviewer_assignment_required' => true, 'admin_and_composer_scope_enforced' => true ),
 		'migration'         => array( 'resumable' => true, 'quarantine' => true, 'batch_max' => 100, 'verified_future_schema' => true, 'preflight_existing_rows' => true, 'future_routes_fail_closed_until_ready' => true ),
-		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true, 'future_maintenance_serialized' => true ),
+		'reliability'       => array( 'idempotency_required' => true, 'bounded_retry' => true, 'dead_letter' => true, 'consumer_acknowledgement' => true, 'outbox_reconciliation' => true, 'scheduled_publication_revalidation' => true, 'legacy_unverified_scheduler_disabled' => true, 'core_maintenance_serialized' => true, 'future_maintenance_serialized' => true, 'future_impact_queue' => true, 'human_review_for_external_metadata' => true, 'provider_response_bound' => true ),
 		'public_api'        => array( 'canonical_public_ids_only' => true, 'internal_ids_exposed' => false, 'public_provenance_types' => array( 'concept', 'claim' ) ),
 		'release_state'     => array( 'coded_candidate' => true, 'staging_accepted' => false, 'live_deployed' => false, 'operational' => false ),
 	);
@@ -155,8 +156,8 @@ function he_start_v2() {
 		wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON );
 	}
 
-	/* Core object/type/reviewer governance always applies; Future worker replacement is inert until scheduled. */
 	HE_V241_Governance::hooks();
+	HE_V241_Runtime_Guard::hooks();
 
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
