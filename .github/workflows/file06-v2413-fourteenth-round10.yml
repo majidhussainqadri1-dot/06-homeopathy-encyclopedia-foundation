@@ -1,0 +1,36 @@
+name: File 06 v2.4.13 Fourteenth Review Round 10
+on:
+  push:
+    branches: [audit/file-06-fourteenth-ten-round-v2.4.13]
+    paths: [.github/workflows/file06-v2413-fourteenth-round10.yml]
+permissions:
+  contents: write
+jobs:
+  review-fix-retest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Correct and retest round 10
+        run: |
+          set -euo pipefail
+          git config user.name "majidhussainqadri1-dot"
+          git config user.email "majidhussainqadri1@gmail.com"
+          python3 scripts/v2413-fourteenth-ten-round-fixes.py 10
+          V2413_ROUND=10 php tests/v2413-fourteenth-ten-round-regressions.php
+          bash tests/run-all.sh 2>&1 | tee /tmp/v2413-round-10.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/v2413-round-10.log; then
+            echo 'Unexpected PHP warning/error in round 10' >&2
+            exit 1
+          fi
+          git add -A
+          git commit -m "fix(file-06): fourteenth review round 10 correction"
+          git push origin HEAD:audit/file-06-fourteenth-ten-round-v2.4.13
