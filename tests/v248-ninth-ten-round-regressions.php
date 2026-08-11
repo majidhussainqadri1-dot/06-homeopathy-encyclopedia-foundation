@@ -19,6 +19,8 @@ $v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.
 v248_ok(false===strpos($v22,"if ( current_user_can( 'activate_plugins' ) )") && false!==strpos($v22,"HE_V2_Auth::can( HE_V2_Auth::CAP_REPAIR, 0, 'file06-background-maintenance' )"),'R7 admin-init maintenance bypasses File00-backed File06 repair authorization');
 $integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
 v248_ok(false!==strpos($integrations,'INSERT IGNORE INTO {$table}') && false!==strpos($integrations,'consumed_event_write_failed') && false===strpos($integrations,"SELECT id FROM ' . HE_V2_Schema::table( 'events' ) . ' WHERE event_id=%s"),'R8 consumed-event idempotency still uses a check-then-insert race');
+$guard=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');
+v248_ok(false!==strpos($guard,'research_public_query_where') && false!==strpos($guard,'he_public_research.status IN') && false===strpos($guard,"get_post_type( $post_id ) || ! is_singular") && false===strpos($guard,"$post->post_type || ! is_singular"),'R9 WordPress archive/search paths can expose non-public domain research or stale WP title/excerpt metadata');
 /*__V248_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.8 ninth-review regressions FAILED:
 - ".implode("
