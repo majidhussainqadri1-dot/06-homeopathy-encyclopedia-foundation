@@ -487,10 +487,18 @@ final class HE_V2_Domain {
 		if ( is_wp_error( $post_id ) ) {
 			return $post_id;
 		}
-		wp_set_object_terms( $post_id, array( $type ), self::TAX_TYPE, false );
-		wp_set_object_terms( $post_id, array( $system ), self::TAX_SYSTEM, false );
+		$structured = self::sanitize_structured( $data['fields'] ?? array() );
+		$type_result = wp_set_object_terms( $post_id, array( $type ), self::TAX_TYPE, false );
+		$system_result = wp_set_object_terms( $post_id, array( $system ), self::TAX_SYSTEM, false );
 		update_post_meta( $post_id, '_he_language', $language );
-		update_post_meta( $post_id, '_he_structured', self::sanitize_structured( $data['fields'] ?? array() ) );
+		update_post_meta( $post_id, '_he_structured', $structured );
+		$persisted_structured = get_post_meta( $post_id, '_he_structured', true );
+		if ( is_wp_error( $type_result ) || is_wp_error( $system_result ) || self::taxonomy_slug( $post_id, self::TAX_TYPE ) !== $type || self::taxonomy_slug( $post_id, self::TAX_SYSTEM ) !== $system || (string) get_post_meta( $post_id, '_he_language', true ) !== (string) $language || $persisted_structured !== $structured ) {
+			$concept_id = self::ensure_concept_for_post( $post_id );
+			if ( $concept_id ) { self::rollback_new_entry( $concept_id, $post_id ); } else { wp_delete_post( $post_id, true ); }
+			HE_V2_Schema::record_runtime_failure( 'entry_create_projection_failed', 'File 06 could not verify taxonomy/language/structured entry state before canonical creation completed.' );
+			return new WP_Error( 'he_entry_write_failed', __( 'Entry draft metadata could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+		}
 		$concept_id = self::ensure_concept_for_post( $post_id );
 		if ( ! $concept_id ) {
 			wp_delete_post( $post_id, true );
