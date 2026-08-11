@@ -1,0 +1,94 @@
+name: File 06 v2.4.5 Sixth Review Round 2 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - '.github/workflows/file06-v245-sixth-round2-apply.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Harden idempotency fingerprint and stale reservation recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-domain.php')
+          s=p.read_text()
+          marker="\tpublic static function idempotent_begin( $actor_id, $operation, $key, $request_body ) {"
+          helper="""\tprivate static function canonicalize_idempotency_value( $value ) {
+          \t\tif ( ! is_array( $value ) ) { return $value; }
+          \t\t$keys = array_keys( $value );
+          \t\t$is_list = empty( $keys ) || $keys === range( 0, count( $keys ) - 1 );
+          \t\tif ( ! $is_list ) { ksort( $value, SORT_STRING ); }
+          \t\tforeach ( $value as $key => $item ) { $value[ $key ] = self::canonicalize_idempotency_value( $item ); }
+          \t\treturn $value;
+          \t}
+
+          \tpublic static function idempotent_begin( $actor_id, $operation, $key, $request_body ) {"""
+          if 'canonicalize_idempotency_value' not in s:
+              if marker not in s: raise SystemExit('idempotent_begin marker missing')
+              s=s.replace(marker,helper,1)
+          old="\t\t$request_hash = hash( 'sha256', wp_json_encode( $request_body ) );"
+          new="\t\t$request_hash = hash( 'sha256', wp_json_encode( self::canonicalize_idempotency_value( $request_body ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );"
+          if old in s: s=s.replace(old,new,1)
+          old2="""\t\t\tif ( $row['response_code'] ) {
+          \t\t\t\treturn array( 'replay' => true, 'code' => (int) $row['response_code'], 'body' => json_decode( $row['response_json'], true ) );
+          \t\t\t}
+          \t\t\treturn new WP_Error( 'he_request_in_progress', __( 'An identical request is still being processed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );"""
+          new2="""\t\t\tif ( $row['response_code'] ) {
+          \t\t\t\treturn array( 'replay' => true, 'code' => (int) $row['response_code'], 'body' => json_decode( $row['response_json'], true ) );
+          \t\t\t}
+          \t\t\t/* A worker may die after reserving the key. Reclaim only an objectively stale reservation with a compare-and-swap update. */
+          \t\t\t$now = current_time( 'mysql', true );
+          \t\t\t$expiry = gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS );
+          \t\t\t$reclaimed = $wpdb->query( $wpdb->prepare(
+          \t\t\t\t\"UPDATE {$table} SET created_at=%s,expires_at=%s WHERE id=%d AND response_code=0 AND request_hash=%s AND created_at=%s AND created_at<=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)\",
+          \t\t\t\t$now, $expiry, (int) $row['id'], $request_hash, (string) $row['created_at']
+          \t\t\t) );
+          \t\t\tif ( 1 === (int) $reclaimed ) { return array( 'replay' => false, 'id' => (int) $row['id'], 'reclaimed' => true ); }
+          \t\t\treturn new WP_Error( 'he_request_in_progress', __( 'An identical request is still being processed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );"""
+          if old2 not in s: raise SystemExit('in-progress block missing')
+          s=s.replace(old2,new2,1)
+          p.write_text(s)
+
+          t=Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          x=t.read_text()
+          needle='echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          add="""$domain = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+          f06_v245_assert(strpos($domain, 'canonicalize_idempotency_value') !== false, 'Round 2 stable idempotency fingerprint missing');
+          f06_v245_assert(strpos($domain, 'DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)') !== false, 'Round 2 stale idempotency reservation CAS recovery missing');
+          f06_v245_assert(strpos($domain, \"JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES\") !== false, 'Round 2 canonical idempotency JSON encoding missing');
+          """+needle
+          if 'Round 2 stable idempotency' not in x:
+              if needle not in x: raise SystemExit('test marker missing')
+              x=x.replace(needle,add,1)
+          t.write_text(x)
+          PY
+      - name: Validate Round 2 correction
+        run: |
+          set -euo pipefail
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 2 correction
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): recover stale idempotency reservations safely'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
