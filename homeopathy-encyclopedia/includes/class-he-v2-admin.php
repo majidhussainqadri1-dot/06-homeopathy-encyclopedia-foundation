@@ -230,8 +230,17 @@ final class HE_V2_Admin {
 			wp_die( esc_html__( 'Not authorized.', 'homeopathy-encyclopedia' ) );
 		}
 		$enabled = ! empty( $_POST['enabled'] );
-		update_option( HE_V2_Schema::OPTION_SAFE_MODE, $enabled ? 1 : 0, false );
-		HE_V2_Domain::emit_event( $enabled ? 'File06SafeModeEnabled.v1' : 'File06SafeModeDisabled.v1', 'system', 0, array( 'actor_id' => get_current_user_id() ) );
+		if ( $enabled ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Domain::emit_event( 'File06SafeModeEnabled.v1', 'system', 0, array( 'actor_id' => get_current_user_id() ) );
+		} else {
+			$result = HE_V2_Schema::repair( false );
+			if ( is_wp_error( $result ) || get_option( HE_V2_Schema::OPTION_SAFE_MODE ) || ! HE_V2_Schema::schema_complete() ) {
+				set_transient( 'he_v2_admin_notice_' . get_current_user_id(), array( 'type' => 'error', 'message' => __( 'Safe mode remains active because verified repair did not establish a healthy runtime.', 'homeopathy-encyclopedia' ) ), 60 );
+				wp_safe_redirect( admin_url( 'edit.php?post_type=' . HE_V2_Domain::ENTRY_TYPE . '&page=he-v2-operations' ) ); exit;
+			}
+			HE_V2_Domain::emit_event( 'File06SafeModeDisabled.v1', 'system', 0, array( 'actor_id' => get_current_user_id(), 'verified_repair' => true ) );
+		}
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . HE_V2_Domain::ENTRY_TYPE . '&page=he-v2-operations' ) );
 		exit;
 	}
