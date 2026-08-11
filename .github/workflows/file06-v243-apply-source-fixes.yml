@@ -23,6 +23,18 @@ jobs:
           node-version: '22'
       - name: Apply owning-source fixes
         run: python3 scripts/v243-apply-source-fixes.py
+      - name: Correct one-time block boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-domain.php')
+          s=p.read_text(encoding='utf-8')
+          bad="public static function graph( $concept_id, $depth = 1, $limit = 50 ) {\n\n\tpublic static function graph( $concept_id, $depth = 1, $limit = 50 ) {"
+          if bad not in s:
+              raise SystemExit('expected one-time duplicated graph boundary not found')
+          s=s.replace(bad,"public static function graph( $concept_id, $depth = 1, $limit = 50 ) {",1)
+          p.write_text(s,encoding='utf-8')
+          PY
       - name: Validate patched tree before commit
         shell: bash
         run: |
@@ -41,6 +53,6 @@ jobs:
           fi
           git config user.name 'majidhussainqadri1-dot'
           git config user.email 'majidhussainqadri1@gmail.com'
-          git add homeopathy-encyclopedia tests scripts .github/workflows/file06-v2-complete.yml
+          git add homeopathy-encyclopedia tests .github/workflows/file06-v2-complete.yml
           git commit -m 'fix(file-06): apply fourth-cycle root-cause hardening'
           git push origin HEAD:audit/file-06-fourth-80-round-v2.4.3
