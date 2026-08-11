@@ -358,21 +358,26 @@ final class HE_V22_Governance {
 			return self::mutation_finish( $reservation, new WP_Error( 'he_independent_review_required', __( 'The author cannot provide the independent approval review.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ), 201 );
 		}
 		$hash = self::research_hash( $row );
-		$ok = $wpdb->insert( HE_V2_Schema::table( 'reviews' ), array(
-			'object_type' => 'research',
-			'object_id' => (int) $row['id'],
-			'reviewer_id' => $reviewer,
-			'scope' => sanitize_key( $data['scope'] ?? 'scientific' ),
-			'decision' => $decision,
-			'conflict_declared' => $conflict ? 1 : 0,
-			'note' => sanitize_textarea_field( $data['note'] ?? '' ),
-			'content_hash' => $hash,
-			'reviewed_row_version' => (int) $row['row_version'],
-			'review_subject_author' => $post ? (int) $post->post_author : 0,
-			'created_at' => current_time( 'mysql', true ),
+		$reviews = HE_V2_Schema::table( 'reviews' );
+		$research = HE_V2_Schema::table( 'research' );
+		$ok = $wpdb->query( $wpdb->prepare(
+			"INSERT INTO {$reviews} (object_type,object_id,reviewer_id,scope,decision,conflict_declared,note,content_hash,reviewed_row_version,review_subject_author,created_at) SELECT 'research',r.id,%d,%s,%s,%d,%s,%s,r.row_version,%d,%s FROM {$research} r WHERE r.id=%d AND r.row_version=%d",
+			$reviewer,
+			sanitize_key( $data['scope'] ?? 'scientific' ),
+			$decision,
+			$conflict ? 1 : 0,
+			sanitize_textarea_field( $data['note'] ?? '' ),
+			$hash,
+			$post ? (int) $post->post_author : 0,
+			current_time( 'mysql', true ),
+			(int) $row['id'],
+			$expected
 		) );
-		if ( ! $ok ) {
+		if ( false === $ok ) {
 			return self::mutation_finish( $reservation, new WP_Error( 'he_review_write_failed', __( 'The review could not be stored.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ), 201 );
+		}
+		if ( 1 !== (int) $ok ) {
+			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed while the review decision was being stored. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 201 );
 		}
 		HE_V2_Domain::emit_event( 'ResearchRecordReviewed.v1', 'research', (int) $row['id'], array( 'decision' => $decision, 'scope' => sanitize_key( $data['scope'] ?? 'scientific' ) ) );
 		return self::mutation_finish( $reservation, array( 'review_id' => (int) $wpdb->insert_id, 'decision' => $decision, 'content_hash' => $hash, 'reviewed_row_version' => $expected ), 201 );
