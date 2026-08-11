@@ -13,6 +13,9 @@ v246_ok(false!==strpos($future_api,"refresh_freshness( \$concept['id'], false )"
 $core_api=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-api.php');
 v246_ok(false!==strpos($core_api,"/health") && false!==strpos($core_api,"HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REPAIR )"),'R3 health route bypasses File00-backed authorization');
 v246_ok(false===strpos($core_api,"return current_user_can( 'activate_plugins' )"),'R3 legacy health capability bypass remains');
+$domain=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+v246_ok(0===substr_count($domain,"'show_in_rest' => true,"),'R4 File06 taxonomies still expose uncontrolled core REST writes');
+v246_ok(substr_count($domain,"'show_in_rest' => false,")>=5,'R4 controlled REST ownership marker missing');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("

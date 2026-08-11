@@ -138,7 +138,7 @@ final class HE_V2_Domain {
 			'labels' => array( 'name' => __( 'Knowledge Types', 'homeopathy-encyclopedia' ) ),
 			'public' => true,
 			'show_ui' => false,
-			'show_in_rest' => true,
+			'show_in_rest' => false,
 			'hierarchical' => true,
 			'rewrite' => array( 'slug' => 'encyclopedia/type' ),
 		) );
@@ -146,7 +146,7 @@ final class HE_V2_Domain {
 			'labels' => array( 'name' => __( 'Body Systems', 'homeopathy-encyclopedia' ) ),
 			'public' => true,
 			'show_ui' => false,
-			'show_in_rest' => true,
+			'show_in_rest' => false,
 			'hierarchical' => true,
 			'rewrite' => array( 'slug' => 'encyclopedia/system' ),
 		) );
@@ -154,7 +154,7 @@ final class HE_V2_Domain {
 			'labels' => array( 'name' => __( 'Knowledge Topics', 'homeopathy-encyclopedia' ) ),
 			'public' => true,
 			'show_ui' => true,
-			'show_in_rest' => true,
+			'show_in_rest' => false,
 			'hierarchical' => false,
 		) );
 		self::seed_terms();
