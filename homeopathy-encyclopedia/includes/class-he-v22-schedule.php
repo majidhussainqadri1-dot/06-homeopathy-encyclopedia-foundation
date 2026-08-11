@@ -96,9 +96,13 @@ final class HE_V22_Schedule {
 
 			$validation = HE_V2_Domain::validate_for_review( (int) $row['id'] );
 			if ( is_wp_error( $validation ) ) {
-				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='review',review_status='pending',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='scheduled' AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
-				self::clear_schedule_meta( (int) $row['post_id'] );
-				$invalidated++;
+				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='review',review_status='pending',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='scheduled' AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
+				if ( 1 === (int) $updated ) {
+					self::clear_schedule_meta( (int) $row['post_id'] );
+					HE_V22_Governance::reindex_concept_secure( (int) $row['id'] );
+					HE_V2_Domain::emit_event( 'EncyclopediaEntryScheduleInvalidated.v1', 'concept', (int) $row['id'], array( 'reason' => 'validation-failed-before-publication' ) );
+					$invalidated++;
+				}
 				continue;
 			}
 			$version_id = HE_V2_Domain::snapshot_version( (int) $row['id'], 'Scheduled publication', 'published', absint( get_post_meta( (int) $row['post_id'], '_he_schedule_actor', true ) ) );
