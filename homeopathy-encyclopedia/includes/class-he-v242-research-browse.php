@@ -26,7 +26,7 @@ final class HE_V242_Research_Browse {
 		if ( ! $post || HE_V2_Domain::RESEARCH_TYPE !== $post->post_type || 'publish' !== $post->post_status ) {
 			return false;
 		}
-		return ! is_wp_error( HE_V22_Research_Guard::validate_row( $row ) );
+		return HE_V22_Research_Guard::public_surface_eligible( $row );
 	}
 
 	private static function dto( $row ) {
