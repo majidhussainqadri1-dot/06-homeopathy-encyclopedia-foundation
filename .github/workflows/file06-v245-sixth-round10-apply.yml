@@ -63,8 +63,7 @@ jobs:
           p.write_text(s)
 
           p = Path('tests/v2-invariants.php')
-          s = p.read_text().replace('2.4.4', '2.4.5')
-          p.write_text(s)
+          p.write_text(p.read_text().replace('2.4.4', '2.4.5'))
 
           p = Path('tests/v244-ten-round-regressions.php')
           s = p.read_text()
@@ -87,7 +86,10 @@ jobs:
 
           p = Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
           s = p.read_text()
-          s = s.replace('"end( $rows )[\'id\']"', '"end( \\$rows )[\'id\']"')
+          old_assert = "f06_v245_assert(strpos($schema, \"end( $rows )['id']\") === false, 'Round 9 batch-end cursor can still skip failed rows');"
+          new_assert = "f06_v245_assert(strpos($schema, \"update_option( 'he_v24_retraction_cursor', (int) end( \\$rows )['id'], false )\") === false, 'Round 9 retraction cursor still advances to batch end');"
+          if old_assert in s:
+              s = s.replace(old_assert, new_assert, 1)
           needle = 'echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
           block = "$bootstrap = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/homeopathy-encyclopedia.php');\n"
           block += "f06_v245_assert(strpos($bootstrap, ' * Version: 2.4.5') !== false, 'Round 10 plugin header version not 2.4.5');\n"
