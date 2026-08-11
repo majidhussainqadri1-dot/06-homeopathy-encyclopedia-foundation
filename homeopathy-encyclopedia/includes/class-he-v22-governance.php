@@ -331,6 +331,10 @@ final class HE_V22_Governance {
 			return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 );
 		}
 		$data = (array) $request->get_json_params();
+		$expected = absint( $data['expected_version'] ?? 0 );
+		if ( ! $expected || $expected !== (int) $row['row_version'] ) {
+			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed after it was loaded for review. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 201 );
+		}
 		$decision = sanitize_key( $data['decision'] ?? 'changes_required' );
 		if ( ! in_array( $decision, array( 'approved', 'changes_required', 'rejected' ), true ) ) {
 			return self::mutation_finish( $reservation, new WP_Error( 'he_invalid_review_decision', __( 'Invalid review decision.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ), 201 );
@@ -362,7 +366,7 @@ final class HE_V22_Governance {
 			return self::mutation_finish( $reservation, new WP_Error( 'he_review_write_failed', __( 'The review could not be stored.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ), 201 );
 		}
 		HE_V2_Domain::emit_event( 'ResearchRecordReviewed.v1', 'research', (int) $row['id'], array( 'decision' => $decision, 'scope' => sanitize_key( $data['scope'] ?? 'scientific' ) ) );
-		return self::mutation_finish( $reservation, array( 'review_id' => (int) $wpdb->insert_id, 'decision' => $decision, 'content_hash' => $hash ), 201 );
+		return self::mutation_finish( $reservation, array( 'review_id' => (int) $wpdb->insert_id, 'decision' => $decision, 'content_hash' => $hash, 'reviewed_row_version' => $expected ), 201 );
 	}
 
 	public static function rest_create_research_integrity( WP_REST_Request $request ) {

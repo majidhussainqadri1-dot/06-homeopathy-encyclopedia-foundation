@@ -15,5 +15,7 @@ $v22idx=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governan
 v247_ok(false!==strpos($v22idx,'SELECT evidence_grade FROM') && false!==strpos($v22idx,'AND version_id=%d'),'R4 secure search current-version evidence');
 $domainidx=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v247_ok(false!==strpos($domainidx,'SELECT author,title,publisher,doi,evidence_grade FROM') && false!==strpos($domainidx,'AND version_id=%d'),'R4 inherited search current-version evidence');
+$v22review=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+v247_ok(false!==strpos($v22review,'expected_version') && false!==strpos($v22review,'The research record changed after it was loaded for review') && false!==strpos($v22review,'reviewed_row_version'),'R5 research review stale-version guard');
 /*__V247_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.7 eighth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.7 eighth-review regressions: PASS\n";
