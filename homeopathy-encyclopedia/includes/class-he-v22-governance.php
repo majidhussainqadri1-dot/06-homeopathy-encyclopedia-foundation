@@ -431,6 +431,11 @@ final class HE_V22_Governance {
 			if ( ! $action || 'accepted' !== $action['status'] ) { throw new RuntimeException( 'acceptance-required' ); }
 			$research = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$research_table} WHERE id=%d FOR UPDATE", (int) $action['object_id'] ), ARRAY_A );
 			if ( ! $research ) { throw new RuntimeException( 'research-not-found' ); }
+			$object_permission = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH, (int) $research['post_id'], 'file06-research-integrity-apply' );
+			if ( is_wp_error( $object_permission ) ) {
+				$wpdb->query( 'ROLLBACK' );
+				return self::mutation_finish( $reservation, $object_permission, 200 );
+			}
 			if ( ! $expected || $expected !== (int) $research['row_version'] ) { throw new RuntimeException( 'research-version-conflict' ); }
 			$to = 'retraction' === $action['action_type'] ? 'retracted' : 'corrected';
 			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$research_table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $to, $research['id'], $expected ) );

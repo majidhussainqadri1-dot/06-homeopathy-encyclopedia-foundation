@@ -11,5 +11,6 @@ v2410_ok(substr_count($v22,'case_governance_failed')>=1 && false!==strpos($domai
 $integrity=v2410_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-integrity.php');
 v2410_ok(false!==strpos($integrity,'$object_permission = HE_V2_Auth::rest_permission') && false!==strpos($integrity,"'file06-integrity-apply'") && false!==strpos($integrity,'return self::finish( $reservation, $object_permission )'),'R4 early integrity interceptor bypasses object-bound publish authorization');
 v2410_ok(false!==strpos($integrity,"entry_integrity_transaction_start_failed") && false!==strpos($integrity,"integrity-commit-failed") && false!==strpos($integrity,"entry_integrity_commit_failed"),'R5 entry integrity transaction start/commit failures are not fail-closed');
+v2410_ok(false!==strpos($v22,'$object_permission = HE_V2_Auth::rest_permission') && false!==strpos($v22,"'file06-research-integrity-apply'") && false!==strpos($v22,'return self::mutation_finish( $reservation, $object_permission, 200 )'),'R6 research integrity apply is authorized globally instead of against its research object');
 /*__V2410_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.10 eleventh-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.10 eleventh-review regressions: PASS\n";
