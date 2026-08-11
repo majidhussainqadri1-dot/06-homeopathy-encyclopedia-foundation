@@ -57,6 +57,10 @@ require_once HE_DIR . 'includes/class-he-v241-public-dto-guard.php';
 require_once HE_DIR . 'includes/class-he-v242-third-audit.php';
 require_once HE_DIR . 'includes/class-he-v242-runtime-corrections.php';
 require_once HE_DIR . 'includes/class-he-v242-multilingual.php';
+require_once HE_DIR . 'includes/class-he-v242-research-browse.php';
+require_once HE_DIR . 'includes/class-he-v242-research-authoring.php';
+require_once HE_DIR . 'includes/class-he-v242-language-surfaces.php';
+require_once HE_DIR . 'includes/class-he-v242-watchlist.php';
 
 function he_activate_future_runtime() {
 	wp_clear_scheduled_hook( HE_V23_Future::CRON );
@@ -72,7 +76,7 @@ register_deactivation_hook( HE_FILE, array( 'HE_V24_Future_Schema', 'deactivate'
 
 function he_contract_descriptor() {
 	$events = HE_V2_Integrations::published_events();
-	foreach ( array( 'ResearchPublicationCorrected.v1','File06IntegrityStateChanged.v1','EncyclopediaEntryScheduleInvalidated.v1','KnowledgeEvidenceChanged.v1','KnowledgeFreshnessDue.v1','KnowledgeTranslationOutdated.v1','KnowledgeTranslationUpdated.v1','File06EditorScopeChanged.v1','File06ReviewerAssigned.v1','File06ResearchReviewerAssigned.v1','ResearchStateFailClosed.v1','EncyclopediaDraftRolledBack.v1' ) as $event ) { $events[] = $event; }
+	foreach ( array( 'ResearchPublicationCorrected.v1','File06IntegrityStateChanged.v1','EncyclopediaEntryScheduleInvalidated.v1','KnowledgeEvidenceChanged.v1','KnowledgeFreshnessDue.v1','KnowledgeTranslationOutdated.v1','KnowledgeTranslationUpdated.v1','File06EditorScopeChanged.v1','File06ReviewerAssigned.v1','File06ResearchReviewerAssigned.v1','ResearchStateFailClosed.v1','EncyclopediaDraftRolledBack.v1','ResearchDraftRolledBack.v1' ) as $event ) { $events[] = $event; }
 	return array(
 		'owner'=>'file-06','contract_version'=>HE_CONTRACT_VERSION,'plugin_version'=>HE_VERSION,'schema_version'=>HE_SCHEMA_VERSION,'status'=>HE_V2_Schema::runtime_status(),
 		'identity_authority'=>'file-00','layout_owner'=>'file-20','visual_owner'=>'file-25','search_owner'=>'file-26','assurance_owner'=>'file-24','notification_owner'=>'file-19',
@@ -83,7 +87,7 @@ function he_contract_descriptor() {
 		'consumer_files'=>array('file-05','file-12','file-15','file-16','file-21','file-26'),'search_semantics'=>array('exact','phrase','token','alias','transliteration-alias','spelling-recovery','safe-autocomplete'),
 		'authorization'=>array('file00_claims_required'=>true,'native_object_scope_required'=>true,'editor_type_assignment_required'=>true,'reviewer_assignment_required'=>true,'research_reviewer_assignment_required'=>true,'integrity_object_scope_before_short_circuit'=>true,'admin_and_composer_scope_enforced'=>true,'successful_guards_continue_to_callback'=>true),
 		'migration'=>array('resumable'=>true,'quarantine'=>true,'batch_max'=>100,'verified_future_schema'=>true,'preflight_existing_rows'=>true,'bounded_postflight'=>true,'future_routes_fail_closed_until_ready'=>true),
-		'reliability'=>array('idempotency_required'=>true,'bounded_retry'=>true,'dead_letter'=>true,'consumer_acknowledgement'=>true,'outbox_reconciliation'=>true,'scheduled_publication_revalidation'=>true,'legacy_unverified_scheduler_disabled'=>true,'core_maintenance_serialized'=>true,'future_maintenance_serialized'=>true,'future_impact_queue'=>true,'human_review_for_external_metadata'=>true,'provider_response_bound'=>true,'research_post_state_parity'=>true,'pristine_composer_rollback'=>true),
+		'reliability'=>array('idempotency_required'=>true,'bounded_retry'=>true,'dead_letter'=>true,'consumer_acknowledgement'=>true,'outbox_reconciliation'=>true,'scheduled_publication_revalidation'=>true,'legacy_unverified_scheduler_disabled'=>true,'core_maintenance_serialized'=>true,'future_maintenance_serialized'=>true,'future_impact_queue'=>true,'human_review_for_external_metadata'=>true,'provider_response_bound'=>true,'research_post_state_parity'=>true,'pristine_composer_rollback'=>true,'research_pristine_composer_rollback'=>true),
 		'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'public_provenance_types'=>array('concept','claim')),
 		'privacy'=>array('editor_scope_export_erase'=>true,'reviewer_assignment_export_erase'=>true,'legal_hold_respected'=>true),
 		'integrity'=>array('research_apply_requires_accepted_state'=>true,'integrity_transition_object_bound'=>true,'replacement_object_validated'=>true,'reference_version_same_concept'=>true,'merge_reason_required'=>true),
@@ -105,7 +109,7 @@ function he_start_v2() {
 	$future_v24_ready = HE_V24_Migration_Safety::ready();
 	if ( $future_v24_ready ) { HE_V23_Future::hooks(); HE_V24_Future_Schema::hooks(); HE_V24_Future_API::hooks(); HE_V24_Future_Privacy::hooks(); HE_V24_Future_Review_Guard::hooks(); HE_V24_Public_Provenance::hooks(); }
 	else { wp_clear_scheduled_hook( HE_V23_Future::CRON ); wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON ); }
-	HE_V241_Governance::hooks(); HE_V241_Governance_Privacy::hooks(); HE_V241_Research_Governance::hooks(); HE_V241_Runtime_Guard::hooks(); HE_V241_Before_Callback_Normalizer::hooks(); HE_V241_Public_DTO_Guard::hooks(); HE_V242_Third_Audit::hooks(); HE_V242_Runtime_Corrections::hooks(); HE_V242_Multilingual::hooks();
+	HE_V241_Governance::hooks(); HE_V241_Governance_Privacy::hooks(); HE_V241_Research_Governance::hooks(); HE_V241_Runtime_Guard::hooks(); HE_V241_Before_Callback_Normalizer::hooks(); HE_V241_Public_DTO_Guard::hooks(); HE_V242_Third_Audit::hooks(); HE_V242_Runtime_Corrections::hooks(); HE_V242_Multilingual::hooks(); HE_V242_Research_Browse::hooks(); HE_V242_Research_Authoring::hooks(); HE_V242_Language_Surfaces::hooks(); HE_V242_Watchlist::hooks();
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) { $contracts=is_array($contracts)?$contracts:array(); $contracts['file-06']=he_contract_descriptor(); $contracts['file-06']['future_v24_ready']=(bool)$future_v24_ready; return $contracts; } );
 }
 add_action( 'plugins_loaded', 'he_start_v2', 35 );
