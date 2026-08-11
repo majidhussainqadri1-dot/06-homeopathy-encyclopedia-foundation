@@ -21,9 +21,10 @@ $has( $domain, 'bind_references_to_snapshot', 'snapshot reference binding exists
 $has( $domain, 'SET source_reference_id=%d,row_version=row_version+1', 'relations remap to cloned snapshot reference' );
 $has( $domain, 'AND version_id=%d ORDER BY id ASC', 'public references are exact-version bound' );
 
-$governance = $read( 'homeopathy-encyclopedia/includes/class-he-v241-governance.php' );
-$has( $governance, 'option_value=%s', 'maintenance stale lease uses compare-and-delete' );
-$has( $governance, 'maybe_serialize( $existing )', 'maintenance stale lease compares exact serialized owner' );
+$future_schema = $read( 'homeopathy-encyclopedia/includes/class-he-v24-future-schema.php' );
+$has( $future_schema, 'OPTION_MAINTENANCE_LEASE', 'Future maintenance lease remains explicitly owned' );
+$has( $future_schema, 'option_value=%s', 'Future maintenance stale lease uses compare-and-delete' );
+$has( $future_schema, 'maybe_serialize( $existing )', 'Future maintenance stale lease compares exact serialized owner' );
 
 $translation_guard = $read( 'homeopathy-encyclopedia/includes/class-he-v242-public-translation-guard.php' );
 $has( $translation_guard, "array( 'translations', 'items' )", 'public translation collections are both sanitized' );
@@ -35,7 +36,9 @@ $has( $language, "status='translation-outdated'", 'source-language changes inval
 $has( $language, 'KnowledgeTranslationOutdated.v1', 'source-language change queues translation impact' );
 
 $privacy = $read( 'homeopathy-encyclopedia/includes/class-he-v241-governance-privacy.php' );
-$has( $privacy, 'assigned_posts_page( 1 )', 'mutating erasure always consumes first remaining batch' );
+$has( $privacy, 'assigned_posts_after', 'privacy erasure progresses by immutable post ID' );
+$has( $privacy, 'erasure_cursor_option', 'privacy erasure persists per-user progress' );
+$not( $privacy, 'assigned_posts_page( 1 )', 'privacy erasure no longer stalls on unrelated first-batch rows' );
 
 $first_save = $read( 'homeopathy-encyclopedia/includes/class-he-v22-admin-first-save.php' );
 foreach ( array( 'he_v2_research_type', 'he_v2_data_class', 'he_v2_ethics_reference', 'he_v2_consent_verified', 'he_v2_case_anonymized', 'he_v2_dataset_metadata' ) as $field ) {

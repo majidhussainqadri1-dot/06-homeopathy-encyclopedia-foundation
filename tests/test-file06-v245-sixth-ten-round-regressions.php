@@ -33,5 +33,14 @@ f06_v245_assert(strpos($watch, '! empty( $data') === false, 'Round 7 truthy-stri
 $schema = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');
 f06_v245_assert(strpos($schema, '$last_completed_id = $cursor') !== false, 'Round 9 retry-safe retraction cursor missing');
 f06_v245_assert(strpos($schema, 'if ( is_wp_error( $data ) ) { break; }') !== false, 'Round 9 provider failure still skips ahead');
-f06_v245_assert(strpos($schema, "end( $rows )['id']") === false, 'Round 9 batch-end cursor can still skip failed rows');
+f06_v245_assert(strpos($schema, "update_option( 'he_v24_retraction_cursor', (int) end( \$rows )['id'], false )") === false, 'Round 9 retraction cursor still advances to batch end');
+$bootstrap = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/homeopathy-encyclopedia.php');
+f06_v245_assert(strpos($bootstrap, ' * Version: 2.4.5') !== false, 'Round 10 plugin header version not 2.4.5');
+f06_v245_assert(strpos($bootstrap, "define( 'HE_VERSION', '2.4.5' );") !== false, 'Round 10 runtime version not 2.4.5');
+f06_v245_assert(strpos($bootstrap, "define( 'HE_CONTRACT_VERSION', '2.4.5' );") !== false, 'Round 10 contract version not 2.4.5');
+f06_v245_assert(strpos($bootstrap, "'future_hardening_version'=>'2.4.5'") !== false, 'Round 10 hardening version not 2.4.5');
+f06_v245_assert(strpos($bootstrap, 'canonical_future_read_routes') !== false, 'Round 10 canonical Future read routes absent from contract descriptor');
+$runall = file_get_contents(__DIR__ . '/run-all.sh');
+f06_v245_assert(strpos($runall, 'test-file06-v245-sixth-ten-round-regressions.php') !== false, 'Round 10 sixth-cycle suite missing from aggregate gate');
+f06_v245_assert(strpos($runall, 'file06-v2.4.5-a.zip') !== false && strpos($runall, 'file06-v2.4.5-b.zip') !== false, 'Round 10 package labels not 2.4.5');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";

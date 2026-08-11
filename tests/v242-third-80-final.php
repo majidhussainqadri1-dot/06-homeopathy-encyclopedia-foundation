@@ -9,7 +9,7 @@ foreach(array(
 't242'=>'includes/class-he-v242-third-audit.php','rc242'=>'includes/class-he-v242-runtime-corrections.php','ml242'=>'includes/class-he-v242-multilingual.php','rb242'=>'includes/class-he-v242-research-browse.php','ra242'=>'includes/class-he-v242-research-authoring.php','ls242'=>'includes/class-he-v242-language-surfaces.php','wl242'=>'includes/class-he-v242-watchlist.php','ref242'=>'includes/class-he-v242-reference-graph.php','ri242'=>'includes/class-he-v242-research-immutability.php','pt242'=>'includes/class-he-v242-public-translation-guard.php','lm242'=>'includes/class-he-v242-language-migration.php','css'=>'assets/css/encyclopedia-v2.css','un'=>'uninstall.php') as $k=>$v){$F[$k]=file_get_contents($P.'/'.$v);}
 $F['wf']=file_get_contents($R.'/.github/workflows/file06-v2-complete.yml');$bad=array();$n=0;
 function H($k,$x){global $F;return false!==strpos($F[$k],$x);}function Q($round,$ok,$name){global $bad,$n;$n++;if(!$ok)$bad[]=sprintf('Round %02d — %s',$round,$name);}
-Q(1,H('b',"HE_VERSION', '2.4.4")&&H('b',"HE_CONTRACT_VERSION', '2.4.4"),'exact version/contract');
+Q(1,H('b',"HE_VERSION', '2.4.5")&&H('b',"HE_CONTRACT_VERSION', '2.4.5"),'exact version/contract');
 Q(2,H('b',"HE_SCHEMA_VERSION', 10"),'schema 10');
 Q(3,preg_match("/'staging_accepted'\s*=>\s*false/",$F['b'])&&preg_match("/'live_deployed'\s*=>\s*false/",$F['b'])&&preg_match("/'operational'\s*=>\s*false/",$F['b']),'release truth');
 Q(4,H('t242','repair_canonical_alias_language')&&H('lm242',"canonical_locale' => 'ur'"),'canonical language/alias');
@@ -62,7 +62,7 @@ Q(50,H('s','OPTION_SAFE_MODE')&&H('rc242','safe mode'),'safe mode');
 Q(51,H('op',"status='dead-letter'")&&H('b','outbox_reconciliation'),'dead-letter/outbox');
 Q(52,H('b',"'owner'=>'file-06'")&&H('d',"'file-06'"),'canonical ownership');
 Q(53,H('rt241','CORE_LEASE_OPTION')&&H('rt241','core_maintenance_serialized'),'core maintenance lease');
-Q(54,H('g241','LEASE_OPTION')&&H('g241','maintenance_serialized'),'Future maintenance lease');
+Q(54,H('f24s','OPTION_MAINTENANCE_LEASE')&&H('f24s','acquire_maintenance_lease')&&H('f24s','release_maintenance_lease'),'Future maintenance lease');
 Q(55,H('g','upgrade_lock')&&H('g','add_option'),'migration lock');
 Q(56,H('g','migration_quarantine'),'migration quarantine');
 Q(57,H('f24m','postflight')&&H('f24m','const BATCH = 100'),'bounded postflight');
@@ -89,4 +89,4 @@ Q(77,H('css','--he-primary:var(--sabri-color-primary')&&H('css','[dir="rtl"]'),'
 Q(78,H('wf','reproducible-package')&&H('wf','source-tree-hash.py')&&H('wf','wordpress-smoke'),'package + runtime smoke evidence');
 Q(79,is_file($R.'/docs/REVIEW-V242-ROUND-1.md'),'fresh review 1');
 Q(80,is_file($R.'/docs/REVIEW-V242-ROUND-2.md'),'fresh review 2');
-if($n!==80)$bad[]='matrix count '.$n;if($bad){fwrite(STDERR,"File 06 v2.4.4 inherited third-80 matrix FAILED:\n- ".implode("\n- ",$bad)."\n");exit(1);}echo "File 06 v2.4.4 inherited third fresh 80-round matrix passed (80/80).\n";
+if($n!==80)$bad[]='matrix count '.$n;if($bad){fwrite(STDERR,"File 06 v2.4.5 inherited third-80 matrix FAILED:\n- ".implode("\n- ",$bad)."\n");exit(1);}echo "File 06 v2.4.5 inherited third fresh 80-round matrix passed (80/80).\n";

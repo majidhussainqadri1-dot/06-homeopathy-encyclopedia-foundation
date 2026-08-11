@@ -4,7 +4,7 @@ Tags: encyclopedia, knowledge graph, research, homeopathy, evidence
 Requires at least: 6.1
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.4.4
+Stable tag: 2.4.5
 License: GPLv2 or later
 
 Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
@@ -13,13 +13,13 @@ Canonical, versioned and governed homeopathy encyclopedia, research registry and
 
 File 06 owns permanent canonical knowledge entries, the fixed sixteen-type taxonomy, aliases and transliterations, structured references and evidence grades, immutable published versions, corrections and retractions, duplicate merges and redirects, typed knowledge relations, the public research registry, successful-case governance, restricted dataset-access requests and versioned consumer contracts.
 
-Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities plus File 06 native object/state/type scope. The 2.4.4 candidate also requires explicit editor knowledge-type assignment and reviewer assignment for governed review decisions.
+Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities plus File 06 native object/state/type scope. The 2.4.5 candidate also requires explicit editor knowledge-type assignment and reviewer assignment for governed review decisions.
 
 == Principal controls ==
 
 * Stable UUID public IDs and canonical URLs; raw numeric database IDs are not a public API contract.
 * Sixteen governed knowledge types and controlled body systems.
-* English (US), Urdu and Arabic/RTL-ready data and presentation.
+* Dynamic source-language identity plus nine governed translation targets, with RTL support where applicable.
 * Structured sources: source type, author, edition, volume/page, URL/DOI, evidence grade, rights and quotation count.
 * Immutable published snapshots, historical-version viewing, diffs and supersession notices.
 * Correction, retraction, replacement, appeal and consumer-event records.
@@ -51,6 +51,9 @@ Public reading is available without an account where a record is published, inde
 Public DTOs are allowlisted. Drafts, rejected records, private research, dataset grants, conflicts, consent records and private notes are not public-index data. Published institutional knowledge and integrity history may be retained after account erasure in de-identified form under the governed retention/legal-hold rules.
 
 == Changelog ==
+
+= 2.4.5 =
+* Sixth ten-round corrective candidate: canonical UUID Future reads, stable/recoverable idempotency reservations, V24-owned serialized Future maintenance, CAS-safe core leases, progressive reviewer privacy erasure, normalized watchlist booleans, retry-safe retraction cursors, and exact release/QA truth alignment.
 
 = 2.4.4 =
 * Fifth fresh ten-round corrective candidate: fail-closed Future routes during migration, minimized public research DTOs, deterministic research save concurrency, canonical source-language ownership, research reviewer privacy lifecycle coverage, unconditional published-research admin immutability, and refreshed exact-head QA.

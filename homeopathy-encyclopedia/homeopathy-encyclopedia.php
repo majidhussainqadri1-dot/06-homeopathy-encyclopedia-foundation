@@ -3,7 +3,7 @@
  * Plugin Name: Homeopathy Encyclopedia Foundation
  * Plugin URI: https://www.sabrihomeopathy.com/
  * Description: Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
- * Version: 2.4.4
+ * Version: 2.4.5
  * Requires at least: 6.1
  * Requires PHP: 7.4
  * Author: Dr. Allama Majid Hussain Sabri
@@ -14,13 +14,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HE_VERSION', '2.4.4' );
+define( 'HE_VERSION', '2.4.5' );
 define( 'HE_SCHEMA_VERSION', 10 );
 define( 'HE_FILE', __FILE__ );
 define( 'HE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HE_URL', plugin_dir_url( __FILE__ ) );
 define( 'HE_BASENAME', plugin_basename( __FILE__ ) );
-define( 'HE_CONTRACT_VERSION', '2.4.4' );
+define( 'HE_CONTRACT_VERSION', '2.4.5' );
 
 require_once HE_DIR . 'includes/class-he-v2-auth.php';
 require_once HE_DIR . 'includes/class-he-v2-schema.php';
@@ -87,12 +87,12 @@ function he_contract_descriptor() {
 		'canonical_routes'=>array('/encyclopedia/','/encyclopedia/{type}/','/encyclopedia/entry/{canonical_slug}/','/research/','/research/{permanent_id}/','/knowledge/editor/'),
 		'queries'=>array('search_knowledge','get_entry','get_related_graph','browse_research','health','get_type_schemas','get_claim_graph','get_provenance','get_time_machine','get_freshness','get_research_gaps','get_integrity_command_center','get_governed_public_translations'),
 		'commands'=>array('create_entry_draft','assign_editor_type_scope','assign_entry_reviewer','assign_research_reviewer','submit_entry_review','publish_entry_version','merge_concepts','submit_research','submit_research_review','submit_integrity_action','transition_integrity_action','bounded_reindex','stage_external_metadata','review_external_metadata','scan_duplicate_candidates','queue_consumer_revalidation','save_governed_translation','review_governed_translation','publish_governed_translation','manage_watchlist','map_researcher_orcid'),
-		'events'=>array_values(array_unique($events)),'privacy_class'=>'mixed-public-restricted','fixed_type_count'=>count(HE_V22_Type_Schemas::schemas()),'future_requirement_count'=>18,'future_hardening_version'=>'2.4.4',
+		'events'=>array_values(array_unique($events)),'privacy_class'=>'mixed-public-restricted','fixed_type_count'=>count(HE_V22_Type_Schemas::schemas()),'future_requirement_count'=>18,'future_hardening_version'=>'2.4.5',
 		'consumer_files'=>array('file-05','file-12','file-15','file-16','file-21','file-26'),'search_semantics'=>array('exact','phrase','token','alias','transliteration-alias','spelling-recovery','safe-autocomplete'),
 		'authorization'=>array('file00_claims_required'=>true,'native_object_scope_required'=>true,'editor_type_assignment_required'=>true,'reviewer_assignment_required'=>true,'research_reviewer_assignment_required'=>true,'integrity_object_scope_before_short_circuit'=>true,'admin_and_composer_scope_enforced'=>true,'successful_guards_continue_to_callback'=>true),
 		'migration'=>array('resumable'=>true,'quarantine'=>true,'batch_max'=>100,'verified_future_schema'=>true,'preflight_existing_rows'=>true,'bounded_postflight'=>true,'future_routes_fail_closed_until_ready'=>true,'legacy_language_normalization_bounded'=>true),
 		'reliability'=>array('idempotency_required'=>true,'bounded_retry'=>true,'dead_letter'=>true,'consumer_acknowledgement'=>true,'outbox_reconciliation'=>true,'scheduled_publication_revalidation'=>true,'legacy_unverified_scheduler_disabled'=>true,'core_maintenance_serialized'=>true,'future_maintenance_serialized'=>true,'future_impact_queue'=>true,'human_review_for_external_metadata'=>true,'provider_response_bound'=>true,'research_post_state_parity'=>true,'pristine_composer_rollback'=>true,'research_pristine_composer_rollback'=>true),
-		'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim')),
+		'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','canonical_future_read_routes'=>array('/future/public/claims/{canonical_public_id}','/future/public/graph/{canonical_public_id}','/future/public/time-machine/{canonical_public_id}','/future/public/freshness/{canonical_public_id}','/future/public/citations/{canonical_public_id}/{format}'),'legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim')),
 		'privacy'=>array('editor_scope_export_erase'=>true,'reviewer_assignment_export_erase'=>true,'watchlists_private'=>true,'legal_hold_respected'=>true),
 		'integrity'=>array('research_apply_requires_accepted_state'=>true,'integrity_transition_object_bound'=>true,'replacement_object_validated'=>true,'reference_version_same_concept'=>true,'relationship_reference_required'=>true,'reference_rights_bounded'=>true,'merge_reason_required'=>true,'published_research_immutable'=>true),
 		'release_state'=>array('coded_candidate'=>true,'staging_accepted'=>false,'live_deployed'=>false,'operational'=>false),
