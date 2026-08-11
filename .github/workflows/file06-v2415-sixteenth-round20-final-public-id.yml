@@ -20,6 +20,7 @@ jobs:
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
+          php -l tests/v2415-round20-public-id-regressions.php >/dev/null
           python3 scripts/v2415-round20-final-public-id-fix.py
           php tests/v2415-round20-public-id-regressions.php
           V2415_ROUND=20 php tests/v2415-sixteenth-twenty-round-regressions.php
