@@ -358,12 +358,24 @@ final class HE_V2_API {
 
 	public function create_integrity( WP_REST_Request $request ) {
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
-		if ( ! $row ) {
-			return new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
-		}
-		$reservation = $this->require_mutation_guards( $request, 'integrity-' . $request['id'] );
+		if ( ! $row ) { return new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+		$reservation = $this->require_mutation_guards( $request, 'integrity-' . $row['public_id'] );
 		$data = (array) $request->get_json_params();
-		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::create_integrity_action( $row['id'], sanitize_key( $data['type'] ?? 'correction' ), $data['reason'] ?? '', $data['evidence'] ?? '', absint( $data['replacement_id'] ?? 0 ), get_current_user_id() );
+		$replacement_id = 0;
+		$replacement_identifier = trim( (string) ( $data['replacement_id'] ?? '' ) );
+		if ( '' !== $replacement_identifier ) {
+			if ( ctype_digit( $replacement_identifier ) ) {
+				$result = new WP_Error( 'he_canonical_public_id_required', __( 'Replacement entries must use a canonical public identifier or canonical slug.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+				return $this->mutation_response( $reservation, $result, 201 );
+			}
+			$replacement = HE_V2_Domain::concept_by_id( sanitize_text_field( $replacement_identifier ), true );
+			if ( ! $replacement ) {
+				$result = new WP_Error( 'he_replacement_not_found', __( 'Replacement entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+				return $this->mutation_response( $reservation, $result, 201 );
+			}
+			$replacement_id = (int) $replacement['id'];
+		}
+		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::create_integrity_action( $row['id'], sanitize_key( $data['type'] ?? 'correction' ), $data['reason'] ?? '', $data['evidence'] ?? '', $replacement_id, get_current_user_id() );
 		return $this->mutation_response( $reservation, $result, 201 );
 	}
 
