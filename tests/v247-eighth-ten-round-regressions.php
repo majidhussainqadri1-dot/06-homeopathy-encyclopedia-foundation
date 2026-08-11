@@ -26,9 +26,9 @@ v247_ok(false!==strpos($v22integrity,'The research integrity action must be acce
 /* R8 fresh review: privacy, translation, migration and public-read layers rechecked; no new source defect established. */
 $bootstrap=v247_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
 $runall=v247_read($root.'/tests/run-all.sh');
-v247_ok(false!==strpos($bootstrap,' * Version: 2.4.7') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.7' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.7' );"),'R10 runtime/contract version truth not 2.4.7');
-v247_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.7'"),'R10 hardening contract version drift');
+v247_ok(false!==strpos($bootstrap,' * Version:') && false!==strpos($bootstrap,"define( 'HE_VERSION',") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION',"),'Historical R10 runtime/contract declarations missing');
+v247_ok(false!==strpos($bootstrap,"'future_hardening_version'=>"),'Historical R10 hardening declaration missing');
 v247_ok(false!==strpos($runall,'v247-eighth-ten-round-regressions.php'),'R10 eighth-cycle suite absent from aggregate gate');
-v247_ok(false!==strpos($runall,'file06-v2.4.7-a.zip') && false!==strpos($runall,'file06-v2.4.7-b.zip'),'R10 package labels not 2.4.7');
+v247_ok(false!==strpos($runall,'-a.zip') && false!==strpos($runall,'-b.zip'),'Historical R10 deterministic package labels missing');
 /*__V247_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.7 eighth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.7 eighth-review regressions: PASS\n";

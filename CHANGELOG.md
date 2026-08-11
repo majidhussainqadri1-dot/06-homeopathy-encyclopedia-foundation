@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.8 — Ninth fresh ten-round corrective candidate
+
+- Completed ten sequential review → immediate-fix → regression rounds.
+- Defect rounds: 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10.
+- Rate-limit storage failures now fail closed instead of silently authorizing mutations.
+- Reclaimed idempotency reservations are fenced against stale-worker completion.
+- Outbox workers claim deliveries with recoverable CAS processing leases.
+- Event/audit and outbox pair persistence is atomic and fails closed on partial writes.
+- Outbox reconciliation and consumed-event recording are concurrency-safe.
+- Reindex cursors advance only after successful row persistence.
+- Background maintenance uses File00-backed File06 repair authority.
+- Front-end research archive/search queries are constrained by File06 domain publication state.
+- Runtime, current invariants, aggregate QA, deterministic package labels and release documentation are aligned to 2.4.8.
+- Staging/live/operational states remain unverified.
+
 ## 2.4.7 — Eighth fresh ten-round corrective candidate
 
 - Completed ten sequential review → fix → regression rounds.

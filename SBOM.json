@@ -1,14 +1,14 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "version": 5,
+  "version": 6,
   "metadata": {
     "timestamp": "2026-08-11T10:35:00Z",
     "component": {
       "type": "application",
       "name": "File 06 Homeopathy Encyclopedia",
-      "version": "2.4.7",
-      "purl": "pkg:wordpress/homeopathy-encyclopedia@2.4.7"
+      "version": "2.4.8",
+      "purl": "pkg:wordpress/homeopathy-encyclopedia@2.4.8"
     }
   },
   "components": [
@@ -32,15 +32,14 @@
     }
   ],
   "release": {
-    "file": "06-homeopathy-encyclopedia-foundation-2.4.7.zip",
+    "file": "06-homeopathy-encyclopedia-foundation-2.4.8.zip",
     "sha256": null,
     "bytes": null,
     "source_tree_sha256": null,
     "evidence_policy": "Exact values are emitted by the final exact-head workflow; not self-embedded in source.",
     "schema": 10,
     "future_schema": 2,
-    "contract": "2.4.7",
-    "eighth_review_rounds": 10,
+    "contract": "2.4.8",
     "defect_rounds": [
       1,
       2,
@@ -49,14 +48,14 @@
       5,
       6,
       7,
+      8,
       9,
       10
     ],
-    "clean_rounds": [
-      8
-    ],
+    "clean_rounds": [],
     "staging_accepted": false,
     "live_deployed": false,
-    "operational": false
+    "operational": false,
+    "ninth_review_rounds": 10
   }
 }

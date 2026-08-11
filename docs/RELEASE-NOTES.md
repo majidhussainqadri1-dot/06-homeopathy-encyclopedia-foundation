@@ -1,7 +1,7 @@
-# File 06 — Release Notes 2.4.7
+# File 06 — Release Notes 2.4.8
 
-Eighth fresh ten-round corrective repository candidate. Defects were found and corrected in rounds `1, 2, 3, 4, 5, 6, 7, 9, 10`; round `8` was clean.
+Ninth fresh ten-round corrective repository candidate. Defects were found and corrected in rounds `1–10`.
 
-Primary corrections cover reviewer-assignment binding, public research privacy, graph-merge provenance, snapshot-scoped search evidence, stale human-review concurrency, publishing-dashboard native scope, and research-integrity accepted-state CAS/versioning.
+Primary corrections cover mutation fail-closed reliability, idempotency fencing, outbox CAS delivery/reconciliation, event/outbox pair atomicity, retry-safe reindexing, File00-backed maintenance authorization, consumed-event concurrency safety, front-end research publication eligibility, and current release/QA truth.
 
 Final exact-head automated run number and package/source hashes must be taken from the completed final workflow. Staging and live remain separate evidence gates.
