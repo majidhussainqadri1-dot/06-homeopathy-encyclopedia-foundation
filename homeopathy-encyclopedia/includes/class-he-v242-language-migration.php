@@ -71,7 +71,8 @@ final class HE_V242_Language_Migration {
 			update_option( self::CONFLICTS, $conflicts, false );
 			$remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$translations} WHERE locale='ur-PK' OR source_locale='ur-PK'" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$remaining += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$concepts} WHERE language='ur-PK'" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			if ( 0 === $remaining && ! $conflicts ) {
+			if ( 0 === $remaining ) {
+				/* Actual database state is authoritative; stale conflict markers must not block completion after manual reconciliation. */
 				update_option( self::DONE, 1, false );
 				delete_option( self::CURSOR );
 				delete_option( self::CONFLICTS );
