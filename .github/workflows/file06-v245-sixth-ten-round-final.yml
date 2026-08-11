@@ -1,0 +1,144 @@
+name: File 06 v2.4.5 Sixth Ten-Round Final QA
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+permissions:
+  contents: read
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file"; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+
+  aggregate-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Run complete inherited and sixth ten-round aggregate gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'test-file06-v245-sixth-ten-round-regressions.php' tests/run-all.sh
+          bash tests/run-all.sh
+
+  reproducible-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build candidate twice and report exact digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.5-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.5-b.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
+          cmp -s "$a" "$b"
+          echo "PACKAGE_SHA256=$(sha256sum "$a" | awk '{print $1}')"
+          echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
+          echo "SOURCE_TREE_SHA256=$(python3 scripts/source-tree-hash.py homeopathy-encyclopedia | tail -n1 | tr -d '[:space:]')"
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          path=Path('/tmp/06-homeopathy-encyclopedia-foundation-2.4.5-a.zip')
+          with zipfile.ZipFile(path) as z:
+              names=z.namelist()
+              assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names)
+              bootstrap=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode('utf-8')
+              assert " * Version: 2.4.5" in bootstrap
+              assert "define( 'HE_VERSION', '2.4.5' )" in bootstrap
+              assert "define( 'HE_SCHEMA_VERSION', 10 )" in bootstrap
+              assert "define( 'HE_CONTRACT_VERSION', '2.4.5' )" in bootstrap
+              assert "'future_hardening_version'=>'2.4.5'" in bootstrap
+              assert 'canonical_future_read_routes' in bootstrap
+          PY
+
+  wordpress-smoke:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          extensions: mysqli
+          coverage: none
+      - name: Install WP-CLI
+        run: |
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          php /tmp/wp-cli.phar --info
+          chmod +x /tmp/wp-cli.phar
+          sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+      - name: WordPress 7.0.1 lifecycle smoke with strict runtime-log gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail_on_runtime_noise() {
+            local log="$1"
+            if grep -Eiq 'WordPress database error|PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' "$log"; then
+              echo 'File 06 emitted a database/runtime warning or error:' >&2
+              cat "$log" >&2
+              exit 1
+            fi
+          }
+          run_clean() {
+            local log
+            log="$(mktemp)"
+            "$@" >"$log" 2>&1
+            cat "$log"
+            fail_on_runtime_noise "$log"
+            rm -f "$log"
+          }
+
+          mkdir -p /tmp/wp
+          cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+
+          run_clean wp plugin activate homeopathy-encyclopedia
+          run_clean wp eval 'if ( HE_VERSION !== "2.4.5" || HE_SCHEMA_VERSION !== 10 || HE_CONTRACT_VERSION !== "2.4.5" ) { throw new Exception("File 06 runtime contract mismatch"); } echo "runtime-contract-ok\n";'
+          run_clean wp eval 'if ( HE_V24_Future_Schema::VERSION !== 2 || (int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2 ) { throw new Exception("future schema option/version mismatch"); } if (!HE_V24_Migration_Safety::ready()) { throw new Exception("future migration not ready after fresh activation"); } echo "future-migration-ready\n";'
+          run_clean wp eval 'global $wpdb; foreach(array("claims","claim_evidence","provenance","external_records","concept_mappings","similarity","researcher_ids","freshness","impact_queue","research_gaps","watchlists","translations") as $name){$t=HE_V24_Future_Schema::table($name); if($t!==$wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s",$t))){throw new Exception("missing future table ".$name);}} echo "future-schema-tables-ok\n";'
+          run_clean wp eval 'foreach(array("HE_V24_Migration_Safety","HE_V24_Future_API","HE_V241_Governance","HE_V242_Reference_Graph","HE_V242_Research_Immutability") as $c){if(!class_exists($c)){throw new Exception("missing ".$c);}} if(method_exists("HE_V241_Governance","maintenance_serialized")){throw new Exception("obsolete V241 Future maintenance owner remains");} if(!method_exists("HE_V24_Future_Schema","maintenance")){throw new Exception("V24 Future maintenance owner missing");} if(!wp_next_scheduled(HE_V24_Future_Schema::CRON)){throw new Exception("V24 Future maintenance schedule missing");} echo "v245-runtime-ownership-ok\n";'
+
+          run_clean wp plugin deactivate homeopathy-encyclopedia
+          run_clean wp plugin activate homeopathy-encyclopedia
+          run_clean wp eval 'if ((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10){throw new Exception("schema option mismatch");} if ((int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2){throw new Exception("future schema option mismatch after reactivation");} if (!HE_V24_Migration_Safety::ready()){throw new Exception("future migration not ready after reactivation");} echo "reactivation-ok\n";'
