@@ -10,6 +10,7 @@ final class HE_V243_Fifth_Audit {
 		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'reconcile_research_case_topic' ), 190, 2 );
 		add_filter( 'wp_privacy_personal_data_exporters', array( __CLASS__, 'privacy_exporters' ), 30 );
 		add_filter( 'wp_privacy_personal_data_erasers', array( __CLASS__, 'privacy_erasers' ), 30 );
+		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'guard_research_creation' ), 349, 3 );
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'guard_dataset_access_target' ), 350, 3 );
 	}
 
@@ -58,6 +59,38 @@ final class HE_V243_Fifth_Audit {
 		} else {
 			wp_remove_object_terms( $post_id, array( 'کامیاب کیس' ), HE_V2_Domain::TAX_TOPIC );
 		}
+	}
+
+	public static function guard_research_creation( $response, $handler, $request ) {
+		if ( null !== $response || ! $request instanceof WP_REST_Request || 'POST' !== $request->get_method() ) {
+			return $response;
+		}
+		if ( '/' . HE_V2_API::NS . '/research' !== $request->get_route() ) {
+			return $response;
+		}
+		$data = (array) $request->get_json_params();
+		$type = sanitize_key( $data['record_type'] ?? 'proposal' );
+		if ( ! in_array( $type, array( 'proposal','protocol','publication','successful-case','dataset' ), true ) ) {
+			return new WP_Error( 'he_invalid_research_type', __( 'Invalid research record type.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		}
+		$data_class = sanitize_key( $data['data_class'] ?? 'restricted' );
+		if ( ! in_array( $data_class, array( 'public','restricted','highly-restricted' ), true ) ) {
+			return new WP_Error( 'he_invalid_data_class', __( 'Research data class is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		}
+		if ( 'dataset' === $type && 'public' === $data_class ) {
+			return new WP_Error( 'he_dataset_private_by_default', __( 'Dataset records must remain restricted or highly restricted; only approved metadata is public.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		}
+		if ( 'successful-case' === $type ) {
+			foreach ( array( 'baseline','intervention','follow_up','adverse_events','limitations' ) as $field ) {
+				if ( '' === trim( (string) ( $data[ $field ] ?? '' ) ) ) {
+					return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require complete baseline, intervention, follow-up, adverse-events and limitations fields.', 'homeopathy-encyclopedia' ), array( 'status' => 422, 'field' => $field ) );
+				}
+			}
+			if ( empty( $data['consent_verified'] ) || empty( $data['anonymized'] ) ) {
+				return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require verified consent and anonymization.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			}
+		}
+		return $response;
 	}
 
 	public static function guard_dataset_access_target( $response, $handler, $request ) {
