@@ -4,14 +4,20 @@ defined( 'ABSPATH' ) || exit;
 
 final class HE_V243_Fifth_Audit {
 	const PRIVACY_PAGE_SIZE = 50;
+	private static $maintenance_reindex_cursor = null;
 
 	public static function hooks() {
 		add_filter( 'wp_insert_post_data', array( __CLASS__, 'normalize_research_admin_input' ), 4, 2 );
 		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'reconcile_research_case_topic' ), 190, 2 );
+		add_action( 'save_post_' . HE_V2_Domain::ENTRY_TYPE, array( __CLASS__, 'repair_search_grade_by_post' ), 250, 3 );
 		add_filter( 'wp_privacy_personal_data_exporters', array( __CLASS__, 'privacy_exporters' ), 30 );
 		add_filter( 'wp_privacy_personal_data_erasers', array( __CLASS__, 'privacy_erasers' ), 30 );
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'guard_research_creation' ), 349, 3 );
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'guard_dataset_access_target' ), 350, 3 );
+		add_filter( 'rest_request_after_callbacks', array( __CLASS__, 'repair_search_grade_after_rest' ), 900, 3 );
+		add_filter( 'sabri_search_connectors', array( __CLASS__, 'harden_search_connector' ), 1200 );
+		add_action( 'he_v2_maintenance', array( __CLASS__, 'capture_maintenance_reindex_cursor' ), 89 );
+		add_action( 'he_v2_maintenance', array( __CLASS__, 'repair_maintenance_reindex_grades' ), 95 );
 	}
 
 	public static function normalize_research_admin_input( $data, $postarr ) {
@@ -111,6 +117,104 @@ final class HE_V243_Fifth_Audit {
 			return new WP_Error( 'he_dataset_not_found', __( 'Dataset metadata could not be found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 		return $response;
+	}
+
+	private static function evidence_rank( $grade ) {
+		$map = array(
+			'systematic-review' => 8, 'controlled-study' => 7, 'observational-study' => 6, 'classical-primary' => 5,
+			'classical-secondary' => 4, 'clinical-observation' => 3, 'expert-consensus' => 2, 'ungraded' => 1,
+		);
+		return $map[ sanitize_key( $grade ) ] ?? 0;
+	}
+
+	public static function repair_concept_search_grade( $concept_id ) {
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT id,current_version FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id=%d', absint( $concept_id ) ), ARRAY_A );
+		if ( ! $row || ! (int) $row['current_version'] ) {
+			return false;
+		}
+		$grades = $wpdb->get_col( $wpdb->prepare(
+			'SELECT evidence_grade FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND version_id=%d',
+			(int) $row['id'], (int) $row['current_version']
+		) );
+		$best_grade = 'ungraded';
+		$best_rank = 0;
+		foreach ( $grades as $grade ) {
+			$rank = self::evidence_rank( $grade );
+			if ( $rank > $best_rank ) {
+				$best_rank = $rank;
+				$best_grade = sanitize_key( $grade );
+			}
+		}
+		return false !== $wpdb->update( HE_V2_Schema::table( 'search_index' ), array( 'source_grade' => $best_grade ), array( 'concept_id' => (int) $row['id'] ), array( '%s' ), array( '%d' ) );
+	}
+
+	public static function repair_search_grade_by_post( $post_id, $post, $update ) {
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+		global $wpdb;
+		$concept_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $post_id ) ) );
+		if ( $concept_id ) {
+			self::repair_concept_search_grade( $concept_id );
+		}
+	}
+
+	public static function repair_search_grade_after_rest( $response, $handler, $request ) {
+		if ( is_wp_error( $response ) || ! $request instanceof WP_REST_Request || 'GET' === $request->get_method() ) {
+			return $response;
+		}
+		$route = $request->get_route();
+		$prefix = '/' . HE_V2_API::NS;
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/entries/([^/]+)/(?:references|transition)$#', $route, $match ) ) {
+			$concept = HE_V2_Domain::concept_by_id( $match[1], true );
+			if ( $concept ) {
+				self::repair_concept_search_grade( (int) $concept['id'] );
+			}
+		}
+		return $response;
+	}
+
+	public static function harden_search_connector( $connectors ) {
+		$connectors = is_array( $connectors ) ? $connectors : array();
+		if ( isset( $connectors['file-06'] ) && is_array( $connectors['file-06'] ) ) {
+			$connectors['file-06']['rebuild'] = array( __CLASS__, 'secure_rebuild' );
+			$connectors['file-06']['current_version_evidence_only'] = true;
+		}
+		return $connectors;
+	}
+
+	public static function secure_rebuild( $cursor = 0, $limit = 50 ) {
+		$cursor = absint( $cursor );
+		$limit = min( 100, max( 1, absint( $limit ) ) );
+		global $wpdb;
+		$ids = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id>%d ORDER BY id ASC LIMIT %d', $cursor, $limit ) );
+		$result = HE_V22_Governance::reindex_batch( $cursor, $limit );
+		foreach ( $ids as $id ) {
+			self::repair_concept_search_grade( (int) $id );
+		}
+		return $result;
+	}
+
+	public static function capture_maintenance_reindex_cursor() {
+		self::$maintenance_reindex_cursor = ( get_option( HE_V22_Governance::REINDEX_REQUIRED ) || get_option( HE_V22_Governance::REINDEX_CURSOR ) )
+			? absint( get_option( HE_V22_Governance::REINDEX_CURSOR, 0 ) )
+			: null;
+	}
+
+	public static function repair_maintenance_reindex_grades() {
+		if ( null === self::$maintenance_reindex_cursor ) {
+			return;
+		}
+		global $wpdb;
+		$ids = $wpdb->get_col( $wpdb->prepare(
+			'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id>%d ORDER BY id ASC LIMIT %d',
+			absint( self::$maintenance_reindex_cursor ), HE_V22_Governance::BATCH_SIZE
+		) );
+		foreach ( $ids as $id ) {
+			self::repair_concept_search_grade( (int) $id );
+		}
+		self::$maintenance_reindex_cursor = null;
 	}
 
 	public static function privacy_exporters( $exporters ) {
