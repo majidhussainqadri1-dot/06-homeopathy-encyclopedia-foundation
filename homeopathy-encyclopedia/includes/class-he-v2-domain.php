@@ -961,47 +961,17 @@ final class HE_V2_Domain {
 	}
 
 	public static function merge_concepts( $source_id, $target_id, $expected_source_version, $expected_target_version, $actor_id, $reason ) {
-		global $wpdb;
-		$source = self::concept_by_id( $source_id, true );
-		$target = self::concept_by_id( $target_id, true );
-		if ( ! $source || ! $target || (int) $source['id'] === (int) $target['id'] ) {
-			return new WP_Error( 'he_invalid_merge', __( 'A valid source and target concept are required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
+		if ( ! class_exists( 'HE_V22_Governance' ) ) {
+			return new WP_Error( 'he_merge_failed', __( 'Governed merge service is unavailable.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
 		}
-		if ( (int) $source['row_version'] !== absint( $expected_source_version ) || (int) $target['row_version'] !== absint( $expected_target_version ) ) {
-			return new WP_Error( 'he_version_conflict', __( 'One of the concepts changed before the merge.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-		}
-		$wpdb->query( 'START TRANSACTION' );
-		try {
-			$aliases = $wpdb->get_results( $wpdb->prepare( 'SELECT alias,language,alias_type FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d', $source['id'] ), ARRAY_A );
-			foreach ( $aliases as $alias ) {
-				$result = self::add_alias( $target['id'], $alias['alias'], $alias['language'], 'redirect', false, $actor_id );
-				if ( is_wp_error( $result ) && 'he_alias_collision' !== $result->get_error_code() ) {
-					throw new RuntimeException( $result->get_error_message() );
-				}
-			}
-			$edges = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'relations' ) . ' WHERE source_concept_id=%d OR target_concept_id=%d', $source['id'], $source['id'] ), ARRAY_A );
-			foreach ( $edges as $edge ) {
-				$new_source = (int) $edge['source_concept_id'] === (int) $source['id'] ? (int) $target['id'] : (int) $edge['source_concept_id'];
-				$new_target = (int) $edge['target_concept_id'] === (int) $source['id'] ? (int) $target['id'] : (int) $edge['target_concept_id'];
-				if ( $new_source !== $new_target ) {
-					$relation_result = self::add_relation( $new_source, $new_target, $edge['relation_type'], $edge['source_reference_id'], $actor_id );
-					if ( is_wp_error( $relation_result ) ) { throw new RuntimeException( $relation_result->get_error_message() ); }
-				}
-				$wpdb->delete( HE_V2_Schema::table( 'relations' ), array( 'id' => (int) $edge['id'] ), array( '%d' ) );
-			}
-			$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . " SET status='archived',merged_into_id=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $target['id'], $source['id'], $expected_source_version ) );
-			if ( 1 !== (int) $updated ) {
-				throw new RuntimeException( 'Merge concurrency conflict.' );
-			}
-			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => $source['id'] ), array( '%d' ) );
-			$wpdb->query( 'COMMIT' );
-			self::emit_event( 'KnowledgeConceptMerged.v1', 'concept', $target['id'], array( 'source_id' => $source['public_id'], 'target_id' => $target['public_id'], 'reason' => sanitize_textarea_field( $reason ) ) );
-			self::reindex_concept( $target['id'] );
-			return self::concept_by_id( $target['id'], true );
-		} catch ( Throwable $error ) {
-			$wpdb->query( 'ROLLBACK' );
-			return new WP_Error( 'he_merge_failed', __( 'The concepts could not be merged safely.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-		}
+		return HE_V22_Governance::secure_merge( array(
+			'source_id' => $source_id,
+			'target_id' => $target_id,
+			'source_version' => absint( $expected_source_version ),
+			'target_version' => absint( $expected_target_version ),
+			'actor_id' => absint( $actor_id ),
+			'reason' => sanitize_textarea_field( $reason ),
+		) );
 	}
 
 	public static function sanitize_text_list( $value ) {
