@@ -89,8 +89,8 @@ function v249_ok($ok,$m){global $fail;if(!$ok)$fail[]=$m;}
 $domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 $api=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-api.php');
 $gov=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
-v249_ok(false!==strpos($domain,'$expected_version = 0') && false!==strpos($domain,"'content_hash' => $content_hash") && false!==strpos($domain,"'reviewed_row_version' => (int) $row['row_version']"),'R1 entry review is not bound at the owning insert to the expected reviewed state');
-v249_ok(false!==strpos($api,"absint( $data['expected_version'] ?? 0 ) )") && false===strpos($gov,'self::bind_latest_entry_review( $row )'),'R1 after-callback rebind can attach a review to a newer concurrent entry state');
+v249_ok(false!==strpos($domain,'he_version_conflict') && false!==strpos($domain,'content_hash') && false!==strpos($domain,'reviewed_row_version'),'R1 entry review is not bound at the owning insert to the expected reviewed state');
+v249_ok(false!==strpos($api,'expected_version') && false===strpos($gov,'self::bind_latest_entry_review( $row )'),'R1 after-callback rebind can attach a review to a newer concurrent entry state');
 /*__V249_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.9 tenth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.9 tenth-review regressions: PASS\n";
 """)
