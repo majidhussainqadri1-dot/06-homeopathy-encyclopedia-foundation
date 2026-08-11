@@ -115,7 +115,13 @@ final class HE_V242_Language_Surfaces {
 		if ( self::$normalizing || '_he_language' !== $meta_key || HE_V2_Domain::ENTRY_TYPE !== get_post_type( $object_id ) ) { return; }
 		$canonical = HE_V242_Multilingual::canonical_locale( $meta_value );
 		if ( ! $canonical ) {
-			HE_V2_Schema::record_runtime_failure( 'invalid_source_language', 'An invalid source-language code was rejected during metadata normalization.' );
+			global $wpdb;
+			$current = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT language FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $object_id ) ) );
+			self::$normalizing = true;
+			if ( HE_V242_Multilingual::canonical_locale( $current ) ) { update_post_meta( $object_id, '_he_language', $current ); }
+			else { delete_post_meta( $object_id, '_he_language' ); }
+			self::$normalizing = false;
+			HE_V2_Schema::record_runtime_failure( 'invalid_source_language', 'An invalid source-language code was rejected and the canonical concept language was restored.' );
 			return;
 		}
 		if ( $canonical !== (string) $meta_value ) {
