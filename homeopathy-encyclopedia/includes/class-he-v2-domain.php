@@ -1613,21 +1613,11 @@ final class HE_V2_Domain {
 	}
 
 	public static function publish_due() {
-		global $wpdb;
-		$table = HE_V2_Schema::table( 'concepts' );
-		$rows = $wpdb->get_results( "SELECT c.* FROM {$table} c INNER JOIN {$wpdb->postmeta} pm ON pm.post_id=c.post_id AND pm.meta_key='_he_scheduled_at' WHERE c.status='scheduled' AND pm.meta_value<=UTC_TIMESTAMP() ORDER BY c.id ASC LIMIT 50", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		foreach ( $rows as $row ) {
-			$version_id = self::snapshot_version( $row['id'], 'Scheduled publication', 'published', 0 );
-			if ( ! $version_id ) { continue; }
-			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='published',review_status='approved',safety_status='approved',current_version=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='scheduled'", $version_id, $row['id'] ) );
-			if ( 1 === (int) $updated ) {
-				wp_update_post( array( 'ID' => (int) $row['post_id'], 'post_status' => 'publish' ) );
-				delete_post_meta( (int) $row['post_id'], '_he_scheduled_at' );
-				self::reindex_concept( $row['id'] );
-				self::emit_event( 'EncyclopediaEntryPublished.v1', 'concept', $row['id'], array( 'version_id' => $version_id, 'scheduled' => true ) );
-			}
+		if ( ! class_exists( 'HE_V22_Schedule' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'secure_schedule_owner_unavailable', 'The governed scheduled-publication owner is unavailable; publication was not attempted.' );
+			return 0;
 		}
-		return count( $rows );
+		return HE_V22_Schedule::publish_due_securely();
 	}
 
 	public static function reindex_concept_by_post( $post_id ) {
@@ -1811,7 +1801,6 @@ final class HE_V2_Domain {
 		global $wpdb;
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . HE_V2_Schema::table( 'idempotency' ) . ' WHERE expires_at<%s LIMIT 1000', current_time( 'mysql', true ) ) );
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . HE_V2_Schema::table( 'rate_limits' ) . ' WHERE expires_at<%s LIMIT 1000', current_time( 'mysql', true ) ) );
-		self::publish_due();
 		$wpdb->query( $wpdb->prepare( "UPDATE " . HE_V2_Schema::table( 'dataset_access' ) . " SET status='expired',updated_at=%s WHERE status='approved' AND expires_at IS NOT NULL AND expires_at<%s", current_time( 'mysql', true ), current_time( 'mysql', true ) ) );
 		HE_V2_Integrations::process_outbox( 50 );
 	}
