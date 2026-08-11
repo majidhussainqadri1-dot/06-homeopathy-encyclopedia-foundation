@@ -1,0 +1,61 @@
+name: File 06 v2.4.15 Hard-Delete Filter Diagnostic
+on:
+  push:
+    branches: [audit/file-06-sixteenth-twenty-round-v2.4.15]
+    paths: [.github/workflows/file06-v2415-hard-delete-filter-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -h localhost -proot" --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', extensions: mysqli,mbstring, coverage: none}
+      - name: Install WordPress and plugin
+        run: |
+          set -euo pipefail
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar && sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+          mkdir -p /tmp/wp && cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 Diagnostic' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+      - name: Inspect filter stack and manual callback
+        working-directory: /tmp/wp
+        run: |
+          set -euo pipefail
+          wp eval '
+          global $wp_filter,$wpdb;
+          wp_set_current_user(1);
+          echo "has-domain-filter=".wp_json_encode(has_filter("pre_delete_post",array("HE_V2_Domain","pre_delete_post")))."\n";
+          $callbacks=array();
+          if(isset($wp_filter["pre_delete_post"])){foreach($wp_filter["pre_delete_post"]->callbacks as $priority=>$items){foreach($items as $item){$fn=$item["function"]??null;$name=is_array($fn)?((is_object($fn[0])?get_class($fn[0]):$fn[0])."::".$fn[1]):(is_string($fn)?$fn:(is_object($fn)?get_class($fn):gettype($fn)));$callbacks[]=array("priority"=>$priority,"name"=>$name,"accepted_args"=>$item["accepted_args"]??null);}}}
+          echo "callbacks=".wp_json_encode($callbacks)."\n";
+          $id=wp_insert_post(array("post_type"=>HE_V2_Domain::ENTRY_TYPE,"post_status"=>"draft","post_title"=>"Filter Diagnostic","post_author"=>1),true);
+          if(is_wp_error($id)){echo "insert-error=".$id->get_error_message()."\n";return;}
+          $c=HE_V2_Domain::concept_by_post_id($id);echo "created=".wp_json_encode(array("post"=>$id,"concept"=>$c))."\n";
+          $post=get_post($id);
+          $manual=HE_V2_Domain::pre_delete_post(null,$post,true);
+          echo "manual-return=".wp_json_encode($manual)."\n";
+          $after=HE_V2_Domain::concept_by_post_id($id);echo "after-manual=".wp_json_encode($after)."\n";
+          echo "after-manual-safe=".wp_json_encode(get_option(HE_V2_Schema::OPTION_SAFE_MODE,0))."\n";
+          echo "after-manual-failure=".wp_json_encode(get_option(HE_V2_Schema::OPTION_FAILURE,array()))."\n";
+          $filtered=apply_filters("pre_delete_post",null,$post,true);
+          echo "apply-filters-return=".wp_json_encode($filtered)."\n";
+          echo "after-filter=".wp_json_encode(HE_V2_Domain::concept_by_post_id($id))."\n";
+          echo "after-filter-safe=".wp_json_encode(get_option(HE_V2_Schema::OPTION_SAFE_MODE,0))."\n";
+          echo "after-filter-failure=".wp_json_encode(get_option(HE_V2_Schema::OPTION_FAILURE,array()))."\n";
+          '
