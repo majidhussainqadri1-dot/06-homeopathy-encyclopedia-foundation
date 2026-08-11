@@ -1,0 +1,29 @@
+name: File 06 v2.4.9 Tenth Ten-Round Continuous QA
+on:
+  push:
+    branches:
+      - audit/file-06-tenth-ten-round-v2.4.9
+permissions:
+  contents: read
+jobs:
+  corrective-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: PHP syntax and aggregate regression gate
+        run: |
+          set -euo pipefail
+          find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/tmp/php-lint.log
+          cat /tmp/php-lint.log
+          bash tests/run-all.sh 2>&1 | tee /tmp/file06-aggregate.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/file06-aggregate.log; then
+            exit 1
+          fi
+          git diff --check
