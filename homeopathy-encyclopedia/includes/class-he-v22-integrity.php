@@ -104,7 +104,10 @@ final class HE_V22_Integrity {
 		$expected = absint( $data['expected_version'] ?? 0 );
 		$actions = HE_V2_Schema::table( 'integrity_actions' );
 		$concepts = HE_V2_Schema::table( 'concepts' );
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'entry_integrity_transaction_start_failed', 'File 06 could not start the entry-integrity apply transaction.' );
+			return self::finish( $reservation, new WP_Error( 'he_integrity_apply_failed', __( 'The accepted integrity action could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
+		}
 		try {
 			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$actions} WHERE id=%d FOR UPDATE", absint( $action_id ) ), ARRAY_A );
 			if ( ! $action || 'concept' !== $action['object_type'] || 'accepted' !== $action['status'] || (int) $action['row_version'] !== $expected ) {
@@ -140,15 +143,22 @@ final class HE_V22_Integrity {
 			if ( 1 !== (int) $concept_updated || 1 !== (int) $action_updated ) {
 				throw new RuntimeException( 'version-conflict' );
 			}
-			$wpdb->query( 'COMMIT' );
+			if ( false === $wpdb->query( 'COMMIT' ) ) {
+				throw new RuntimeException( 'integrity-commit-failed' );
+			}
 			HE_V22_Governance::reindex_concept_secure( (int) $concept['id'] );
 			$event = 'retraction' === $action['action_type'] ? 'EncyclopediaEntryRetracted.v1' : 'EncyclopediaEntryCorrected.v1';
 			HE_V2_Domain::emit_event( $event, 'concept', (int) $concept['id'], array( 'integrity_action' => $action['public_id'], 'reason' => $action['reason'], 'replacement_id' => (int) $action['replacement_object_id'], 'version_id' => $version_id ) );
 			return self::finish( $reservation, array( 'applied' => true, 'action_id' => $action['public_id'], 'concept_id' => $concept['public_id'], 'version_id' => $version_id, 'record_status' => 'retraction' === $action['action_type'] ? 'retracted' : 'published' ) );
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
-			$code = 'unsupported-action' === $error->getMessage() ? 'he_integrity_action_unsupported' : 'he_integrity_apply_conflict';
-			$status = 'unsupported-action' === $error->getMessage() ? 422 : 409;
+			$message = $error->getMessage();
+			if ( 'integrity-commit-failed' === $message ) {
+				HE_V2_Schema::record_runtime_failure( 'entry_integrity_commit_failed', 'File 06 could not confirm the entry-integrity transaction commit.' );
+				return self::finish( $reservation, new WP_Error( 'he_integrity_apply_failed', __( 'The integrity outcome could not be confirmed safely. Reload the current state before retrying.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
+			}
+			$code = 'unsupported-action' === $message ? 'he_integrity_action_unsupported' : 'he_integrity_apply_conflict';
+			$status = 'unsupported-action' === $message ? 422 : 409;
 			return self::finish( $reservation, new WP_Error( $code, __( 'The accepted integrity action could not be applied safely to the current record.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) ) );
 		}
 	}
