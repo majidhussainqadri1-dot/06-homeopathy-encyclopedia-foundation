@@ -930,7 +930,13 @@ final class HE_V2_Domain {
 		if ( ! $action ) {
 			return new WP_Error( 'he_not_found', __( 'Integrity action not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
-		$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status IN ('submitted','triaged','under_review','accepted')", absint( $actor_id ), $action['id'], absint( $expected_version ) ) );
+		if ( 'accepted' !== $action['status'] ) {
+			return new WP_Error( 'he_integrity_not_accepted', __( 'Only an accepted integrity action may be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+		}
+		if ( ! in_array( $action['action_type'], array( 'correction', 'retraction' ), true ) ) {
+			return new WP_Error( 'he_integrity_apply_unsupported', __( 'Merge and appeal actions must use their dedicated governed workflows.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+		}
+		$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", absint( $actor_id ), $action['id'], absint( $expected_version ) ) );
 		if ( 1 !== (int) $result ) {
 			return new WP_Error( 'he_version_conflict', __( 'The integrity record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
