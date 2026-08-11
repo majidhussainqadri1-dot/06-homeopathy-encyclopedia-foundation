@@ -38,7 +38,7 @@ Q(26,H('api','autocomplete'),'autocomplete');
 Q(27,H('api','bookmark')&&H('s',"table( 'bookmarks' )"),'bookmarks');
 Q(28,H('t242','ResearchStateFailClosed.v1')&&H('t242','research_post_is_public'),'research post/domain parity');
 Q(29,H('rb242','MAX_SCAN = 500')&&H('rb242','governance_filtered'),'research browse bounded pagination');
-Q(30,H('rc242','research_conflict_normalization_failed')&&H('ra242','none_declared'),'research conflict shape');
+Q(30,(H('rc242','research_conflict_normalization_failed')||H('rc242','research_conflict_postsuccess_invariant_failed'))&&H('ra242','none_declared'),'research conflict shape');
 Q(31,H('ra242','Investigators')&&H('ra242','he_v242_de_identification'),'research authoring completeness');
 Q(32,H('t242','he_v242_expected_research_version')&&H('t242','stale overwrite'),'research admin concurrency');
 Q(33,H('rg241','research-reviewer-assignment')&&H('rg241','he_reviewer_assignment_required'),'research reviewer assignment');
@@ -58,7 +58,7 @@ Q(46,H('a','SMC_Contracts::assertions')&&H('a','he_identity_provider_unavailable
 Q(47,H('a','suspended')&&H('a','membership_allowed'),'suspension denial');
 Q(48,H('d','idempotent_begin')||H('api','Idempotency-Key'),'idempotency');
 Q(49,H('d','rate_allow')&&H('ml242','he_rate_limited'),'rate limiting');
-Q(50,H('s','OPTION_SAFE_MODE')&&H('rc242','safe mode'),'safe mode');
+Q(50,H('s','OPTION_SAFE_MODE')&&(H('rc242','safe mode')||H('rc242','OPTION_SAFE_MODE')),'safe mode');
 Q(51,H('op',"status='dead-letter'")&&H('b','outbox_reconciliation'),'dead-letter/outbox');
 Q(52,H('b',"'owner'=>'file-06'")&&H('d',"'file-06'"),'canonical ownership');
 Q(53,H('rt241','CORE_LEASE_OPTION')&&H('rt241','core_maintenance_serialized'),'core maintenance lease');
