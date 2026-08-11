@@ -44,7 +44,7 @@ def append_test(block):
 
 def round1():
     rel='homeopathy-encyclopedia/includes/class-he-v2-domain.php'
-    new=r'''\tpublic static function rate_allow( $key, $limit, $window_seconds ) {
+    new='''\tpublic static function rate_allow( $key, $limit, $window_seconds ) {
 \t\tglobal $wpdb;
 \t\t$table = HE_V2_Schema::table( 'rate_limits' );
 \t\t$key = hash( 'sha256', (string) $key );
@@ -63,13 +63,13 @@ def round1():
 \t\treturn (int) $count <= max( 1, absint( $limit ) );
 \t}'''
     replace_block(rel, '\tpublic static function rate_allow(', '\tpublic static function publish_due(', new)
-    append_test(r'''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+    append_test('''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v248_ok(false!==strpos($domain,"rate_limit_write_failed") && false!==strpos($domain,"rate_limit_read_failed"),'R1 rate limiter does not fail closed on DB write/read failure');''')
 
 def round2():
     rel='homeopathy-encyclopedia/includes/class-he-v2-domain.php'
     replace_once(rel, "\tconst TAX_TOPIC = 'he_topic';\n", "\tconst TAX_TOPIC = 'he_topic';\n\tprivate static $idempotency_leases = array();\n")
-    new=r'''\tpublic static function idempotent_begin( $actor_id, $operation, $key, $request_body ) {
+    new='''\tpublic static function idempotent_begin( $actor_id, $operation, $key, $request_body ) {
 \t\tglobal $wpdb;
 \t\t$key = sanitize_text_field( $key );
 \t\tif ( ! $key || strlen( $key ) < 8 || strlen( $key ) > 128 ) {
@@ -127,12 +127,12 @@ def round2():
 \t\treturn 1 === (int) $updated;
 \t}'''
     replace_block(rel, '\tpublic static function idempotent_begin(', '\tpublic static function maintenance(', new)
-    append_test(r'''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+    append_test('''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v248_ok(false!==strpos($domain,'private static $idempotency_leases') && false!==strpos($domain,"AND response_code=0 AND created_at=%s") && false!==strpos($domain,"self::$idempotency_leases[ (int) $row['id'] ] = $now"),'R2 reclaimed idempotency reservations are not fenced against stale-worker completion');''')
 
 def round3():
     rel='homeopathy-encyclopedia/includes/class-he-v2-integrations.php'
-    new=r'''\tpublic static function process_outbox( $limit = 50 ) {
+    new='''\tpublic static function process_outbox( $limit = 50 ) {
 \t\tglobal $wpdb;
 \t\t$limit = min( 100, max( 1, absint( $limit ) ) );
 \t\t$table = HE_V2_Schema::table( 'outbox' );
@@ -163,12 +163,12 @@ def round3():
     b=s.rfind('\n}')
     if b<a: raise SystemExit('class end missing')
     write(rel,s[:a]+new+'\n'+s[b:])
-    append_test(r'''$integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
+    append_test('''$integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
 v248_ok(false!==strpos($integrations,"status='processing'") && false!==strpos($integrations,"stale-processing-recovered") && false!==strpos($integrations,"AND status=%s AND attempts=%d"),'R3 outbox delivery lacks a CAS processing lease and stale-worker recovery');''')
 
 def round4():
     rel='homeopathy-encyclopedia/includes/class-he-v2-domain.php'
-    new=r'''\tpublic static function emit_event( $name, $object_type, $object_id, $payload ) {
+    new='''\tpublic static function emit_event( $name, $object_type, $object_id, $payload ) {
 \t\tglobal $wpdb;
 \t\t$event_id = wp_generate_uuid4();
 \t\t$trace_id = self::trace_id();
@@ -198,12 +198,12 @@ def round4():
 \t\treturn array( 'event_id' => $event_id, 'trace_id' => $trace_id );
 \t}'''
     replace_block(rel,'\tpublic static function emit_event(','\tprivate static function canonicalize_idempotency_value(',new)
-    append_test(r'''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+    append_test('''$domain=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v248_ok(false!==strpos($domain,'SELECT @@session.in_transaction') && false!==strpos($domain,'event_outbox_atomic_write_failed') && false!==strpos($domain,"ROLLBACK") && false!==strpos($domain,"COMMIT"),'R4 event/outbox pair is not persisted atomically');''')
 
 def round5():
     rel='homeopathy-encyclopedia/includes/class-he-v22-governance.php'
-    new=r'''\tpublic static function reconcile_outbox( $limit = self::BATCH_SIZE ) {
+    new='''\tpublic static function reconcile_outbox( $limit = self::BATCH_SIZE ) {
 \t\tglobal $wpdb;
 \t\t$limit = min( 100, max( 1, absint( $limit ) ) );
 \t\t$sql = 'SELECT e.event_id,e.event_name,e.payload_json,e.created_at FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL ORDER BY e.id ASC LIMIT %d';
@@ -225,12 +225,12 @@ def round5():
 \t\treturn array( 'recreated' => $created, 'checked' => count( $rows ) );
 \t}'''
     replace_block(rel,'\tpublic static function reconcile_outbox(','\tpublic static function maintenance(',new)
-    append_test(r'''$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+    append_test('''$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v248_ok(false!==strpos($v22,'INSERT IGNORE INTO {$table}') && false!==strpos($v22,'outbox_reconciliation_write_failed'),'R5 outbox reconciliation still has a check-then-insert duplicate race');''')
 
 def round6():
     rel='homeopathy-encyclopedia/includes/class-he-v22-governance.php'
-    new1=r'''\tpublic static function reindex_concept_secure( $concept_id ) {
+    new1='''\tpublic static function reindex_concept_secure( $concept_id ) {
 \t\tglobal $wpdb;
 \t\t$row = HE_V2_Domain::concept_by_id( absint( $concept_id ), true );
 \t\tif ( ! $row || ! HE_V2_Domain::is_public_concept( $row ) || ! $row['current_version'] ) {
@@ -254,7 +254,7 @@ def round6():
 \t\t);
 \t\treturn false !== $wpdb->replace( HE_V2_Schema::table( 'search_index' ), $data );
 \t}'''
-    new2=r'''\tpublic static function reindex_batch( $cursor = 0, $limit = self::BATCH_SIZE ) {
+    new2='''\tpublic static function reindex_batch( $cursor = 0, $limit = self::BATCH_SIZE ) {
 \t\tglobal $wpdb;
 \t\t$limit = min( 100, max( 1, absint( $limit ) ) );
 \t\t$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id>%d ORDER BY id ASC LIMIT %d', absint( $cursor ), $limit ) );
@@ -277,7 +277,7 @@ def round6():
 \t}'''
     replace_block(rel,'\tpublic static function reindex_concept_secure(','\tpublic static function reindex_batch(',new1)
     replace_block(rel,'\tpublic static function reindex_batch(','\tpublic static function migrate_legacy_batch(',new2)
-    append_test(r'''$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+    append_test('''$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v248_ok(false!==strpos($v22,'failed_concept_id') && false!==strpos($v22,'reindex_row_failed') && false!==strpos($v22,'update_option( self::REINDEX_CURSOR, $last, false )'),'R6 reindex cursor can advance past an index persistence failure');''')
 
 def round7():
@@ -285,12 +285,12 @@ def round7():
     old="""\tpublic static function resume_background_work() {\n\t\tif ( current_user_can( 'activate_plugins' ) ) {\n\t\t\tself::maintenance();\n\t\t}\n\t}\n"""
     new="""\tpublic static function resume_background_work() {\n\t\tif ( HE_V2_Auth::provider_ready() && HE_V2_Auth::can( HE_V2_Auth::CAP_REPAIR, 0, 'file06-background-maintenance' ) ) {\n\t\t\tself::maintenance();\n\t\t}\n\t}\n"""
     replace_once(rel,old,new)
-    append_test(r'''$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+    append_test('''$v22=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v248_ok(false===strpos($v22,"if ( current_user_can( 'activate_plugins' ) )") && false!==strpos($v22,"HE_V2_Auth::can( HE_V2_Auth::CAP_REPAIR, 0, 'file06-background-maintenance' )"),'R7 admin-init maintenance bypasses File00-backed File06 repair authorization');''')
 
 def round8():
     rel='homeopathy-encyclopedia/includes/class-he-v2-integrations.php'
-    new=r'''\tprivate function record_consumed_event( $name, $payload, $event_id ) {
+    new='''\tprivate function record_consumed_event( $name, $payload, $event_id ) {
 \t\tglobal $wpdb;
 \t\t$event_id = $event_id && preg_match( '/^[a-f0-9-]{16,64}$/i', $event_id ) ? $event_id : wp_generate_uuid4();
 \t\t$table = HE_V2_Schema::table( 'events' );
@@ -303,13 +303,13 @@ def round8():
 \t\t}
 \t}'''
     replace_block(rel,'\tprivate function record_consumed_event(','\tpublic function forward_local_event(',new)
-    append_test(r'''$integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
+    append_test('''$integrations=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-integrations.php');
 v248_ok(false!==strpos($integrations,'INSERT IGNORE INTO {$table}') && false!==strpos($integrations,'consumed_event_write_failed') && false===strpos($integrations,"SELECT id FROM ' . HE_V2_Schema::table( 'events' ) . ' WHERE event_id=%s"),'R8 consumed-event idempotency still uses a check-then-insert race');''')
 
 def round9():
     rel='homeopathy-encyclopedia/includes/class-he-v22-public-guard.php'
     replace_once(rel,"\t\tadd_filter( 'get_the_excerpt', array( __CLASS__, 'research_excerpt' ), 98, 2 );\n","\t\tadd_filter( 'get_the_excerpt', array( __CLASS__, 'research_excerpt' ), 98, 2 );\n\t\tadd_filter( 'posts_where', array( __CLASS__, 'research_public_query_where' ), 99, 2 );\n")
-    insert=r'''\tpublic static function research_public_query_where( $where, $query ) {
+    insert='''\tpublic static function research_public_query_where( $where, $query ) {
 \t\tif ( is_admin() || ! $query instanceof WP_Query || ! $query->is_main_query() ) { return $where; }
 \t\tglobal $wpdb;
 \t\t$research = HE_V2_Schema::table( 'research' );
@@ -327,7 +327,7 @@ def round9():
     s=s.replace("\t\tif ( ! $post_id || HE_V2_Domain::RESEARCH_TYPE !== get_post_type( $post_id ) || ! is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {\n", "\t\tif ( ! $post_id || HE_V2_Domain::RESEARCH_TYPE !== get_post_type( $post_id ) ) {\n",1)
     s=s.replace("\t\tif ( ! $post || HE_V2_Domain::RESEARCH_TYPE !== $post->post_type || ! is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {\n", "\t\tif ( ! $post || HE_V2_Domain::RESEARCH_TYPE !== $post->post_type ) {\n",1)
     write(rel,s)
-    append_test(r'''$guard=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');
+    append_test('''$guard=v248_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');
 v248_ok(false!==strpos($guard,'research_public_query_where') && false!==strpos($guard,'he_public_research.status IN') && false===strpos($guard,"get_post_type( $post_id ) || ! is_singular") && false===strpos($guard,"$post->post_type || ! is_singular"),'R9 WordPress archive/search paths can expose non-public domain research or stale WP title/excerpt metadata');''')
 
 def main():

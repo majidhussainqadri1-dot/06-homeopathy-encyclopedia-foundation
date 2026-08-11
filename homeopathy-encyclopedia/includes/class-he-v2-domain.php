@@ -1272,9 +1272,17 @@ final class HE_V2_Domain {
 		$key = hash( 'sha256', (string) $key );
 		$now = current_time( 'mysql', true );
 		$expiry = gmdate( 'Y-m-d H:i:s', time() + max( 1, absint( $window_seconds ) ) );
-		$wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (rate_key,window_start,hit_count,expires_at) VALUES (%s,%s,1,%s) ON DUPLICATE KEY UPDATE hit_count=IF(expires_at<=UTC_TIMESTAMP(),1,hit_count+1),window_start=IF(expires_at<=UTC_TIMESTAMP(),VALUES(window_start),window_start),expires_at=IF(expires_at<=UTC_TIMESTAMP(),VALUES(expires_at),expires_at)", $key, $now, $expiry ) );
-		$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT hit_count FROM {$table} WHERE rate_key=%s", $key ) );
-		return $count <= max( 1, absint( $limit ) );
+		$write = $wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (rate_key,window_start,hit_count,expires_at) VALUES (%s,%s,1,%s) ON DUPLICATE KEY UPDATE hit_count=IF(expires_at<=UTC_TIMESTAMP(),1,hit_count+1),window_start=IF(expires_at<=UTC_TIMESTAMP(),VALUES(window_start),window_start),expires_at=IF(expires_at<=UTC_TIMESTAMP(),VALUES(expires_at),expires_at)", $key, $now, $expiry ) );
+		if ( false === $write ) {
+			HE_V2_Schema::record_runtime_failure( 'rate_limit_write_failed', 'The File 06 rate-limit counter could not be persisted; protected mutations are failing closed.' );
+			return false;
+		}
+		$count = $wpdb->get_var( $wpdb->prepare( "SELECT hit_count FROM {$table} WHERE rate_key=%s", $key ) );
+		if ( null === $count || '' !== (string) $wpdb->last_error ) {
+			HE_V2_Schema::record_runtime_failure( 'rate_limit_read_failed', 'The File 06 rate-limit counter could not be verified; protected mutations are failing closed.' );
+			return false;
+		}
+		return (int) $count <= max( 1, absint( $limit ) );
 	}
 
 	public static function publish_due() {
