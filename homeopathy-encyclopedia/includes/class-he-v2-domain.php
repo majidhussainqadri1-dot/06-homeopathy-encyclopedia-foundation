@@ -9,6 +9,7 @@ final class HE_V2_Domain {
 	const TAX_SYSTEM = 'he_body_system';
 	const TAX_TOPIC = 'he_topic';
 	private static $idempotency_leases = array();
+	private static $merge_resolution_stack = array();
 
 	public static function register() {
 		add_action( 'init', array( __CLASS__, 'register_types' ), 5 );
@@ -348,7 +349,17 @@ final class HE_V2_Domain {
 			return null;
 		}
 		if ( ! empty( $row['merged_into_id'] ) ) {
-			return self::concept_by_id( (int) $row['merged_into_id'], $include_private );
+			$current_id = (int) $row['id'];
+			if ( isset( self::$merge_resolution_stack[ $current_id ] ) || count( self::$merge_resolution_stack ) >= 32 ) {
+				HE_V2_Schema::record_runtime_failure( 'concept_merge_cycle_detected', 'File 06 stopped canonical resolution because a merge cycle or excessive merge chain was detected.' );
+				return null;
+			}
+			self::$merge_resolution_stack[ $current_id ] = true;
+			try {
+				return self::concept_by_id( (int) $row['merged_into_id'], $include_private );
+			} finally {
+				unset( self::$merge_resolution_stack[ $current_id ] );
+			}
 		}
 		if ( ! $include_private && ! self::is_public_concept( $row ) ) {
 			return null;
