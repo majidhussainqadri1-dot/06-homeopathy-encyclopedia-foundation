@@ -12,3 +12,4 @@ Repository-only corrective record. Staging/live/operational status is not establ
 8. **DEFECT** — An existing same-concept synonym caused add_alias() to return success without promoting/updating a requested canonical primary alias. Same-concept canonical promotion is now persisted and other primary flags are cleared.
 9. **DEFECT** — Public search paginated canonical/index rows without authoritative WordPress publish-state filtering, causing stale/short pages. The query now joins the live published entry post state before pagination.
 10. **DEFECT** — The default/public research DTO could expose successful-case payloads for restricted records and returned entire dataset metadata blobs. Public output is now data-class-aware with an explicit dataset metadata allowlist.
+11. **DEFECT** — Review validation and review submission dereferenced a missing authoritative WordPress entry and could fatal instead of fail closed. Both now return explicit unavailable-state errors.

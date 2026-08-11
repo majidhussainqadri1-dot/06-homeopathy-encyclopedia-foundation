@@ -727,6 +727,7 @@ final class HE_V2_Domain {
 			return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 		$post = get_post( (int) $row['post_id'] );
+		if ( ! $post || self::ENTRY_TYPE !== $post->post_type ) { return new WP_Error( 'he_entry_post_missing', __( 'The authoritative WordPress entry object is unavailable.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); }
 		$fields = get_post_meta( $post->ID, '_he_structured', true );
 		$fields = is_array( $fields ) ? $fields : array();
 		$errors = array();
@@ -852,6 +853,7 @@ final class HE_V2_Domain {
 			return new WP_Error( 'he_version_conflict', __( 'The entry changed before the review could be stored. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
 		$post = get_post( (int) $row['post_id'] );
+		if ( ! $post || self::ENTRY_TYPE !== $post->post_type ) { return new WP_Error( 'he_entry_post_missing', __( 'The authoritative WordPress entry object is unavailable.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); }
 		if ( (int) $post->post_author === absint( $reviewer_id ) ) {
 			return new WP_Error( 'he_self_review_forbidden', __( 'An author cannot independently approve their own entry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
