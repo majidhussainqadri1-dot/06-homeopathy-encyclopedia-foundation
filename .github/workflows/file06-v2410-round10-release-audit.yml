@@ -1,0 +1,23 @@
+name: File 06 v2.4.10 Round 10 Release Truth Audit
+on:
+  push:
+    branches: [audit/file-06-eleventh-ten-round-v2.4.10]
+    paths: [.github/workflows/file06-v2410-round10-release-audit.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Locate stale v2.4.9 current-candidate truth
+        run: |
+          set -euo pipefail
+          echo '=== runtime/readme/runall ==='
+          grep -n -F '2.4.9' homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests/run-all.sh || true
+          echo '=== current docs ==='
+          grep -n -F '2.4.9' README.md STATUS.md CHANGELOG.md SBOM.md docs/*.md 2>/dev/null || true
+          echo '=== current tests ==='
+          grep -R -n --include='*.php' --include='*.sh' -F '2.4.9' tests | tail -n 220 || true
+          echo '=== eleventh suite aggregate wiring ==='
+          grep -n -F 'v2410-eleventh-ten-round-regressions.php' tests/run-all.sh || true
