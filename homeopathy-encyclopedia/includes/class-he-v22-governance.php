@@ -852,10 +852,35 @@ final class HE_V22_Governance {
 			$dto['protocol'] = 'public' === $row['data_class'] ? $row['protocol'] : '';
 		}
 		if ( 'successful-case' === $row['record_type'] ) {
-			$dto['case'] = json_decode( (string) $row['case_json'], true );
+			$case = json_decode( (string) $row['case_json'], true );
+			$case = is_array( $case ) ? $case : array();
+			if ( $private ) {
+				$dto['case'] = $case;
+			} else {
+				$case_public = 'public' === $row['data_class']
+					&& in_array( $row['status'], array( 'published', 'corrected' ), true )
+					&& ! empty( $row['case_anonymized'] )
+					&& ! empty( $row['case_consent_verified'] );
+				if ( $case_public ) {
+					$dto['case'] = $case;
+				} else {
+					$dto['case_details_restricted'] = true;
+				}
+			}
 		}
 		if ( 'dataset' === $row['record_type'] ) {
-			$dto['dataset_metadata'] = json_decode( (string) $row['metadata_json'], true );
+			$metadata = json_decode( (string) $row['metadata_json'], true );
+			$metadata = is_array( $metadata ) ? $metadata : array();
+			if ( $private ) {
+				$dto['dataset_metadata'] = $metadata;
+			} else {
+				$public_metadata = array();
+				foreach ( array( 'description', 'de_identification', 'lawful_basis', 'access_policy' ) as $key ) {
+					if ( isset( $metadata[ $key ] ) ) { $public_metadata[ $key ] = $metadata[ $key ]; }
+				}
+				$dto['dataset_metadata'] = $public_metadata;
+				$dto['dataset_payload_public'] = false;
+			}
 		}
 		if ( $private ) {
 			$dto['protocol'] = $row['protocol'];
