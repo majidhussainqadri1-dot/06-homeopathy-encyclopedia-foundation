@@ -19,6 +19,9 @@ v246_ok(substr_count($domain,"'show_in_rest' => false,")>=5,'R4 controlled REST 
 $public_guard=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');
 v246_ok(false!==strpos($public_guard,"'public' === \$row['data_class']") && false!==strpos($public_guard,"case_anonymized") && false!==strpos($public_guard,"case_consent_verified"),'R5 successful-case public governance gate incomplete');
 v246_ok(false===strpos($public_guard,"'successful-case' === \$row['record_type'] ? json_decode"),'R5 unconditional successful-case rendering remains');
+$public_guard=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');
+v246_ok(false!==strpos($public_guard,"Research record unavailable"),'R6 non-public research title still leaks');
+v246_ok(false!==strpos($public_guard,"if ( ! self::is_public_row( \$row ) )") && false!==strpos($public_guard,"['noarchive'] = true"),'R6 non-public research robots fail-closed gate missing');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("

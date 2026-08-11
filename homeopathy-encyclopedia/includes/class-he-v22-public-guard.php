@@ -26,7 +26,7 @@ final class HE_V22_Public_Guard {
 			return $title;
 		}
 		$row = self::row_for_post( $post_id );
-		return self::is_public_row( $row ) ? (string) $row['title'] : $title;
+		return self::is_public_row( $row ) ? (string) $row['title'] : __( 'Research record unavailable', 'homeopathy-encyclopedia' );
 	}
 
 	public static function research_excerpt( $excerpt, $post = null ) {
@@ -35,7 +35,7 @@ final class HE_V22_Public_Guard {
 			return $excerpt;
 		}
 		$row = self::row_for_post( $post->ID );
-		return self::is_public_row( $row ) ? (string) $row['question'] : $excerpt;
+		return self::is_public_row( $row ) ? (string) $row['question'] : '';
 	}
 
 	public static function research_content( $content ) {
@@ -84,7 +84,13 @@ final class HE_V22_Public_Guard {
 		if ( is_singular( HE_V2_Domain::RESEARCH_TYPE ) ) {
 			global $post;
 			$row = $post ? self::row_for_post( $post->ID ) : null;
-			if ( $row && in_array( $row['status'], array( 'published', 'corrected' ), true ) ) {
+			if ( ! self::is_public_row( $row ) ) {
+				$robots['noindex'] = true;
+				$robots['nofollow'] = true;
+				$robots['noarchive'] = true;
+				return $robots;
+			}
+			if ( in_array( $row['status'], array( 'published', 'corrected' ), true ) ) {
 				unset( $robots['noindex'], $robots['nofollow'] );
 			}
 			if ( $row && 'retracted' === $row['status'] ) {
