@@ -1277,37 +1277,22 @@ final class HE_V2_Domain {
 	public static function research_dto( $research_id, $private = false ) {
 		global $wpdb;
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $research_id ) ), ARRAY_A );
-		if ( ! $row ) {
-			return null;
-		}
+		if ( ! $row ) { return null; }
 		if ( ! $private ) {
 			$post = ! empty( $row['post_id'] ) ? get_post( (int) $row['post_id'] ) : null;
 			if ( ! class_exists( 'HE_V22_Research_Guard' ) || ! HE_V22_Research_Guard::public_surface_eligible( $row ) || ! $post || self::RESEARCH_TYPE !== $post->post_type || 'publish' !== $post->post_status ) { return null; }
 		}
+		$metadata = json_decode( (string) $row['metadata_json'], true ); $metadata = is_array( $metadata ) ? $metadata : array();
+		$public_metadata = array_intersect_key( $metadata, array_flip( array( 'description','de_identification','lawful_basis','access_policy' ) ) );
+		$case = null;
+		if ( 'successful-case' === $row['record_type'] && 'retracted' !== $row['status'] && ( $private || 'public' === $row['data_class'] ) ) { $case = json_decode( (string) $row['case_json'], true ); }
 		$dto = array(
-			'id' => $row['public_id'],
-			'record_type' => $row['record_type'],
-			'status' => $row['status'],
-			'title' => $row['title'],
-			'question' => $row['question'],
-			'protocol' => $row['protocol'],
-			'case_tag' => $row['case_tag'],
-			'case' => 'successful-case' === $row['record_type'] && 'retracted' !== $row['status'] ? json_decode( $row['case_json'], true ) : null,
-			'dataset_metadata' => 'dataset' === $row['record_type'] ? json_decode( $row['metadata_json'], true ) : null,
-			'canonical_url' => $row['post_id'] ? get_permalink( (int) $row['post_id'] ) : '',
-			'updated_at' => $row['updated_at'],
+			'id' => $row['public_id'], 'record_type' => $row['record_type'], 'status' => $row['status'], 'title' => $row['title'], 'question' => $row['question'],
+			'protocol' => ( $private || ( 'public' === $row['data_class'] && 'retracted' !== $row['status'] ) ) ? $row['protocol'] : '', 'case_tag' => $row['case_tag'], 'case' => $case,
+			'dataset_metadata' => 'dataset' === $row['record_type'] ? ( $private ? $metadata : $public_metadata ) : null,
+			'canonical_url' => home_url( '/research/' . rawurlencode( $row['public_id'] ) . '/' ), 'updated_at' => $row['updated_at'],
 		);
-		if ( ! $private && ( 'public' !== $row['data_class'] || 'retracted' === $row['status'] ) ) {
-			$dto['protocol'] = '';
-		}
-		if ( $private ) {
-			$dto['investigators'] = json_decode( $row['investigators_json'], true );
-			$dto['ethics'] = json_decode( $row['ethics_json'], true );
-			$dto['consent'] = json_decode( $row['consent_json'], true );
-			$dto['conflicts'] = json_decode( $row['conflicts_json'], true );
-			$dto['data_class'] = $row['data_class'];
-			$dto['row_version'] = (int) $row['row_version'];
-		}
+		if ( $private ) { $dto['investigators'] = json_decode( $row['investigators_json'], true ); $dto['ethics'] = json_decode( $row['ethics_json'], true ); $dto['consent'] = json_decode( $row['consent_json'], true ); $dto['conflicts'] = json_decode( $row['conflicts_json'], true ); $dto['data_class'] = $row['data_class']; $dto['row_version'] = (int) $row['row_version']; }
 		return $dto;
 	}
 
