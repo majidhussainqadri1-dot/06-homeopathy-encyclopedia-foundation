@@ -21,6 +21,8 @@ $domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.ph
 v249_ok(false!==strpos($domain,'entry_publish_atomic_failed') && false!==strpos($domain,'wordpress-publish-failed') && false!==strpos($domain,'publish-finalize-conflict'),'R5 entry publish transition can expose published state when snapshot or WordPress publication fails');
 $domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v249_ok(false!==strpos($domain,'snapshot_reference_binding_failed') && false!==strpos($domain,'$relation_rewrites') && false!==strpos($domain,'$draft_ids'),'R6 snapshot publication can silently accept partial reference/provenance binding failure');
+$schedule=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-schedule.php');
+v249_ok(false!==strpos($schedule,'scheduled_publish_atomic_failed') && false!==strpos($schedule,'scheduled-wordpress-publish-failed') && false!==strpos($schedule,'FOR UPDATE'),'R7 scheduled publication can leave published domain state or orphan snapshots when WordPress/CAS publication fails');
 /*__V249_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.9 tenth-review regressions FAILED:
 - ".implode("

@@ -101,16 +101,33 @@ final class HE_V22_Schedule {
 				$invalidated++;
 				continue;
 			}
-			$version_id = HE_V2_Domain::snapshot_version( (int) $row['id'], 'Scheduled publication', 'published', absint( get_post_meta( (int) $row['post_id'], '_he_schedule_actor', true ) ) );
-			if ( ! $version_id ) {
+			if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+				HE_V2_Schema::record_runtime_failure( 'scheduled_publish_transaction_start_failed', 'File 06 could not start the scheduled publication transaction.' );
 				continue;
 			}
-			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='published',review_status='approved',safety_status='approved',current_version=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='scheduled' AND row_version=%d", $version_id, (int) $row['id'], (int) $row['row_version'] ) );
-			if ( 1 !== (int) $updated ) {
-				/* Snapshot is immutable but not current; keeping it is safer than publishing a stale row. */
+			try {
+				$locked = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d FOR UPDATE", (int) $row['id'] ), ARRAY_A );
+				if ( ! $locked || 'scheduled' !== $locked['status'] || (int) $locked['row_version'] !== (int) $row['row_version'] ) {
+					throw new RuntimeException( 'scheduled-row-changed' );
+				}
+				$locked_fingerprint = self::fingerprint( $locked );
+				if ( ! $locked_fingerprint || ! hash_equals( $fingerprint, $locked_fingerprint ) || ! self::approved_for_current_content( $locked, $locked_fingerprint ) ) {
+					throw new RuntimeException( 'scheduled-approval-changed' );
+				}
+				$validation = HE_V2_Domain::validate_for_review( (int) $locked['id'] );
+				if ( is_wp_error( $validation ) ) { throw new RuntimeException( 'scheduled-validation-failed' ); }
+				$version_id = HE_V2_Domain::snapshot_version( (int) $locked['id'], 'Scheduled publication', 'published', absint( get_post_meta( (int) $locked['post_id'], '_he_schedule_actor', true ) ) );
+				if ( ! $version_id ) { throw new RuntimeException( 'scheduled-snapshot-failed' ); }
+				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='published',review_status='approved',safety_status='approved',current_version=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='scheduled' AND row_version=%d", $version_id, (int) $locked['id'], (int) $locked['row_version'] ) );
+				if ( 1 !== (int) $updated ) { throw new RuntimeException( 'scheduled-version-conflict' ); }
+				$post_result = wp_update_post( array( 'ID' => (int) $locked['post_id'], 'post_status' => 'publish' ), true );
+				if ( is_wp_error( $post_result ) || ! $post_result ) { throw new RuntimeException( 'scheduled-wordpress-publish-failed' ); }
+				if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'scheduled-commit-failed' ); }
+			} catch ( Throwable $error ) {
+				$wpdb->query( 'ROLLBACK' );
+				HE_V2_Schema::record_runtime_failure( 'scheduled_publish_atomic_failed', 'File 06 rolled back a scheduled publication because current approval, snapshot, domain state, WordPress publication, or commit could not complete atomically.' );
 				continue;
 			}
-			wp_update_post( array( 'ID' => (int) $row['post_id'], 'post_status' => 'publish' ) );
 			self::clear_schedule_meta( (int) $row['post_id'] );
 			HE_V22_Governance::reindex_concept_secure( (int) $row['id'] );
 			HE_V2_Domain::emit_event( 'EncyclopediaEntryPublished.v1', 'concept', (int) $row['id'], array( 'version_id' => $version_id, 'scheduled' => true, 'content_hash' => $fingerprint ) );
