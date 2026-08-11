@@ -5,6 +5,7 @@ defined( 'ABSPATH' ) || exit;
 final class HE_V2_Admin {
 	public function hooks() {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
+		add_filter( 'wp_insert_post_data', array( $this, 'guard_entry_admin_write' ), 3, 2 );
 		add_action( 'add_meta_boxes', array( $this, 'meta_boxes' ) );
 		add_action( 'save_post_' . HE_V2_Domain::ENTRY_TYPE, array( $this, 'save_entry_meta' ), 20, 2 );
 		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( $this, 'save_research_meta' ), 20, 2 );
@@ -85,6 +86,18 @@ final class HE_V2_Admin {
 		?><div class="he-v2 he-v2__admin-grid"><?php foreach ( $labels as $key => $label ) : ?><label class="he-v2__admin-full"><span><?php echo esc_html( $label ); ?></span><textarea name="he_v2_fields[<?php echo esc_attr( $key ); ?>]" rows="4"><?php echo esc_textarea( $fields[ $key ] ?? '' ); ?></textarea></label><?php endforeach; ?></div><?php
 	}
 
+	public function guard_entry_admin_write( $data, $postarr ) {
+		if ( ! is_admin() || HE_V2_Domain::ENTRY_TYPE !== ( $data['post_type'] ?? '' ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) ) { return $data; }
+		$post_id = absint( $postarr['ID'] ?? ( $_POST['post_ID'] ?? 0 ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( ! $post_id || wp_is_post_revision( $post_id ) || ! isset( $_POST['he_v2_nonce'] ) ) { return $data; } // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['he_v2_nonce'] ) ), 'he_v2_save_entry' ) ) { return $data; } // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$row = HE_V2_Domain::concept_by_post_id( $post_id );
+		if ( ! $row ) { return $data; }
+		$expected = isset( $_POST['he_v2_expected_version'] ) ? absint( $_POST['he_v2_expected_version'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( ! $expected || $expected !== (int) $row['row_version'] ) { wp_die( esc_html__( 'This encyclopedia entry changed after the editor form was loaded. Reload before saving; no stale overwrite was accepted.', 'homeopathy-encyclopedia' ), esc_html__( 'File 06 version conflict', 'homeopathy-encyclopedia' ), array( 'response' => 409 ) ); }
+		return $data;
+	}
+
 	public function save_entry_meta( $post_id, $post ) {
 		if ( ! isset( $_POST['he_v2_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['he_v2_nonce'] ) ), 'he_v2_save_entry' ) ) {
 			return;
@@ -110,6 +123,11 @@ final class HE_V2_Admin {
 		$fields = isset( $_POST['he_v2_fields'] ) ? HE_V2_Domain::sanitize_structured( wp_unslash( $_POST['he_v2_fields'] ) ) : array();
 		update_post_meta( $post_id, '_he_structured', $fields );
 		HE_V2_Domain::ensure_concept_for_post( $post_id );
+		$concept = HE_V2_Domain::concept_by_post_id( $post_id );
+		$expected = absint( $_POST['he_v2_expected_version'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		global $wpdb;
+		$bumped = $concept && $expected ? $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . " SET row_version=row_version+1,review_status='unreviewed',safety_status='unreviewed',updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", (int) $concept['id'], $expected ) ) : 0;
+		if ( 1 !== (int) $bumped ) { update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false ); HE_V2_Schema::record_runtime_failure( 'entry_admin_concurrency_conflict', 'Entry metadata/content could not be bound to the editor-loaded row version; mutations were paused.' ); return; }
 		HE_V2_Domain::reindex_concept_by_post( $post_id );
 	}
 
