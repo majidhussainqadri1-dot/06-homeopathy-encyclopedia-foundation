@@ -1403,7 +1403,9 @@ final class HE_V2_Domain {
 		$table = HE_V2_Schema::table( 'dataset_access' );
 		$requester_id = absint( $requester_id );
 		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE research_id=%d AND requester_id=%d", (int) $research['id'], $requester_id ), ARRAY_A );
-		if ( $existing && 'approved' === $existing['status'] && ! empty( $existing['expires_at'] ) && strtotime( $existing['expires_at'] . ' UTC' ) > time() ) { return true; }
+		if ( $existing && 'approved' === $existing['status'] && ! empty( $existing['expires_at'] ) && strtotime( $existing['expires_at'] . ' UTC' ) > time() ) {
+			return array( 'request_id' => self::encode_public_cursor( 'dataset-access', (int) $existing['id'] ), 'status' => 'approved', 'expires_at' => $existing['expires_at'] );
+		}
 		$now = current_time( 'mysql', true );
 		if ( $existing ) {
 			$result = $wpdb->update( $table, array( 'purpose' => sanitize_textarea_field( $purpose ), 'lawful_basis' => sanitize_key( $lawful_basis ), 'status' => 'requested', 'approved_by' => 0, 'expires_at' => null, 'updated_at' => $now ), array( 'id' => (int) $existing['id'] ) );
@@ -1414,10 +1416,20 @@ final class HE_V2_Domain {
 			HE_V2_Schema::record_runtime_failure( 'dataset_access_request_write_failed', 'File 06 could not persist a governed dataset-access request.' );
 			return new WP_Error( 'he_dataset_access_write_failed', __( 'Dataset access request could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
 		}
-		return true;
+		$access_id = $existing ? (int) $existing['id'] : (int) $wpdb->insert_id;
+		$request_id = self::encode_public_cursor( 'dataset-access', $access_id );
+		if ( ! $access_id || ! $request_id ) {
+			HE_V2_Schema::record_runtime_failure( 'dataset_access_public_id_failed', 'File 06 persisted a dataset-access request but could not derive its opaque public request identifier.' );
+			return new WP_Error( 'he_dataset_access_write_failed', __( 'Dataset access request could not establish its public identifier safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+		}
+		return array( 'request_id' => $request_id, 'status' => 'requested' );
 	}
 
-	public static function approve_dataset_access( $access_id, $expires_at, $actor_id ) {
+	public static function approve_dataset_access( $access_identifier, $expires_at, $actor_id ) {
+		$access_id = self::decode_public_cursor( 'dataset-access', $access_identifier );
+		if ( null === $access_id || ! $access_id ) {
+			return new WP_Error( 'he_dataset_access_not_found', __( 'Dataset access request not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		}
 		global $wpdb;
 		$timestamp = strtotime( $expires_at );
 		if ( ! $timestamp || $timestamp <= time() || $timestamp > time() + YEAR_IN_SECONDS ) {

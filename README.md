@@ -11,6 +11,6 @@ Sixteenth fresh twenty-round review/fix repository candidate for the File 06 gov
 - Defect rounds: `1–20`
 - Clean rounds: `none`
 
-This cycle hardens public graph UUID parity, hard-delete lifecycle veto/confirmation, canonical public identifiers for dataset/research/integrity operations, opaque cursors, live-post search parity, projection/migration/reindex/repair failure propagation/recovery, schema-complete health, authoritative post binding, and a single secure scheduled-publication path.
+This cycle hardens public graph UUID parity, hard-delete lifecycle veto/confirmation, canonical public identifiers for dataset/research/integrity operations, opaque cursors, live-post search parity, projection/migration/reindex/repair failure propagation/recovery, schema-complete health, authoritative post binding, a single secure scheduled-publication path, and opaque dataset-access approval identifiers.
 
 Run `bash tests/run-all.sh`. Final package/source hashes are authoritative only from the final exact-HEAD workflow. `Staging-Accepted`, `Live-Deployed`, and `Operational` remain unverified until target-environment evidence exists.
