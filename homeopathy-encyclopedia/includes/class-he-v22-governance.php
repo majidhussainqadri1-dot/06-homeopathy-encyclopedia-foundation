@@ -782,9 +782,11 @@ final class HE_V22_Governance {
 					throw new RuntimeException( 'alias-third-party-collision' );
 				}
 				if ( $collision === (int) $target['id'] ) {
-					$wpdb->delete( HE_V2_Schema::table( 'aliases' ), array( 'id' => (int) $alias['id'] ), array( '%d' ) );
+					$alias_deleted = $wpdb->delete( HE_V2_Schema::table( 'aliases' ), array( 'id' => (int) $alias['id'] ), array( '%d' ) );
+					if ( 1 !== (int) $alias_deleted ) { throw new RuntimeException( 'merge-alias-write-failed' ); }
 				} else {
-					$wpdb->update( HE_V2_Schema::table( 'aliases' ), array( 'concept_id' => (int) $target['id'], 'alias_type' => 'redirect', 'is_primary' => 0 ), array( 'id' => (int) $alias['id'] ), array( '%d','%s','%d' ), array( '%d' ) );
+					$alias_updated = $wpdb->update( HE_V2_Schema::table( 'aliases' ), array( 'concept_id' => (int) $target['id'], 'alias_type' => 'redirect', 'is_primary' => 0 ), array( 'id' => (int) $alias['id'] ), array( '%d','%s','%d' ), array( '%d' ) );
+					if ( 1 !== (int) $alias_updated ) { throw new RuntimeException( 'merge-alias-write-failed' ); }
 				}
 			}
 			$reference_map = array();
@@ -828,7 +830,8 @@ final class HE_V22_Governance {
 			if ( 1 !== (int) $u1 || 1 !== (int) $u2 ) {
 				throw new RuntimeException( 'version-conflict' );
 			}
-			$wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $source['id'] ), array( '%d' ) );
+			$index_deleted = $wpdb->delete( HE_V2_Schema::table( 'search_index' ), array( 'concept_id' => (int) $source['id'] ), array( '%d' ) );
+			if ( false === $index_deleted ) { throw new RuntimeException( 'merge-index-write-failed' ); }
 			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'merge-commit-failed' ); }
 			HE_V2_Domain::emit_event( 'KnowledgeConceptMerged.v1', 'concept', (int) $target['id'], array( 'source_id' => $source['public_id'], 'target_id' => $target['public_id'], 'reason' => sanitize_textarea_field( $data['reason'] ?? '' ) ) );
 			self::reindex_concept_secure( (int) $target['id'] );
@@ -841,6 +844,9 @@ final class HE_V22_Governance {
 			}
 			if ( in_array( $error->getMessage(), array( 'relation-provenance-invalid', 'relation-provenance-clone-failed' ), true ) ) {
 				return new WP_Error( 'he_relation_provenance_invalid', __( 'Merged graph edges could not be rebound to valid target-concept provenance.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			}
+			if ( in_array( $error->getMessage(), array( 'merge-alias-write-failed', 'merge-index-write-failed' ), true ) ) {
+				return new WP_Error( 'he_merge_failed', __( 'The merge could not persist every alias/index mutation atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
 			}
 			if ( 'relation-write-failed' === $error->getMessage() ) {
 				return new WP_Error( 'he_merge_failed', __( 'The graph could not be rewritten atomically during the concept merge.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
