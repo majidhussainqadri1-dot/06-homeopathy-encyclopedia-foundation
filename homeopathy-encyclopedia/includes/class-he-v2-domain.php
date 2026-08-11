@@ -638,6 +638,34 @@ final class HE_V2_Domain {
 			$scheduled_at = gmdate( 'Y-m-d H:i:s', $timestamp );
 		}
 		$table = HE_V2_Schema::table( 'concepts' );
+		if ( 'published' === $to_state ) {
+			if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+				HE_V2_Schema::record_runtime_failure( 'entry_publish_transaction_start_failed', 'File 06 could not start the entry publish transaction.' );
+				return new WP_Error( 'he_publish_failed', __( 'The entry could not enter the publish transaction safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
+			try {
+				$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='published',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $row['id'], absint( $expected_version ) ) );
+				if ( 1 !== (int) $result ) { throw new RuntimeException( 'version-conflict' ); }
+				$version_id = self::snapshot_version( $row['id'], $note ?: 'Published version', 'published', $actor_id );
+				if ( ! $version_id ) { throw new RuntimeException( 'snapshot-failed' ); }
+				$finalized = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET current_version=%d,review_status='approved',safety_status='approved',updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $version_id, $row['id'], absint( $expected_version ) + 1 ) );
+				if ( 1 !== (int) $finalized ) { throw new RuntimeException( 'publish-finalize-conflict' ); }
+				$post_result = wp_update_post( array( 'ID' => (int) $row['post_id'], 'post_status' => 'publish' ), true );
+				if ( is_wp_error( $post_result ) || ! $post_result ) { throw new RuntimeException( 'wordpress-publish-failed' ); }
+				delete_post_meta( (int) $row['post_id'], '_he_scheduled_at' );
+				if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit-failed' ); }
+			} catch ( Throwable $error ) {
+				$wpdb->query( 'ROLLBACK' );
+				$code = 'version-conflict' === $error->getMessage() ? 'he_version_conflict' : 'he_publish_failed';
+				$status = 'version-conflict' === $error->getMessage() ? 409 : 503;
+				HE_V2_Schema::record_runtime_failure( 'entry_publish_atomic_failed', 'File 06 rolled back an entry publish transition because its state, snapshot, WordPress publication, or commit could not complete atomically.' );
+				return new WP_Error( $code, __( 'The entry publication could not be completed atomically. No successful publication should be assumed.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) );
+			}
+			self::reindex_concept( $row['id'] );
+			self::emit_event( 'EncyclopediaEntryPublished.v1', 'concept', $row['id'], array( 'version_id' => $version_id ) );
+			return self::concept_by_id( $row['id'], true );
+		}
+
 		$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $to_state, $row['id'], absint( $expected_version ) ) );
 		if ( 1 !== (int) $result ) {
 			return new WP_Error( 'he_version_conflict', __( 'The entry changed in another session. Reload and try again.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
@@ -645,15 +673,8 @@ final class HE_V2_Domain {
 		if ( 'scheduled' === $to_state ) {
 			update_post_meta( (int) $row['post_id'], '_he_scheduled_at', $scheduled_at );
 			self::emit_event( 'EncyclopediaEntryScheduled.v1', 'concept', $row['id'], array( 'effective_at' => $scheduled_at ) );
-		} elseif ( in_array( $to_state, array( 'draft', 'published', 'archived' ), true ) ) {
+		} elseif ( in_array( $to_state, array( 'draft', 'archived' ), true ) ) {
 			delete_post_meta( (int) $row['post_id'], '_he_scheduled_at' );
-		}
-		if ( 'published' === $to_state ) {
-			$version_id = self::snapshot_version( $row['id'], $note ?: 'Published version', 'published', $actor_id );
-			$wpdb->update( $table, array( 'current_version' => $version_id, 'review_status' => 'approved', 'safety_status' => 'approved' ), array( 'id' => $row['id'] ), array( '%d','%s','%s' ), array( '%d' ) );
-			wp_update_post( array( 'ID' => (int) $row['post_id'], 'post_status' => 'publish' ) );
-			self::reindex_concept( $row['id'] );
-			self::emit_event( 'EncyclopediaEntryPublished.v1', 'concept', $row['id'], array( 'version_id' => $version_id ) );
 		}
 		return self::concept_by_id( $row['id'], true );
 	}

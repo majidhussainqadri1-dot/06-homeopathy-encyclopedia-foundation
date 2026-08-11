@@ -17,6 +17,8 @@ v249_ok(substr_count($api,'he_idempotency_finalize_failed')>=2 && substr_count($
 v249_ok(false!==strpos($domain,'idempotency_finish_stale_lease'),'R3 stale/reclaimed idempotency finalization is not surfaced as an operational failure');
 $r4files=array('class-he-v24-future-api.php','class-he-v241-governance.php','class-he-v241-research-governance.php','class-he-v24-future-review-guard.php','class-he-v22-integrity.php','class-he-v242-watchlist.php','class-he-v242-multilingual.php');
 foreach($r4files as $r4file){$src=v249_read($root.'/homeopathy-encyclopedia/includes/'.$r4file);v249_ok(false!==strpos($src,'he_idempotency_finalize_failed'),'R4 idempotency finalization failure remains silently ignored in '.$r4file);}
+$domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+v249_ok(false!==strpos($domain,'entry_publish_atomic_failed') && false!==strpos($domain,'wordpress-publish-failed') && false!==strpos($domain,'publish-finalize-conflict'),'R5 entry publish transition can expose published state when snapshot or WordPress publication fails');
 /*__V249_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.9 tenth-review regressions FAILED:
 - ".implode("
