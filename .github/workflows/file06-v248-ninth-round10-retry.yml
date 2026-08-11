@@ -1,0 +1,42 @@
+name: File 06 v2.4.8 Ninth Review Round 10 Retry
+on:
+  push:
+    branches: [audit/file-06-ninth-ten-round-v2.4.8]
+    paths: [.github/workflows/file06-v248-ninth-round10-retry.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-ninth-ten-round-v2.4.8
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply repaired Round 10 correction
+        run: |
+          set -euo pipefail
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          python3 scripts/v248-round10-apply.py
+          python3 -m py_compile scripts/v248-ninth-ten-round-apply.py scripts/v248-round10-apply.py scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
+          php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          php -l tests/v246-seventh-ten-round-regressions.php
+          php -l tests/v247-eighth-ten-round-regressions.php
+          php -l tests/v248-ninth-ten-round-regressions.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+      - name: Commit Round 10 correction
+        run: |
+          set -euo pipefail
+          git add CHANGELOG.md README.md SBOM.json STATUS.md docs homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests scripts/v248-round10-apply.py
+          git commit -m 'fix(file-06): align v2.4.8 release and aggregate QA truth'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
