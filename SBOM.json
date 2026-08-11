@@ -1,0 +1,45 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:9af1d41e-bcef-47cf-9b64-507547194806",
+  "version": 2,
+  "metadata": {
+    "timestamp": "2026-08-10T15:16:35Z",
+    "component": {
+      "type": "application",
+      "name": "File 06 Homeopathy Encyclopedia",
+      "version": "2.3.0",
+      "purl": "pkg:wordpress/homeopathy-encyclopedia@2.3.0"
+    }
+  },
+  "components": [
+    {"type":"framework","name":"WordPress","version":">=6.1; target 7.0.x","scope":"required"},
+    {"type":"platform","name":"PHP","version":">=7.4; target 8.3","scope":"required"},
+    {"type":"library","name":"WordPress REST API","version":"core","scope":"required"},
+    {"type":"application","name":"File 00 identity contract","version":"external authoritative provider","scope":"required"},
+    {"type":"application","name":"File 19 notification delivery contract","version":"external canonical owner","scope":"optional"},
+    {"type":"application","name":"File 24 assurance contract","version":"external canonical owner","scope":"optional"},
+    {"type":"application","name":"File 25 visual contract","version":"external canonical owner","scope":"optional"},
+    {"type":"application","name":"File 26 search contract","version":"external canonical owner","scope":"optional"}
+  ],
+  "futureIntelligence": {
+    "requirements": "F06-FUT-001..018",
+    "externalAdapters": ["crossref","pubmed","clinicaltrials","orcid","datacite","mesh"],
+    "automaticCanonicalMerge": false,
+    "automaticExternalPublication": false
+  },
+  "release": {
+    "file": "06-homeopathy-encyclopedia-foundation-2.3.0.zip",
+    "tested_commit": "de46ce4bba5c04423415041720732d447b532320",
+    "functional_coding_head": "759dccad88e29e48a92bb450c221f71e327cfca1",
+    "github_actions_run": 31402694660,
+    "sha256": "4411dbf2899bda47745c7796c842da233d9415be9faab05b15f2c6668032fdf1",
+    "bytes": 99887,
+    "source_tree_sha256": "8083a242e6f998e059293a77c679725e8eb0b53258fecf6e90fd1430050e5c9e",
+    "schema": 9,
+    "contract": "2.3",
+    "stagingAccepted": false,
+    "liveDeployed": false,
+    "operational": false
+  }
+}
