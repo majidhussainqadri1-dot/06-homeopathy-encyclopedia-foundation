@@ -215,12 +215,22 @@ final class HE_V2_Privacy {
 			$retained = true;
 		}
 
+		/* Successful erasure must not leave/recreate the erased user as an event object identifier. */
+		$events_table = HE_V2_Schema::table( 'events' );
+		$event_objects = $wpdb->query( $wpdb->prepare( "UPDATE {$events_table} SET object_id='0' WHERE object_type='user' AND object_id=%s", (string) $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( false === $event_objects ) {
+			HE_V2_Schema::record_runtime_failure( 'privacy_event_object_deidentification_failed', 'File 06 could not de-identify user-bound event object identifiers.' );
+		} elseif ( (int) $event_objects > 0 ) {
+			$removed = true; $retained = true;
+		}
+
 		$remaining = 0;
 		$remaining += (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'bookmarks' ) . ' WHERE user_id=%d', $uid ) );
 		$remaining += (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'dataset_access' ) . ' WHERE requester_id=%d OR approved_by=%d', $uid, $uid ) );
 		$remaining += (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'reviews' ) . ' WHERE reviewer_id=%d', $uid ) );
 		$remaining += (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . ' WHERE created_by=%d OR decided_by=%d', $uid, $uid ) );
 		$remaining += count( get_posts( array( 'post_type' => array( HE_V2_Domain::ENTRY_TYPE, HE_V2_Domain::RESEARCH_TYPE ), 'post_status' => array( 'draft', 'pending', 'publish', 'private', 'future' ), 'author' => $uid, 'posts_per_page' => 1, 'fields' => 'ids' ) ) );
+		$remaining += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$events_table} WHERE object_type='user' AND object_id=%s", (string) $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		foreach ( $actor_columns as $table_key => $column ) {
 			$remaining += (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( $table_key ) . " WHERE {$column}=%d", $uid ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
@@ -230,7 +240,7 @@ final class HE_V2_Privacy {
 		}
 		$done = 0 === $remaining;
 		if ( $done ) {
-			HE_V2_Domain::emit_event( 'File06PrivacyErasureCompleted.v1', 'user', $uid, array( 'published_records_retained' => $retained ) );
+			HE_V2_Domain::emit_event( 'File06PrivacyErasureCompleted.v1', 'privacy-request', 0, array( 'published_records_retained' => $retained ) );
 		}
 		return array( 'items_removed' => $removed, 'items_retained' => $retained, 'messages' => array_values( array_unique( $messages ) ), 'done' => $done );
 	}
