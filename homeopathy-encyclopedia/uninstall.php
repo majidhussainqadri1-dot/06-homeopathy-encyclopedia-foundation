@@ -39,11 +39,15 @@ function he_v2_purge_site() {
 	foreach ( $posts as $post_id ) {
 		wp_delete_post( $post_id, true );
 	}
+	/* File 06 owns editorial scope assignment, not File 00 identity; remove only that local scope key. */
+	$wpdb->delete( $wpdb->usermeta, array( 'meta_key' => '_he_editor_type_scope' ), array( '%s' ) );
 	foreach ( array(
 		'he_schema_version','he_v2_runtime_failure','he_v2_safe_mode','he_v2_migration_lock','he_v2_legacy_migrated','he_allow_destructive_uninstall','he_page_map','he_legacy_system_migration',
 		'he_v22_extension_version','he_v22_upgrade_lock','he_v22_legacy_cursor','he_v22_legacy_done','he_v22_reindex_cursor','he_v22_reindex_required',
 		'he_v23_future_version','he_v24_future_version','he_v24_freshness_cursor','he_v24_gap_cursor','he_v24_retraction_cursor',
-		'he_v24_provenance_migration_cursor','he_v24_impact_migration_cursor','he_v24_provenance_migration_done','he_v24_impact_migration_done','he_v24_migration_pending'
+		'he_v24_provenance_migration_cursor','he_v24_impact_migration_cursor','he_v24_provenance_migration_done','he_v24_impact_migration_done',
+		'he_v24_orcid_postflight_cursor','he_v24_emitted_postflight_cursor','he_v24_orcid_postflight_done','he_v24_emitted_postflight_done','he_v24_migration_pending',
+		'he_v241_core_maintenance_lease','he_v241_future_maintenance_lease'
 	) as $option ) {
 		delete_option( $option );
 	}
