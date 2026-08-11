@@ -210,12 +210,15 @@ final class HE_V242_Research_Authoring {
 		$post = get_post( (int) $row['post_id'] );
 		if ( ! $post || 'draft' !== $post->post_status ) { return false; }
 		$guard = array( 'HE_V242_Third_Audit', 'guard_hard_delete' );
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'research_composer_rollback_start_failed', 'File 06 could not start the research composer rollback transaction.' );
+			return false;
+		}
 		remove_filter( 'pre_delete_post', $guard, 1 );
 		try {
 			if ( ! wp_delete_post( (int) $row['post_id'], true ) ) { throw new RuntimeException( 'post-delete-failed' ); }
 			if ( 1 !== (int) $wpdb->delete( HE_V2_Schema::table( 'research' ), array( 'id' => (int) $row['id'] ), array( '%d' ) ) ) { throw new RuntimeException( 'research-delete-failed' ); }
-			$wpdb->query( 'COMMIT' );
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'research-rollback-commit-failed' ); }
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
 			clean_post_cache( (int) $row['post_id'] );
