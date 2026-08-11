@@ -1,0 +1,91 @@
+name: File 06 v2.4.5 Sixth Review Round 9 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - .github/workflows/file06-v245-sixth-round9-apply.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Preserve failed retraction row for next bounded retry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('homeopathy-encyclopedia/includes/class-he-v24-future-schema.php')
+          s = p.read_text()
+          old = """\t\t$flagged = 0;
+          \t\tforeach ( $rows as $row ) {
+          \t\t\t$data = self::lookup_external( 'crossref', $row['external_id'] );
+          \t\t\tif ( is_wp_error( $data ) ) { continue; }
+          \t\t\t$signals = self::crossref_signal( $data );"""
+          new = """\t\t$flagged = 0;
+          \t\t$last_completed_id = $cursor;
+          \t\tforeach ( $rows as $row ) {
+          \t\t\t$data = self::lookup_external( 'crossref', $row['external_id'] );
+          \t\t\t/* Do not advance the cursor past a transient provider failure; retry this exact row on the next bounded maintenance run. */
+          \t\t\tif ( is_wp_error( $data ) ) { break; }
+          \t\t\t$signals = self::crossref_signal( $data );"""
+          if old not in s:
+              raise SystemExit('retraction loop marker missing')
+          s = s.replace(old, new, 1)
+          old2 = """\t\t\tif ( $urgent ) {
+          \t\t\t\t$flagged++;
+          \t\t\t\tself::append_provenance( 'external-record', (string) $row['id'], 'integrity.signal.detected', '', array( 'signals' => $signals, 'source_hash' => hash( 'sha256', wp_json_encode( $data ) ) ) );
+          \t\t\t\tself::queue_impact( 'external-record', (string) $row['id'], 'KnowledgeEvidenceChanged.v1', array( 'provider' => 'crossref', 'external_id' => $row['external_id'], 'signals' => $signals ) );
+          \t\t\t}
+          \t\t}
+          \t\tif ( $rows ) { update_option( 'he_v24_retraction_cursor', (int) end( $rows )['id'], false ); }"""
+          new2 = """\t\t\tif ( $urgent ) {
+          \t\t\t\t$flagged++;
+          \t\t\t\tself::append_provenance( 'external-record', (string) $row['id'], 'integrity.signal.detected', '', array( 'signals' => $signals, 'source_hash' => hash( 'sha256', wp_json_encode( $data ) ) ) );
+          \t\t\t\tself::queue_impact( 'external-record', (string) $row['id'], 'KnowledgeEvidenceChanged.v1', array( 'provider' => 'crossref', 'external_id' => $row['external_id'], 'signals' => $signals ) );
+          \t\t\t}
+          \t\t\t$last_completed_id = (int) $row['id'];
+          \t\t}
+          \t\tif ( $last_completed_id !== $cursor ) { update_option( 'he_v24_retraction_cursor', $last_completed_id, false ); }"""
+          if old2 not in s:
+              raise SystemExit('retraction cursor marker missing')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s)
+
+          t = Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          x = t.read_text()
+          needle = 'echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
+          block = "$schema = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');\n"
+          block += "f06_v245_assert(strpos($schema, '$last_completed_id = $cursor') !== false, 'Round 9 retry-safe retraction cursor missing');\n"
+          block += "f06_v245_assert(strpos($schema, 'if ( is_wp_error( $data ) ) { break; }') !== false, 'Round 9 provider failure still skips ahead');\n"
+          block += "f06_v245_assert(strpos($schema, \"end( $rows )['id']\") === false, 'Round 9 batch-end cursor can still skip failed rows');\n"
+          if 'Round 9 retry-safe retraction cursor missing' not in x:
+              if needle not in x:
+                  raise SystemExit('test marker missing')
+              x = x.replace(needle, block + needle, 1)
+          t.write_text(x)
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v24-future-schema.php
+          php -l tests/test-file06-v245-sixth-ten-round-regressions.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 9 correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/includes/class-he-v24-future-schema.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): retry failed retraction checks without cursor skip'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
