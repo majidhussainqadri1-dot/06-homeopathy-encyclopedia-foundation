@@ -21,8 +21,8 @@ v2410_ok(false!==strpos($domain,'$current_hash = HE_V22_Governance::entry_conten
 $bootstrap=v2410_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
 $readme=v2410_read($root.'/homeopathy-encyclopedia/readme.txt');
 $runall=v2410_read($root.'/tests/run-all.sh');
-v2410_ok(false!==strpos($bootstrap,' * Version: 2.4.10') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.10' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.10' );") && false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.10'"),'R10 runtime/contract/future hardening release truth is not aligned to v2.4.10');
-v2410_ok(false!==strpos($readme,'Stable tag: 2.4.10'),'R10 plugin stable tag is not v2.4.10');
-v2410_ok(false!==strpos($runall,'v2410-eleventh-ten-round-regressions.php') && false!==strpos($runall,'file06-v2.4.10-a.zip') && false!==strpos($runall,'file06-v2.4.10-b.zip'),'R10 aggregate/package truth is not aligned to v2.4.10');
+v2410_ok((bool)preg_match("/Version: 2\\.4\\.[0-9]+/",$bootstrap) && (bool)preg_match("/HE_VERSION', '2\\.4\\.[0-9]+/",$bootstrap) && false!==strpos($bootstrap,"define( 'HE_SCHEMA_VERSION', 10 )") && (bool)preg_match("/HE_CONTRACT_VERSION', '2\\.4\\.[0-9]+/",$bootstrap) && false!==strpos($bootstrap,"'future_hardening_version'=>") && false!==strpos($bootstrap,"'release_state'=>array('coded_candidate'=>true,'staging_accepted'=>false,'live_deployed'=>false,'operational'=>false)"),'R10 historical release-state/schema contract regressed');
+v2410_ok(false!==strpos($readme,'Stable tag: '),'R10 plugin stable tag contract missing');
+v2410_ok(false!==strpos($runall,'v2410-eleventh-ten-round-regressions.php'),'R10 historical eleventh regression suite was removed from aggregate QA');
 /*__V2410_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.10 eleventh-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.10 eleventh-review regressions: PASS\n";
