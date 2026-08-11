@@ -20,3 +20,4 @@ Repository-only corrective record. Staging/live/operational status is not establ
 16. **CLEAN** — Fresh authorization/IDOR review of corrected entry/research/dataset mutation routes found no additional repository-level defect after canonical-ID and object-scope corrections.
 17. **CLEAN** — Fresh idempotency, rate-limit, event/outbox, retry/dead-letter and transaction-callsite audit found no new actionable repository defect beyond the corrected paths.
 18. **CLEAN** — Fresh activation/upgrade/Future-schema/maintenance/deactivation and migration-safety audit found no new actionable repository defect after schema-shape readiness hardening.
+19. **DEFECT** — Runtime, contract, stable tag, aggregate QA/package labels and repository release documentation still described v2.4.15 after corrective source changes. Candidate truth is aligned to v2.4.16; DB schema remains 10 and Future schema remains 2.

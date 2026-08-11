@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.4.15 — Sixteenth fresh twenty-round corrected candidate
+## 2.4.16 — Sixteenth fresh twenty-round corrected candidate
 - Twenty sequential review/fix/retest rounds completed; product/repository defects corrected in rounds 1–19 and release-truth drift corrected in round 20; every round produced an actionable correction.
 - Hardened canonical identifiers, opaque pagination, WordPress/domain projection parity, migration/reindex/repair failure propagation, complete health checks, authoritative post binding, hard-delete confirmation and secure scheduled-publication ownership. Dataset-access approval now also uses a signed opaque request token rather than a raw database ID.
 - Repository candidate only; staging/live/operational evidence remains unverified.
