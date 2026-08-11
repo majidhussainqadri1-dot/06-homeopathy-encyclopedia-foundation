@@ -67,13 +67,16 @@ final class HE_V242_Runtime_Corrections {
 		$concept_id = (int) $row['id'];
 		$post_id = (int) $row['post_id'];
 		$delete_guard = array( 'HE_V242_Third_Audit', 'guard_hard_delete' );
-		$domain_delete = array( 'HE_V2_Domain', 'on_delete_post' );
+		$domain_pre_delete = array( 'HE_V2_Domain', 'pre_delete_post' );
+		$domain_deleted = array( 'HE_V2_Domain', 'on_deleted_post' );
 		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
 			HE_V2_Schema::record_runtime_failure( 'composer_rollback_start_failed', 'File 06 could not start the entry composer rollback transaction.' );
 			return false;
 		}
+		/* Normal WordPress hard deletion is governance-blocked. A pristine composer rollback is the narrowly scoped exception, so suppress both the high-priority block and the lower-level archive/retraction lifecycle while this compensation transaction owns the physical deletion. */
 		remove_filter( 'pre_delete_post', $delete_guard, 1 );
-		remove_action( 'before_delete_post', $domain_delete, 10 );
+		remove_filter( 'pre_delete_post', $domain_pre_delete, 10 );
+		remove_action( 'deleted_post', $domain_deleted, 10 );
 		try {
 			/* Delete the WordPress post inside the same DB transaction; if any later cleanup fails, rollback restores both sides. */
 			$deleted_post = wp_delete_post( $post_id, true );
@@ -95,7 +98,8 @@ final class HE_V242_Runtime_Corrections {
 			return false;
 		} finally {
 			add_filter( 'pre_delete_post', $delete_guard, 1, 3 );
-			add_action( 'before_delete_post', $domain_delete, 10, 1 );
+			add_filter( 'pre_delete_post', $domain_pre_delete, 10, 3 );
+			add_action( 'deleted_post', $domain_deleted, 10, 2 );
 		}
 		HE_V2_Domain::emit_event( 'EncyclopediaDraftRolledBack.v1', 'concept', $concept_id, array( 'public_id' => $row['public_id'], 'reason' => 'composer-compensation' ) );
 		return true;
