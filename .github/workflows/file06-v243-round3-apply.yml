@@ -1,0 +1,37 @@
+name: File 06 v2.4.3 Ten-Round Review Round 3 Fix
+on:
+  push:
+    branches:
+      - audit/file-06-fourth-80-round-v2.4.3
+    paths:
+      - .github/workflows/file06-v243-round3-apply.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply round-3 correction
+        run: python3 scripts/v243-ten-round-round3.py
+      - name: Validate correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+      - name: Commit corrected owning source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          git commit -m 'fix(file-06): preserve graph provenance across version snapshots'
+          git push origin HEAD:audit/file-06-fourth-80-round-v2.4.3
