@@ -1,0 +1,71 @@
+name: File 06 v2.4.15 Hard-Delete Runtime Diagnostic
+on:
+  push:
+    branches: [audit/file-06-sixteenth-twenty-round-v2.4.15]
+    paths: [.github/workflows/file06-v2415-hard-delete-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          extensions: mysqli,mbstring
+          coverage: none
+      - name: Install WordPress and plugin
+        run: |
+          set -euo pipefail
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar && sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+          mkdir -p /tmp/wp && cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 Diagnostic' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+      - name: Diagnose hard-delete lifecycle step by step
+        working-directory: /tmp/wp
+        run: |
+          set -uo pipefail
+          wp eval '
+          global $wpdb;
+          wp_set_current_user(1);
+          echo "before-safe-mode=".wp_json_encode(get_option(HE_V2_Schema::OPTION_SAFE_MODE,0))."\n";
+          echo "before-failure=".wp_json_encode(get_option(HE_V2_Schema::OPTION_FAILURE,array()))."\n";
+          $id=wp_insert_post(array("post_type"=>HE_V2_Domain::ENTRY_TYPE,"post_status"=>"draft","post_title"=>"CI Delete Lifecycle Entry","post_author"=>1),true);
+          echo "insert-result=".wp_json_encode(is_wp_error($id)?array("error"=>$id->get_error_code(),"message"=>$id->get_error_message()):$id)."\n";
+          echo "insert-db-error=".$wpdb->last_error."\n";
+          echo "after-insert-safe-mode=".wp_json_encode(get_option(HE_V2_Schema::OPTION_SAFE_MODE,0))."\n";
+          echo "after-insert-failure=".wp_json_encode(get_option(HE_V2_Schema::OPTION_FAILURE,array()))."\n";
+          if(is_wp_error($id)||!$id){return;}
+          $c=HE_V2_Domain::concept_by_post_id($id);
+          echo "concept=".wp_json_encode($c)."\n";
+          if(!$c){return;}
+          $deleted=wp_delete_post($id,true);
+          echo "delete-result=".wp_json_encode($deleted instanceof WP_Post?array("id"=>$deleted->ID,"type"=>$deleted->post_type):$deleted)."\n";
+          echo "delete-db-error=".$wpdb->last_error."\n";
+          echo "after-delete-safe-mode=".wp_json_encode(get_option(HE_V2_Schema::OPTION_SAFE_MODE,0))."\n";
+          echo "after-delete-failure=".wp_json_encode(get_option(HE_V2_Schema::OPTION_FAILURE,array()))."\n";
+          $row=$wpdb->get_row($wpdb->prepare("SELECT id,status,row_version FROM ".HE_V2_Schema::table("concepts")." WHERE id=%d",$c["id"]),ARRAY_A);
+          echo "concept-after-delete=".wp_json_encode($row)."\n";
+          $events=$wpdb->get_results($wpdb->prepare("SELECT event_id,event_name,object_type,object_id,payload_json FROM ".HE_V2_Schema::table("events")." WHERE object_type=%s AND object_id=%d ORDER BY id ASC","concept",$c["id"]),ARRAY_A);
+          echo "events=".wp_json_encode($events)."\n";
+          echo "post-exists=".wp_json_encode((bool)get_post($id))."\n";
+          '
