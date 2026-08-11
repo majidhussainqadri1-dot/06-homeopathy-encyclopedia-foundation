@@ -65,6 +65,7 @@ require_once HE_DIR . 'includes/class-he-v242-reference-graph.php';
 require_once HE_DIR . 'includes/class-he-v242-research-immutability.php';
 require_once HE_DIR . 'includes/class-he-v242-public-translation-guard.php';
 require_once HE_DIR . 'includes/class-he-v242-language-migration.php';
+require_once HE_DIR . 'includes/class-he-v242-translation-compat.php';
 
 function he_activate_future_runtime() {
 	wp_clear_scheduled_hook( HE_V23_Future::CRON );
@@ -92,7 +93,7 @@ function he_contract_descriptor() {
 		'authorization'=>array('file00_claims_required'=>true,'native_object_scope_required'=>true,'editor_type_assignment_required'=>true,'reviewer_assignment_required'=>true,'research_reviewer_assignment_required'=>true,'integrity_object_scope_before_short_circuit'=>true,'admin_and_composer_scope_enforced'=>true,'successful_guards_continue_to_callback'=>true),
 		'migration'=>array('resumable'=>true,'quarantine'=>true,'batch_max'=>100,'verified_future_schema'=>true,'preflight_existing_rows'=>true,'bounded_postflight'=>true,'future_routes_fail_closed_until_ready'=>true,'legacy_language_normalization_bounded'=>true),
 		'reliability'=>array('idempotency_required'=>true,'bounded_retry'=>true,'dead_letter'=>true,'consumer_acknowledgement'=>true,'outbox_reconciliation'=>true,'scheduled_publication_revalidation'=>true,'legacy_unverified_scheduler_disabled'=>true,'core_maintenance_serialized'=>true,'future_maintenance_serialized'=>true,'future_impact_queue'=>true,'human_review_for_external_metadata'=>true,'provider_response_bound'=>true,'research_post_state_parity'=>true,'pristine_composer_rollback'=>true,'research_pristine_composer_rollback'=>true),
-		'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','public_provenance_types'=>array('concept','claim')),
+		'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim')),
 		'privacy'=>array('editor_scope_export_erase'=>true,'reviewer_assignment_export_erase'=>true,'watchlists_private'=>true,'legal_hold_respected'=>true),
 		'integrity'=>array('research_apply_requires_accepted_state'=>true,'integrity_transition_object_bound'=>true,'replacement_object_validated'=>true,'reference_version_same_concept'=>true,'relationship_reference_required'=>true,'reference_rights_bounded'=>true,'merge_reason_required'=>true,'published_research_immutable'=>true),
 		'release_state'=>array('coded_candidate'=>true,'staging_accepted'=>false,'live_deployed'=>false,'operational'=>false),
@@ -114,7 +115,7 @@ function he_start_v2() {
 	if ( $future_v24_ready ) { HE_V23_Future::hooks(); HE_V24_Future_Schema::hooks(); HE_V24_Future_API::hooks(); HE_V24_Future_Privacy::hooks(); HE_V24_Future_Review_Guard::hooks(); HE_V24_Public_Provenance::hooks(); }
 	else { wp_clear_scheduled_hook( HE_V23_Future::CRON ); wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON ); }
 	HE_V241_Governance::hooks(); HE_V241_Governance_Privacy::hooks(); HE_V241_Research_Governance::hooks(); HE_V241_Runtime_Guard::hooks(); HE_V241_Before_Callback_Normalizer::hooks(); HE_V241_Public_DTO_Guard::hooks();
-	HE_V242_Third_Audit::hooks(); HE_V242_Runtime_Corrections::hooks(); HE_V242_Multilingual::hooks(); HE_V242_Research_Browse::hooks(); HE_V242_Research_Authoring::hooks(); HE_V242_Language_Surfaces::hooks(); HE_V242_Watchlist::hooks(); HE_V242_Reference_Graph::hooks(); HE_V242_Research_Immutability::hooks(); HE_V242_Public_Translation_Guard::hooks(); HE_V242_Language_Migration::hooks();
+	HE_V242_Third_Audit::hooks(); HE_V242_Runtime_Corrections::hooks(); HE_V242_Multilingual::hooks(); HE_V242_Research_Browse::hooks(); HE_V242_Research_Authoring::hooks(); HE_V242_Language_Surfaces::hooks(); HE_V242_Translation_Compat::hooks(); HE_V242_Watchlist::hooks(); HE_V242_Reference_Graph::hooks(); HE_V242_Research_Immutability::hooks(); HE_V242_Public_Translation_Guard::hooks(); HE_V242_Language_Migration::hooks();
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) { $contracts=is_array($contracts)?$contracts:array(); $contracts['file-06']=he_contract_descriptor(); $contracts['file-06']['future_v24_ready']=(bool)$future_v24_ready; return $contracts; } );
 }
 add_action( 'plugins_loaded', 'he_start_v2', 35 );
