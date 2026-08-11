@@ -43,6 +43,7 @@ jobs:
           php tests/v24-80-round-invariants.php
           php tests/v241-second-80-invariants.php
           php tests/v242-third-80-final.php
+          php tests/v243-ten-round-regressions.php
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
           python3 -m py_compile scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
 
