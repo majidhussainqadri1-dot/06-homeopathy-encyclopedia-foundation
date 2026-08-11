@@ -19,6 +19,8 @@ $r4files=array('class-he-v24-future-api.php','class-he-v241-governance.php','cla
 foreach($r4files as $r4file){$src=v249_read($root.'/homeopathy-encyclopedia/includes/'.$r4file);v249_ok(false!==strpos($src,'he_idempotency_finalize_failed'),'R4 idempotency finalization failure remains silently ignored in '.$r4file);}
 $domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v249_ok(false!==strpos($domain,'entry_publish_atomic_failed') && false!==strpos($domain,'wordpress-publish-failed') && false!==strpos($domain,'publish-finalize-conflict'),'R5 entry publish transition can expose published state when snapshot or WordPress publication fails');
+$domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+v249_ok(false!==strpos($domain,'snapshot_reference_binding_failed') && false!==strpos($domain,'$relation_rewrites') && false!==strpos($domain,'$draft_ids'),'R6 snapshot publication can silently accept partial reference/provenance binding failure');
 /*__V249_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.9 tenth-review regressions FAILED:
 - ".implode("

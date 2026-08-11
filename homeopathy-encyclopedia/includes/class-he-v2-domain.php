@@ -718,14 +718,32 @@ final class HE_V2_Domain {
 	private static function bind_references_to_snapshot( $concept_id, $previous_version_id, $new_version_id, $actor_id ) {
 		global $wpdb;
 		$table = HE_V2_Schema::table( 'references' );
+		$relations = HE_V2_Schema::table( 'relations' );
 		$concept_id = absint( $concept_id ); $previous_version_id = absint( $previous_version_id ); $new_version_id = absint( $new_version_id );
-		if ( ! $concept_id || ! $new_version_id ) { return; }
-		/* Pending draft references become immutable members of the new snapshot first. */
-		$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET version_id=%d WHERE concept_id=%d AND version_id=0", $new_version_id, $concept_id ) );
-		if ( ! $previous_version_id || $previous_version_id === $new_version_id ) { return; }
+		if ( ! $concept_id || ! $new_version_id ) { return false; }
+		$draft_ids = array_map( 'absint', (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$table} WHERE concept_id=%d AND version_id=0 ORDER BY id ASC", $concept_id ) ) );
+		$created_ids = array();
+		$relation_rewrites = array();
+		$rollback = static function() use ( $wpdb, $table, $relations, $concept_id, $new_version_id, &$draft_ids, &$created_ids, &$relation_rewrites ) {
+			foreach ( array_reverse( $relation_rewrites ) as $rewrite ) {
+				$wpdb->query( $wpdb->prepare( "UPDATE {$relations} SET source_reference_id=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE source_concept_id=%d AND source_reference_id=%d", $rewrite['old'], $concept_id, $rewrite['new'] ) );
+			}
+			if ( $created_ids ) {
+				$ids = implode( ',', array_map( 'absint', $created_ids ) );
+				$wpdb->query( "DELETE FROM {$table} WHERE id IN ({$ids})" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			}
+			if ( $draft_ids ) {
+				$ids = implode( ',', array_map( 'absint', $draft_ids ) );
+				$wpdb->query( "UPDATE {$table} SET version_id=0 WHERE id IN ({$ids}) AND concept_id=" . absint( $concept_id ) . " AND version_id=" . absint( $new_version_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			}
+		};
+		$moved = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET version_id=%d WHERE concept_id=%d AND version_id=0", $new_version_id, $concept_id ) );
+		if ( false === $moved ) { return false; }
+		if ( ! $previous_version_id || $previous_version_id === $new_version_id ) { return true; }
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND version_id=%d ORDER BY id ASC", $concept_id, $previous_version_id ), ARRAY_A );
+		if ( ! is_array( $rows ) ) { $rollback(); return false; }
 		foreach ( $rows as $ref ) {
-			if ( ! is_array( $ref ) ) { continue; }
+			if ( ! is_array( $ref ) ) { $rollback(); return false; }
 			$old_reference_id = absint( $ref['id'] ?? 0 );
 			$new_reference_id = (int) $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$table} WHERE concept_id=%d AND version_id=%d AND source_type=%s AND title=%s AND edition=%s AND page_locator=%s AND url=%s AND doi=%s LIMIT 1",
@@ -736,18 +754,20 @@ final class HE_V2_Domain {
 				$ref['version_id'] = $new_version_id;
 				$ref['created_by'] = absint( $actor_id );
 				$ref['created_at'] = current_time( 'mysql', true );
-				if ( ! $wpdb->insert( $table, $ref ) ) {
-					continue;
-				}
+				if ( ! $wpdb->insert( $table, $ref ) ) { $rollback(); return false; }
 				$new_reference_id = (int) $wpdb->insert_id;
+				$created_ids[] = $new_reference_id;
 			}
-			if ( $old_reference_id && $new_reference_id ) {
-				$wpdb->query( $wpdb->prepare(
-					'UPDATE ' . HE_V2_Schema::table( 'relations' ) . ' SET source_reference_id=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE source_concept_id=%d AND source_reference_id=%d',
+			if ( $old_reference_id && $new_reference_id && $old_reference_id !== $new_reference_id ) {
+				$updated = $wpdb->query( $wpdb->prepare(
+					"UPDATE {$relations} SET source_reference_id=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE source_concept_id=%d AND source_reference_id=%d",
 					$new_reference_id, $concept_id, $old_reference_id
 				) );
+				if ( false === $updated ) { $rollback(); return false; }
+				if ( $updated ) { $relation_rewrites[] = array( 'old' => $old_reference_id, 'new' => $new_reference_id ); }
 			}
 		}
+		return true;
 	}
 
 	public static function snapshot_version( $concept_id, $reason, $status, $actor_id ) {
@@ -769,7 +789,11 @@ final class HE_V2_Domain {
 		) );
 		if ( ! $ok ) { return 0; }
 		$new_version_id = (int) $wpdb->insert_id;
-		self::bind_references_to_snapshot( $row['id'], (int) $row['current_version'], $new_version_id, $actor_id );
+		if ( ! self::bind_references_to_snapshot( $row['id'], (int) $row['current_version'], $new_version_id, $actor_id ) ) {
+			$wpdb->delete( HE_V2_Schema::table( 'versions' ), array( 'id' => $new_version_id, 'concept_id' => (int) $row['id'] ), array( '%d','%d' ) );
+			HE_V2_Schema::record_runtime_failure( 'snapshot_reference_binding_failed', 'File 06 discarded a new snapshot because its reference/provenance binding could not be completed safely.' );
+			return 0;
+		}
 		return $new_version_id;
 	}
 
