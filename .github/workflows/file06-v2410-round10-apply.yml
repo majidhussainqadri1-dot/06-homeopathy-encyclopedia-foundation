@@ -1,0 +1,34 @@
+name: File 06 v2.4.10 Round 10 Apply
+on:
+  push:
+    branches: [audit/file-06-eleventh-ten-round-v2.4.10]
+    paths: [.github/workflows/file06-v2410-round10-apply.yml]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: audit/file-06-eleventh-ten-round-v2.4.10}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', coverage: none}
+      - name: Apply v2.4.10 release truth
+        run: python3 scripts/v2410-round10-fix.py
+      - name: Verify corrected Round 10 state
+        run: |
+          set -euo pipefail
+          php tests/v2410-eleventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          grep -q 'Version: 2.4.10' homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          grep -q 'Stable tag: 2.4.10' homeopathy-encyclopedia/readme.txt
+          grep -q 'v2410-eleventh-ten-round-regressions.php' tests/run-all.sh
+      - name: Commit Round 10 correction
+        run: |
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests README.md STATUS.md CHANGELOG.md docs/RELEASE-NOTES.md docs/RELEASE-SIGNOFF.md docs/TEST-REPORT.md
+          git commit -m 'fix(file-06): align eleventh-cycle candidate truth to v2.4.10'
+          git push origin HEAD:audit/file-06-eleventh-ten-round-v2.4.10
