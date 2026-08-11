@@ -39,9 +39,11 @@ $privacy = $read( 'homeopathy-encyclopedia/includes/class-he-v241-governance-pri
 $has( $privacy, 'assigned_posts_page( 1 )', 'mutating erasure always consumes first remaining batch' );
 
 $first_save = $read( 'homeopathy-encyclopedia/includes/class-he-v22-admin-first-save.php' );
-foreach ( array( 'he_v2_research_type', 'he_v2_data_class', 'he_v2_ethics_reference', 'he_v2_consent_verified', 'he_v2_case_anonymized', 'he_v2_case_baseline' ) as $field ) {
+foreach ( array( 'he_v2_research_type', 'he_v2_data_class', 'he_v2_ethics_reference', 'he_v2_consent_verified', 'he_v2_case_anonymized', 'he_v2_dataset_metadata' ) as $field ) {
     $has( $first_save, $field, 'canonical research first-save field ' . $field );
 }
+$has( $first_save, "array( 'baseline','intervention','follow_up','adverse_events','limitations' )", 'all successful-case governance fields replay on first save' );
+$has( $first_save, "'he_v2_case_' . \$field", 'successful-case first-save fields use canonical dynamic prefix' );
 $not( $first_save, "\$_POST['he_record_type']", 'legacy research type field removed' );
 
 $integrations = $read( 'homeopathy-encyclopedia/includes/class-he-v2-integrations.php' );
