@@ -1,0 +1,190 @@
+name: File 06 v2.4.15 Sixteenth Twenty-Round Final QA
+on:
+  push:
+    branches: [audit/file-06-sixteenth-twenty-round-v2.4.15]
+    paths: [.github/workflows/file06-v2415-sixteenth-twenty-round-final.yml]
+permissions:
+  contents: read
+jobs:
+  php-syntax:
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4','8.3']
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint PHP
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+
+  aggregate-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', coverage: none}
+      - name: Run complete inherited and sixteenth twenty-round aggregate gate
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Eq '(^|/)(__pycache__/|.*\.pyc$)'; then echo 'Tracked Python cache artifact found' >&2; exit 1; fi
+          bash tests/run-all.sh 2>&1 | tee /tmp/file06-aggregate.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/file06-aggregate.log; then echo 'Unexpected warning/error emitted by File 06 aggregate QA' >&2; exit 1; fi
+          grep -q 'File 06 v2.4.15 sixteenth-review regressions through R20: PASS' /tmp/file06-aggregate.log
+          grep -q 'File 06 v2.4.15 R20 public-ID regressions: PASS' /tmp/file06-aggregate.log
+          grep -q 'All File 06 v2.4.15 automated checks' /tmp/file06-aggregate.log
+          ! grep -R -F '@@session.in_transaction' homeopathy-encyclopedia
+
+  sixteenth-cycle-source-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Confirm all corrected twenty-round contracts
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia'); i=p/'includes'
+          domain=(i/'class-he-v2-domain.php').read_text(); api=(i/'class-he-v2-api.php').read_text(); dto=(i/'class-he-v241-public-dto-guard.php').read_text(); schema=(i/'class-he-v2-schema.php').read_text(); browse=(i/'class-he-v242-research-browse.php').read_text(); public=(i/'class-he-v2-public.php').read_text(); bootstrap=(p/'homeopathy-encyclopedia.php').read_text(); readme=(p/'readme.txt').read_text(); runall=Path('tests/run-all.sh').read_text(); review=Path('docs/FILE-06-v2.4.15-SIXTEENTH-TWENTY-ROUND-REVIEW.md').read_text()
+          checks=[
+            ('R1 UUID graph DTO',"preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}",dto),
+            ('R2 delete veto',"add_filter( 'pre_delete_post'",domain),('R2 confirmed delete event','wordpress-hard-delete-confirmed',domain),('R2 delete verifier','verify_pending_deletions',domain),
+            ('R3 dataset UUID route',"/datasets/(?P<id>[0-9a-fA-F]{8}-",api),('R3 numeric dataset rejection','Dataset access requests require the canonical public dataset identifier',domain),
+            ('R4 research UUID transition',"/research/(?P<id>[0-9a-fA-F]{8}-",api),('R5 integrity UUID apply',"/integrity/(?P<id>[0-9a-fA-F]{8}-",api),
+            ('R6 replacement numeric rejection','Replacement entries must use a canonical public identifier or canonical slug',api),
+            ('R7 cursor encode','public static function encode_public_cursor',domain),('R7 cursor decode','public static function decode_public_cursor',domain),('R7 research opaque cursor',"encode_public_cursor( 'research'",browse),
+            ('R8 autocomplete WP parity',"p.post_status='publish'",domain),
+            ('R9 research projection failclosed','research_first_save_projection_failed',domain),
+            ('R10 entry projection failclosed','entry_projection_update_failed',domain),('R10 save reconciliation','entry_save_projection_failed',domain),
+            ('R11 complete schema','public static function schema_complete',schema),('R11 health map',"'schema_complete' => $complete",schema),
+            ('R12 paginated migration',"'paged' => $page",schema),('R13 migration projection failclosed','legacy_migration_projection_failed',schema),
+            ('R14 reindex failures','reindex_all_failed',domain),
+            ('R15 repair verification','repair_final_health_failed',schema),('R15 safe-mode clear after checks','delete_option( self::OPTION_SAFE_MODE )',schema),
+            ('R16 projection transaction','entry_projection_transaction_start_failed',domain),('R16 published baseline','published-baseline-snapshot-failed',domain),
+            ('R17 post-id lookup','public static function concept_by_post_id',domain),('R17 public post binding','HE_V2_Domain::concept_by_post_id',public),
+            ('R18 secure scheduler owner','HE_V22_Schedule::publish_due_securely',domain),
+            ('R19 repair safe-mode exception','require_mutation_guards( $request, $operation, $allow_safe_mode = false )',api),('R19 repair opt-in',"require_mutation_guards( $request, 'repair', true )",api),
+            ('R20 runtime','Version: 2.4.15',bootstrap),('R20 contract',"HE_CONTRACT_VERSION', '2.4.15",bootstrap),('R20 stable tag','Stable tag: 2.4.15',readme),
+            ('R20 access-token route',"/dataset-access/(?P<id>[A-Za-z0-9_-]+\\.[a-f0-9]{64})/approve",api),('R20 access-token decode',"decode_public_cursor( 'dataset-access'",domain),('R20 contract boundary',"'dataset_access_approval_identifier'=>'opaque-signed-token'",bootstrap),
+            ('R20 aggregate wiring','v2415-round20-public-id-regressions.php',runall),('cycle record','Defect rounds: 1–20',review),
+          ]
+          for label,marker,text in checks:
+              if marker not in text: raise SystemExit(f'{label} marker missing: {marker}')
+          if "'/dataset-access/(?P<id>\\d+)/approve'" in api: raise SystemExit('raw numeric dataset-access approval route remains')
+          if 'HE_V2_Domain::concept_by_id( $post->post_name' in public: raise SystemExit('mutable post_name binding remains on singular public entry paths')
+          import re
+          m=re.search(r'public static function maintenance\(\).*?\n\t\}',domain,re.S)
+          if m and 'self::publish_due()' in m.group(0): raise SystemExit('duplicate legacy scheduler remains in maintenance')
+          print('v2415-sixteenth-cycle-source-contract-ok')
+          PY
+
+  transaction-callsite-audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Confirm event emission remains outside owning transaction blocks
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in Path('homeopathy-encyclopedia').rglob('*.php'):
+              s=p.read_text(); pos=0
+              while True:
+                  a=s.find('START TRANSACTION',pos)
+                  if a<0: break
+                  c=s.find('COMMIT',a)
+                  if c<0: raise SystemExit(f'{p}: transaction has no later COMMIT marker')
+                  if 'emit_event(' in s[a:c]: raise SystemExit(f'{p}: emit_event occurs before owning COMMIT')
+                  pos=c+6
+          print('transaction-callsite-audit-ok')
+          PY
+
+  reproducible-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build candidate twice and report exact digests
+        run: |
+          set -euo pipefail
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.15-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.15-b.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
+          cmp -s "$a" "$b"
+          echo "PACKAGE_SHA256=$(sha256sum "$a" | awk '{print $1}')"
+          echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
+          echo "SOURCE_TREE_SHA256=$(python3 scripts/source-tree-hash.py homeopathy-encyclopedia | tail -n1 | tr -d '[:space:]')"
+          python3 - <<'PY'
+          import zipfile
+          p='/tmp/06-homeopathy-encyclopedia-foundation-2.4.15-a.zip'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist(); assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names)
+              b=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode(); r=z.read('06-homeopathy-encyclopedia-foundation/readme.txt').decode()
+              assert ' * Version: 2.4.15' in b and "define( 'HE_VERSION', '2.4.15' )" in b
+              assert "define( 'HE_SCHEMA_VERSION', 10 )" in b and "define( 'HE_CONTRACT_VERSION', '2.4.15' )" in b
+              assert "'future_hardening_version'=>'2.4.15'" in b and 'Stable tag: 2.4.15' in r
+          PY
+
+  wordpress-smoke:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          extensions: mysqli,mbstring
+          coverage: none
+      - name: Install WP-CLI
+        run: |
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar && sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+          wp --info
+      - name: WordPress 7.0.1 lifecycle smoke with strict plugin-command log gate
+        run: |
+          set -euo pipefail
+          fail_noise(){ if grep -Eiq 'WordPress database error|PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' "$1"; then cat "$1" >&2; exit 1; fi; }
+          run_clean(){ local log; log="$(mktemp)"; "$@" >"$log" 2>&1; cat "$log"; fail_noise "$log"; rm -f "$log"; }
+          mkdir -p /tmp/wp && cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          run_clean wp plugin activate homeopathy-encyclopedia
+          run_clean wp eval 'if(HE_VERSION!=="2.4.15"||HE_SCHEMA_VERSION!==10||HE_CONTRACT_VERSION!=="2.4.15"){throw new Exception("runtime contract mismatch");}$c=he_contract_descriptor();if(($c["future_hardening_version"]??"")!=="2.4.15"||($c["public_api"]["dataset_access_approval_identifier"]??"")!=="opaque-signed-token"){throw new Exception("contract hardening mismatch");}echo "runtime-contract-ok\n";'
+          run_clean wp eval 'if(HE_V24_Future_Schema::VERSION!==2||(int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2||!HE_V24_Migration_Safety::ready()){throw new Exception("future migration/schema mismatch");}echo "future-migration-ready\n";'
+          run_clean wp eval 'global $wpdb;foreach(array("claims","claim_evidence","provenance","external_records","concept_mappings","similarity","researcher_ids","freshness","impact_queue","research_gaps","watchlists","translations") as $name){$t=HE_V24_Future_Schema::table($name);if($t!==$wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s",$t))){throw new Exception("missing future table ".$name);}}echo "future-schema-tables-ok\n";'
+          run_clean wp eval '$h=HE_V2_Schema::health();if(empty($h["schema_complete"])||count(array_filter($h["tables"]))!==count(HE_V2_Schema::required_tables())){throw new Exception("core schema completeness mismatch");}echo "v2415-core-schema-complete-ok\n";'
+          run_clean wp eval 'wp_set_current_user(1);do_action("rest_api_init");$r=rest_do_request(new WP_REST_Request("GET","/sabri/v2/file-06/health"));if($r->get_status()!==503){throw new Exception("health route did not fail closed without File00: ".$r->get_status());}echo "health-file00-failclosed-ok\n";'
+          run_clean wp eval 'do_action("rest_api_init");$routes=array_keys(rest_get_server()->get_routes());$joined=implode("\n",$routes);foreach(array("/sabri/v2/file-06/datasets/(?P<id>[0-9a-fA-F]{8}-","/sabri/v2/file-06/research/(?P<id>[0-9a-fA-F]{8}-","/sabri/v2/file-06/integrity/(?P<id>[0-9a-fA-F]{8}-","/sabri/v2/file-06/dataset-access/(?P<id>[A-Za-z0-9_-]+\\.[a-f0-9]{64})/approve") as $needle){if(strpos($joined,$needle)===false){throw new Exception("canonical route missing: ".$needle);}}if(strpos($joined,"/dataset-access/(?P<id>\\d+)/approve")!==false){throw new Exception("numeric dataset approval route remains");}echo "v2415-canonical-routes-ok\n";'
+          run_clean wp eval '$t=HE_V2_Domain::encode_public_cursor("entries",123);if(!$t||HE_V2_Domain::decode_public_cursor("entries",$t)!==123||HE_V2_Domain::decode_public_cursor("research",$t)!==null){throw new Exception("cursor scope mismatch");}$bad=substr($t,0,-1).(substr($t,-1)==="a"?"b":"a");if(HE_V2_Domain::decode_public_cursor("entries",$bad)!==null){throw new Exception("tampered cursor accepted");}$a=HE_V2_Domain::encode_public_cursor("dataset-access",77);if(HE_V2_Domain::decode_public_cursor("dataset-access",$a)!==77){throw new Exception("dataset token mismatch");}echo "v2415-opaque-cursors-ok\n";'
+          run_clean wp eval '$r=new ReflectionClass("HE_V241_Public_DTO_Guard");$m=$r->getMethod("public_graph_edges");$a=wp_generate_uuid4();$b=wp_generate_uuid4();$out=$m->invoke(null,array(array("source"=>$a,"target"=>$b,"type"=>"related")));if(count($out)!==1||$out[0]["source"]!==strtolower($a)||$out[0]["target"]!==strtolower($b)){throw new Exception("UUID graph edge lost by DTO guard");}echo "v2415-graph-uuid-guard-ok\n";'
+          run_clean wp eval '$id=wp_insert_post(array("post_type"=>HE_V2_Domain::ENTRY_TYPE,"post_status"=>"draft","post_title"=>"CI Delete Lifecycle Entry"),true);if(is_wp_error($id)||!$id){throw new Exception("entry create failed");}$c=HE_V2_Domain::concept_by_post_id($id);if(!$c){throw new Exception("concept projection missing");}$deleted=wp_delete_post($id,true);if(!$deleted){throw new Exception("hard delete unexpectedly vetoed");}global $wpdb;$status=$wpdb->get_var($wpdb->prepare("SELECT status FROM ".HE_V2_Schema::table("concepts")." WHERE id=%d",$c["id"]));$events=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM ".HE_V2_Schema::table("events")." WHERE event_name=%s AND object_type=%s AND object_id=%d","EncyclopediaEntryArchived.v1","concept",$c["id"]));if($status!=="archived"||$events<1){throw new Exception("confirmed hard-delete lifecycle mismatch");}echo "v2415-hard-delete-lifecycle-ok\n";'
+          run_clean wp eval 'update_option(HE_V2_Schema::OPTION_SAFE_MODE,1,false);HE_V2_Schema::record_runtime_failure("ci-repair-test","CI recovery test");$r=HE_V2_Schema::repair(false);if(is_wp_error($r)){throw new Exception("repair failed: ".$r->get_error_message());}$h=HE_V2_Schema::health();if(get_option(HE_V2_Schema::OPTION_SAFE_MODE)||get_option(HE_V2_Schema::OPTION_FAILURE)||($h["status"]??"")!=="active"||empty($h["schema_complete"])){throw new Exception("repair did not establish verified active state");}echo "v2415-safe-mode-repair-ok\n";'
+          run_clean wp eval '$a=HE_V2_Domain::idempotent_begin(1,"ci-v2415","ci-key-12345678",array("x"=>1));if(is_wp_error($a)||!empty($a["replay"])||empty($a["id"])){throw new Exception("idempotency reserve failed");}if(!HE_V2_Domain::idempotent_finish($a["id"],200,array("ok"=>1))){throw new Exception("idempotency finish failed");}$b=HE_V2_Domain::idempotent_begin(1,"ci-v2415","ci-key-12345678",array("x"=>1));if(is_wp_error($b)||empty($b["replay"])||(int)$b["code"]!==200){throw new Exception("idempotency replay failed");}echo "v2415-idempotency-ok\n";'
+          run_clean wp eval 'if(!HE_V2_Domain::rate_allow("ci-v2415-rate",2,60)||!HE_V2_Domain::rate_allow("ci-v2415-rate",2,60)||HE_V2_Domain::rate_allow("ci-v2415-rate",2,60)){throw new Exception("rate limiter failed");}echo "v2415-rate-limit-ok\n";'
+          run_clean wp eval '$e=HE_V2_Domain::emit_event("File06V2415CISmoke.v1","concept",0,array("email"=>"private@example.test","note"=>"call +923001234567"));global $wpdb;$payload=$wpdb->get_var($wpdb->prepare("SELECT payload_json FROM ".HE_V2_Schema::table("events")." WHERE event_id=%s",$e["event_id"]));if(strpos($payload,"private@example.test")!==false||strpos($payload,"+923001234567")!==false){throw new Exception("event minimization failed");}HE_V2_Integrations::process_outbox(20);$status=$wpdb->get_var($wpdb->prepare("SELECT status FROM ".HE_V2_Schema::table("outbox")." WHERE event_id=%s",$e["event_id"]));if($status!=="delivered"){throw new Exception("outbox delivery failed");}echo "v2415-event-outbox-ok\n";'
+          run_clean wp eval 'wp_set_current_user(1);if(HE_V2_Auth::provider_ready()){throw new Exception("File00 unexpectedly present");}HE_V22_Governance::resume_background_work();echo "v2415-maintenance-failclosed-ok\n";'
+          run_clean wp plugin deactivate homeopathy-encyclopedia
+          run_clean wp plugin activate homeopathy-encyclopedia
+          run_clean wp eval 'if((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10||(int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2||!HE_V24_Migration_Safety::ready()||!HE_V2_Schema::schema_complete()){throw new Exception("reactivation mismatch");}echo "reactivation-ok\n";'
