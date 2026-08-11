@@ -17,3 +17,4 @@ Repository-only corrective record. Staging/live/operational status is not establ
 13. **DEFECT** — Privacy erasure attempted wp_delete_post() on canonical drafts even though File 06 hard-delete governance blocks that path, then claimed removal. Governed drafts are now ownership-de-identified and retained transparently rather than looping on a blocked delete.
 14. **DEFECT** — Reference-create responses exposed raw reference row IDs and relation commands accepted those internal IDs as their public contract. The command surface now returns/accepts scope-bound opaque reference tokens.
 15. **DEFECT** — The admin repair UI labeled WP_Error repair outcomes as success. It now renders failed verified repair as an error and no longer presents a false recovery signal.
+16. **CLEAN** — Fresh authorization/IDOR review of corrected entry/research/dataset mutation routes found no additional repository-level defect after canonical-ID and object-scope corrections.
