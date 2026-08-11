@@ -6,6 +6,10 @@ function v246_ok($ok,$m){global $fail;if(!$ok)$fail[]=$m;}
 $domain=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v246_ok(false!==strpos($domain,"'status' => 'publish' === \$post->post_status ? 'published' : 'proposal',"),'R1 research first-save state must fail closed');
 v246_ok(false===strpos($domain,"'status' => 'draft' === \$post->post_status ? 'proposal' : 'published',"),'R1 non-draft must not imply published');
+$schema=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');
+$future_api=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-api.php');
+v246_ok(false!==strpos($schema,'refresh_freshness( $concept_id, $persist = true )'),'R2 freshness persistence switch missing');
+v246_ok(false!==strpos($future_api,"refresh_freshness( \$concept['id'], false )"),'R2 public freshness GET still persists');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("

@@ -460,7 +460,7 @@ final class HE_V24_Future_API {
 		$concept = self::public_read_concept( $request );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT freshness_state,risk_tier,priority_score,last_evidence_scan,last_human_review,review_due_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'freshness' ) . ' WHERE concept_id=%d', $concept['id'] ), ARRAY_A );
-		if ( ! $row ) { $row = HE_V24_Future_Schema::refresh_freshness( $concept['id'] ); unset( $row['concept_id'] ); }
+		if ( ! $row ) { $row = HE_V24_Future_Schema::refresh_freshness( $concept['id'], false ); if ( is_wp_error( $row ) ) { return $row; } unset( $row['concept_id'] ); }
 		$row['concept_id'] = $concept['public_id']; $row['priority_score'] = (float) $row['priority_score'];
 		return rest_ensure_response( $row );
 	}

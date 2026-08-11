@@ -565,7 +565,7 @@ final class HE_V24_Future_Schema {
 		}
 	}
 
-	public static function refresh_freshness( $concept_id ) {
+	public static function refresh_freshness( $concept_id, $persist = true ) {
 		global $wpdb;
 		$concept = self::concept_row( $concept_id, false );
 		if ( ! $concept ) {
@@ -596,7 +596,9 @@ final class HE_V24_Future_Schema {
 			'priority_score' => $priority,
 			'updated_at' => gmdate( 'Y-m-d H:i:s' ),
 		);
-		$wpdb->replace( self::table( 'freshness' ), $row );
+		if ( $persist && false === $wpdb->replace( self::table( 'freshness' ), $row ) ) {
+			return new WP_Error( 'he_future_freshness_write_failed', __( 'Freshness state could not be stored.', 'homeopathy-encyclopedia' ) );
+		}
 		return $row;
 	}
 
