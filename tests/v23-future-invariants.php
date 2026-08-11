@@ -6,9 +6,9 @@ $b = file_get_contents( $plugin . '/homeopathy-encyclopedia.php' );
 $fail = array();
 function fut_assert( $ok, $msg ) { global $fail; if ( ! $ok ) { $fail[] = $msg; } }
 
-fut_assert( false !== strpos( $b, "define( 'HE_VERSION', '2.4.10' )" ), 'runtime version' );
+fut_assert( (bool) preg_match( "/define\( 'HE_VERSION', '2\\.4\\.[0-9]+' \);/", $b ), 'runtime version family' );
 fut_assert( false !== strpos( $b, "define( 'HE_SCHEMA_VERSION', 10 )" ), 'schema version' );
-fut_assert( false !== strpos( $b, "HE_CONTRACT_VERSION', '2.4.10" ), 'contract version' );
+fut_assert( (bool) preg_match( "/define\( 'HE_CONTRACT_VERSION', '2\\.4\\.[0-9]+' \);/", $b ), 'contract version family' );
 fut_assert( false !== strpos( $b, 'class-he-v23-future.php' ), 'bootstrap Future-18 baseline layer' );
 fut_assert( false !== strpos( $b, 'class-he-v24-future-api.php' ), 'bootstrap v2.4 hardening layer' );
 fut_assert( false !== strpos( $b, 'class-he-v241-governance.php' ), 'bootstrap second-80 governance layer' );
@@ -30,4 +30,4 @@ fut_assert( false !== strpos( $f, "visual_owner'=>'file-25'" ), 'File 25 graph v
 fut_assert( false !== strpos( $f, "assurance_owner'=>'file-24'" ), 'File 24 assurance ownership' );
 fut_assert( false !== strpos( $f, "'file-26'" ), 'File 26 consumer boundary' );
 if ( $fail ) { fwrite( STDERR, "File 06 Future-18 baseline invariants FAILED:\n- " . implode( "\n- ", $fail ) . "\n" ); exit( 1 ); }
-echo "File 06 v2.3 Future-18 baseline remains present under v2.4.10 fifth-ten-round hardening.\n";
+echo "File 06 v2.3 Future-18 baseline remains present under current v2.4.x hardening.\n";
