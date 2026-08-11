@@ -1,0 +1,93 @@
+name: File 06 v2.4.8 Final Smoke Regression Retry
+on:
+  push:
+    branches: [audit/file-06-ninth-ten-round-v2.4.8]
+    paths: [.github/workflows/file06-v248-final-smoke-regression-retry.yml]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-ninth-ten-round-v2.4.8
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply source and regression correction
+        run: |
+          set -euo pipefail
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-domain.php')
+          s=p.read_text()
+          start="\t\t$now = current_time( 'mysql', true );\n\t\t$already_in_transaction = (bool) $wpdb->get_var( 'SELECT @@session.in_transaction' );"
+          end="\t\tif ( ! $already_in_transaction ) { $wpdb->query( 'COMMIT' ); }\n"
+          a=s.find(start)
+          if a<0: raise SystemExit('old R4 start marker missing')
+          b=s.find(end,a)
+          if b<0: raise SystemExit('old R4 end marker missing')
+          b+=len(end)
+          new="""\t\t$now = current_time( 'mysql', true );
+          \t\t/* Internal File 06 transaction call-site audit confirms emit_event() is invoked after owning transactions commit. Own only the event/outbox pair here and avoid vendor-specific transaction-state variables. */
+          \t\t$started = $wpdb->query( 'START TRANSACTION' );
+          \t\tif ( false === $started ) {
+          \t\t\tHE_V2_Schema::record_runtime_failure( 'event_outbox_transaction_start_failed', 'File 06 could not start the domain-event/outbox atomic transaction.' );
+          \t\t\tthrow new RuntimeException( 'File 06 event/outbox transaction could not start.' );
+          \t\t}
+          \t\t$event_ok = $wpdb->insert( HE_V2_Schema::table( 'events' ), array(
+          \t\t\t'event_id' => $event_id, 'event_name' => sanitize_text_field( $name ), 'object_type' => sanitize_key( $object_type ), 'object_id' => absint( $object_id ),
+          \t\t\t'actor_id' => get_current_user_id(), 'trace_id' => $trace_id, 'payload_json' => $json, 'created_at' => $now,
+          \t\t), array( '%s','%s','%s','%d','%d','%s','%s','%s' ) );
+          \t\t$outbox_ok = $wpdb->insert( HE_V2_Schema::table( 'outbox' ), array(
+          \t\t\t'event_id' => $event_id, 'event_name' => sanitize_text_field( $name ), 'payload_json' => $json, 'status' => 'pending', 'attempts' => 0,
+          \t\t\t'next_attempt_at' => $now, 'last_error' => '', 'created_at' => $now, 'updated_at' => $now,
+          \t\t), array( '%s','%s','%s','%s','%d','%s','%s','%s','%s' ) );
+          \t\tif ( ! $event_ok || ! $outbox_ok ) {
+          \t\t\t$wpdb->query( 'ROLLBACK' );
+          \t\t\tHE_V2_Schema::record_runtime_failure( 'event_outbox_atomic_write_failed', 'A File 06 domain event and its outbox record could not be persisted as one atomic unit.' );
+          \t\t\tthrow new RuntimeException( 'File 06 event/outbox atomic persistence failed.' );
+          \t\t}
+          \t\t$committed = $wpdb->query( 'COMMIT' );
+          \t\tif ( false === $committed ) {
+          \t\t\t$wpdb->query( 'ROLLBACK' );
+          \t\t\tHE_V2_Schema::record_runtime_failure( 'event_outbox_commit_failed', 'File 06 could not commit the domain-event/outbox atomic transaction.' );
+          \t\t\tthrow new RuntimeException( 'File 06 event/outbox transaction could not commit.' );
+          \t\t}
+          """.replace('          ','')
+          p.write_text(s[:a]+new+s[b:])
+
+          p=Path('tests/v248-ninth-ten-round-regressions.php')
+          s=p.read_text()
+          old="v248_ok(false!==strpos($domain,'SELECT @@session.in_transaction') && false!==strpos($domain,'event_outbox_atomic_write_failed') && false!==strpos($domain,\"ROLLBACK\") && false!==strpos($domain,\"COMMIT\"),'R4 event/outbox pair is not persisted atomically');"
+          newassert="v248_ok(false===strpos($domain,'@@session.in_transaction') && false!==strpos($domain,'event_outbox_atomic_write_failed') && false!==strpos($domain,'event_outbox_transaction_start_failed') && false!==strpos($domain,'event_outbox_commit_failed') && false!==strpos($domain,\"START TRANSACTION\") && false!==strpos($domain,\"ROLLBACK\") && false!==strpos($domain,\"COMMIT\"),'R4 event/outbox pair is not persisted atomically with MySQL-compatible fail-closed transaction handling');"
+          if old not in s: raise SystemExit('old R4 regression assertion missing')
+          s=s.replace(old,newassert,1)
+          p.write_text(s)
+
+          p=Path('CHANGELOG.md'); s=p.read_text()
+          needle='- Event/audit and outbox pair persistence is atomic and fails closed on partial writes.\n'
+          extra='- Round 4 final-smoke regression correction: removed unsupported `@@session.in_transaction`; event/outbox persistence now uses an explicit MySQL-compatible local transaction with fail-closed start/commit handling.\n'
+          if extra not in s: s=s.replace(needle,needle+extra,1)
+          p.write_text(s)
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php -l tests/v248-ninth-ten-round-regressions.php
+          php tests/v248-ninth-ten-round-regressions.php
+          bash tests/run-all.sh 2>&1 | tee /tmp/file06-fix.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/file06-fix.log; then exit 1; fi
+          git diff --check
+      - name: Commit corrected Round 4 source
+        run: |
+          set -euo pipefail
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v248-ninth-ten-round-regressions.php CHANGELOG.md
+          git commit -m 'fix(file-06): make Round 4 event outbox transaction MySQL compatible'
+          git push origin HEAD:audit/file-06-ninth-ten-round-v2.4.8
