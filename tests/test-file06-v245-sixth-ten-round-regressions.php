@@ -20,4 +20,8 @@ $runtime = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/cla
 f06_v245_assert(strpos($runtime, 'maybe_serialize( $existing )') !== false, 'Round 4 stale core-maintenance lease CAS takeover missing');
 f06_v245_assert(strpos($runtime, 'maybe_serialize( $current )') !== false, 'Round 4 core-maintenance lease CAS release missing');
 f06_v245_assert(strpos($runtime, 'delete_option( $option )') === false, 'Round 4 unsafe unconditional core lease deletion remains');
+$gprivacy = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v241-governance-privacy.php');
+f06_v245_assert(strpos($gprivacy, 'assigned_posts_after') !== false, 'Round 5 cursor-based governance privacy scan missing');
+f06_v245_assert(strpos($gprivacy, 'he_v241_privacy_assignment_cursor_') !== false, 'Round 5 per-user privacy cursor missing');
+f06_v245_assert(strpos($gprivacy, 'assigned_posts_page( 1 )') === false, 'Round 5 stalling first-batch eraser pattern remains');
 echo "File 06 v2.4.5 sixth-review regressions: PASS\n";

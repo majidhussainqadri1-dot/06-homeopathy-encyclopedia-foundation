@@ -39,6 +39,19 @@ final class HE_V241_Governance_Privacy {
 		) );
 	}
 
+	private static function erasure_cursor_option( $uid ) {
+		return 'he_v241_privacy_assignment_cursor_' . absint( $uid );
+	}
+
+	private static function assigned_posts_after( $cursor ) {
+		global $wpdb;
+		$types = array( HE_V2_Domain::ENTRY_TYPE, HE_V2_Domain::RESEARCH_TYPE );
+		return array_map( 'absint', $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} pm ON pm.post_id=p.ID AND pm.meta_key=%s WHERE p.ID>%d AND p.post_type IN (%s,%s) ORDER BY p.ID ASC LIMIT %d",
+			HE_V241_Governance::META_REVIEW_ASSIGNMENTS, absint( $cursor ), $types[0], $types[1], self::PAGE_SIZE
+		) ) );
+	}
+
 	private static function public_object_id( $post_id ) {
 		if ( HE_V2_Domain::RESEARCH_TYPE === get_post_type( $post_id ) ) {
 			global $wpdb;
@@ -100,8 +113,11 @@ final class HE_V241_Governance_Privacy {
 			delete_user_meta( $uid, HE_V241_Governance::META_EDITOR_TYPES );
 			$removed = true;
 		}
-		/* Erasure mutates the qualifying set, so always process the first remaining batch. */
-		$post_ids = self::assigned_posts_page( 1 );
+		/* Progress by immutable post ID, not by a mutating result-set offset; unrelated assignment rows must never stall erasure. */
+		$cursor_option = self::erasure_cursor_option( $uid );
+		if ( 1 === max( 1, absint( $page ) ) ) { delete_option( $cursor_option ); }
+		$cursor = absint( get_option( $cursor_option, 0 ) );
+		$post_ids = self::assigned_posts_after( $cursor );
 		foreach ( $post_ids as $post_id ) {
 			$assignments = get_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, true );
 			if ( ! is_array( $assignments ) ) { continue; }
@@ -118,11 +134,14 @@ final class HE_V241_Governance_Privacy {
 				else { delete_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS ); }
 			}
 		}
+		$done = count( $post_ids ) < self::PAGE_SIZE;
+		if ( $post_ids && ! $done ) { update_option( $cursor_option, (int) end( $post_ids ), false ); }
+		else { delete_option( $cursor_option ); }
 		return array(
 			'items_removed' => $removed,
 			'items_retained' => false,
 			'messages' => array(),
-			'done' => count( $post_ids ) < self::PAGE_SIZE,
+			'done' => $done,
 		);
 	}
 }
