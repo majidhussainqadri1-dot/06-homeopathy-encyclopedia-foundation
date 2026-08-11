@@ -30,8 +30,7 @@ jobs:
           from pathlib import Path
 
           p = Path('homeopathy-encyclopedia/homeopathy-encyclopedia.php')
-          s = p.read_text()
-          s = s.replace('2.4.4', '2.4.5')
+          s = p.read_text().replace('2.4.4', '2.4.5')
           old = "'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim'))"
           new = "'public_api'=>array('canonical_public_ids_only'=>true,'internal_ids_exposed'=>false,'core_numeric_enumeration_blocked'=>true,'ambiguous_aliases_fail_closed'=>true,'research_post_state_required'=>true,'translation_read_route'=>'/future/public/translations/{canonical_public_id}','canonical_future_read_routes'=>array('/future/public/claims/{canonical_public_id}','/future/public/graph/{canonical_public_id}','/future/public/time-machine/{canonical_public_id}','/future/public/freshness/{canonical_public_id}','/future/public/citations/{canonical_public_id}/{format}'),'legacy_urdu_read_compatibility'=>true,'public_provenance_types'=>array('concept','claim'))"
           if old not in s:
@@ -63,6 +62,10 @@ jobs:
           s = s.replace('All File 06 v2.4.4 automated checks, inherited review matrices, fifth ten-round regressions and deterministic package comparison passed.', 'All File 06 v2.4.5 automated checks, inherited review matrices, sixth ten-round regressions and deterministic package comparison passed.')
           p.write_text(s)
 
+          p = Path('tests/v2-invariants.php')
+          s = p.read_text().replace('2.4.4', '2.4.5')
+          p.write_text(s)
+
           p = Path('tests/v244-ten-round-regressions.php')
           s = p.read_text()
           replacements = [
@@ -84,6 +87,7 @@ jobs:
 
           p = Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
           s = p.read_text()
+          s = s.replace('"end( $rows )[\'id\']"', '"end( \\$rows )[\'id\']"')
           needle = 'echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";'
           block = "$bootstrap = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/homeopathy-encyclopedia.php');\n"
           block += "f06_v245_assert(strpos($bootstrap, ' * Version: 2.4.5') !== false, 'Round 10 plugin header version not 2.4.5');\n"
@@ -101,6 +105,7 @@ jobs:
           p.write_text(s)
           PY
           php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          php -l tests/v2-invariants.php
           php -l tests/v244-ten-round-regressions.php
           php -l tests/test-file06-v245-sixth-ten-round-regressions.php
           php tests/test-file06-v245-sixth-ten-round-regressions.php
@@ -113,6 +118,6 @@ jobs:
           if git diff --quiet; then exit 0; fi
           git config user.name majidhussainqadri1-dot
           git config user.email majidhussainqadri1@gmail.com
-          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests/run-all.sh tests/v244-ten-round-regressions.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests/run-all.sh tests/v2-invariants.php tests/v244-ten-round-regressions.php tests/test-file06-v245-sixth-ten-round-regressions.php
           git commit -m 'fix(file-06): align v2.4.5 runtime contract and aggregate QA'
           git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
