@@ -1,9 +1,9 @@
-# File 06 — v2.4.12 Repository Candidate Signoff
+# File 06 — v2.4.13 Repository Candidate Signoff
 
-- Repository candidate: v2.4.12
+- Repository candidate: v2.4.13
 - Base DB schema: 10
 - Future internal schema: 2
-- Automated QA: pending final exact-head workflow at the time of this source commit
+- Automated QA: pending final exact-head workflow at this source commit
 - Staging acceptance: unverified
 - Live deployed version: unverified
 - Live DB/migration state: unverified

@@ -1,7 +1,7 @@
-# File 06 — Release Notes 2.4.12
+# File 06 — Release Notes 2.4.13
 
-Thirteenth fresh ten-round corrective repository candidate. Repository defects were found and corrected in rounds `1–9`; round `10` reconciles current release/runtime/package/QA truth after those source corrections.
+Fourteenth fresh ten-round corrective repository candidate. Repository defects were found and corrected in rounds `1–9`; round `10` reconciles runtime, contract, package, tests and current release documentation after those source corrections.
 
-Primary corrections cover recursive structured DTO safety, CAS-safe scheduled invalidation, transaction-certain governed merge behavior, fail-closed source-language convergence, privacy-minimized event payloads, nested research input compatibility, canonical public-research filtering, bounded merge-chain/cycle handling, and exact v2.4.12 release truth.
+Corrections cover recursive structured-write safety; verified research-row persistence with compensation; canonical published/corrected/retracted research eligibility; one governed merge implementation; canonical investigator/conflict persistence before success; removal of post-success research normalization writes; transaction-certain composer rollbacks; CAS-safe research admin/state normalization; checked Future impact-queue transitions; and exact v2.4.13 release truth.
 
-Final exact-head automated run number and package/source hashes must be taken from the completed final workflow. Staging and live remain separate evidence gates.
+Staging acceptance, deployed parity and live operation remain separate evidence gates.
