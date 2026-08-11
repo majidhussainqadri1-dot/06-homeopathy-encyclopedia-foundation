@@ -47,7 +47,8 @@ function he_v2_purge_site() {
 		'he_v23_future_version','he_v24_future_version','he_v24_freshness_cursor','he_v24_gap_cursor','he_v24_retraction_cursor',
 		'he_v24_provenance_migration_cursor','he_v24_impact_migration_cursor','he_v24_provenance_migration_done','he_v24_impact_migration_done',
 		'he_v24_orcid_postflight_cursor','he_v24_emitted_postflight_cursor','he_v24_orcid_postflight_done','he_v24_emitted_postflight_done','he_v24_migration_pending',
-		'he_v241_core_maintenance_lease','he_v241_future_maintenance_lease'
+		'he_v241_core_maintenance_lease','he_v241_future_maintenance_lease',
+		'he_v242_language_migration_done','he_v242_language_migration_conflicts','he_v242_language_migration_cursor','he_v242_language_migration_lock'
 	) as $option ) {
 		delete_option( $option );
 	}
