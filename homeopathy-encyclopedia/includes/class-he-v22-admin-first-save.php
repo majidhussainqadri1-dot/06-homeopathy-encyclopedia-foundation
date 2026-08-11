@@ -23,30 +23,30 @@ final class HE_V22_Admin_First_Save {
 		if ( ! $row ) {
 			return;
 		}
-		$record_type = sanitize_key( wp_unslash( $_POST['he_record_type'] ?? $row['record_type'] ) );
+		$record_type = sanitize_key( wp_unslash( $_POST['he_v2_research_type'] ?? $row['record_type'] ) );
 		if ( ! in_array( $record_type, array( 'proposal','protocol','publication','successful-case','dataset' ), true ) ) {
 			$record_type = 'proposal';
 		}
-		$data_class = sanitize_key( wp_unslash( $_POST['he_data_class'] ?? $row['data_class'] ) );
+		$data_class = sanitize_key( wp_unslash( $_POST['he_v2_data_class'] ?? $row['data_class'] ) );
 		if ( ! in_array( $data_class, array( 'public','restricted','highly-restricted' ), true ) ) {
 			$data_class = 'restricted';
 		}
 		if ( 'dataset' === $record_type && 'public' === $data_class ) {
 			$data_class = 'restricted';
 		}
-		$ethics = array( 'approval_reference' => sanitize_text_field( wp_unslash( $_POST['he_ethics_ref'] ?? '' ) ) );
-		$consent = array( 'verified' => ! empty( $_POST['he_consent_verified'] ) );
+		$ethics = array( 'approval_reference' => sanitize_text_field( wp_unslash( $_POST['he_v2_ethics_reference'] ?? '' ) ) );
+		$consent = array( 'verified' => ! empty( $_POST['he_v2_consent_verified'] ) );
 		$case = json_decode( (string) $row['case_json'], true );
 		$case = is_array( $case ) ? $case : array();
 		foreach ( array( 'baseline','intervention','follow_up','adverse_events','limitations' ) as $field ) {
-			if ( array_key_exists( 'he_case_' . $field, $_POST ) ) {
-				$case[ $field ] = sanitize_textarea_field( wp_unslash( $_POST[ 'he_case_' . $field ] ) );
+			if ( array_key_exists( 'he_v2_case_' . $field, $_POST ) ) {
+				$case[ $field ] = sanitize_textarea_field( wp_unslash( $_POST[ 'he_v2_case_' . $field ] ) );
 			}
 		}
 		$metadata = json_decode( (string) $row['metadata_json'], true );
 		$metadata = is_array( $metadata ) ? $metadata : array();
-		if ( array_key_exists( 'he_dataset_description', $_POST ) ) {
-			$metadata['description'] = sanitize_textarea_field( wp_unslash( $_POST['he_dataset_description'] ) );
+		if ( array_key_exists( 'he_v2_dataset_metadata', $_POST ) ) {
+			$metadata['description'] = sanitize_textarea_field( wp_unslash( $_POST['he_v2_dataset_metadata'] ) );
 		}
 		$wpdb->update( $table, array(
 			'record_type' => $record_type,
@@ -55,8 +55,8 @@ final class HE_V22_Admin_First_Save {
 			'ethics_json' => wp_json_encode( $ethics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'consent_json' => wp_json_encode( $consent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'data_class' => $data_class,
-			'case_anonymized' => ! empty( $_POST['he_case_anonymized'] ) ? 1 : 0,
-			'case_consent_verified' => ! empty( $_POST['he_consent_verified'] ) ? 1 : 0,
+			'case_anonymized' => ! empty( $_POST['he_v2_case_anonymized'] ) ? 1 : 0,
+			'case_consent_verified' => ! empty( $_POST['he_v2_consent_verified'] ) ? 1 : 0,
 			'case_tag' => 'successful-case' === $record_type ? 'کامیاب کیس' : '',
 			'case_json' => wp_json_encode( $case, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'metadata_json' => wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
