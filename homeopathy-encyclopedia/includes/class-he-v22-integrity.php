@@ -117,6 +117,11 @@ final class HE_V22_Integrity {
 			if ( ! $concept || ! in_array( $concept['status'], array( 'published', 'corrected', 'retracted' ), true ) ) {
 				throw new RuntimeException( 'concept-unavailable' );
 			}
+			$object_permission = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH, (int) $concept['post_id'], 'file06-integrity-apply' );
+			if ( is_wp_error( $object_permission ) ) {
+				$wpdb->query( 'ROLLBACK' );
+				return self::finish( $reservation, $object_permission );
+			}
 			$version_id = 0;
 			if ( 'correction' === $action['action_type'] ) {
 				$validation = HE_V2_Domain::validate_for_review( (int) $concept['id'] );
