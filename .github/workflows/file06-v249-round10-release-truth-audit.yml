@@ -1,0 +1,21 @@
+name: File 06 v2.4.9 Round 10 Release Truth Audit
+on:
+  push:
+    paths:
+      - .github/workflows/file06-v249-round10-release-truth-audit.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Locate current 2.4.8 release truth markers
+        run: |
+          set -euo pipefail
+          echo '=== runtime/readme/runall ==='
+          grep -n -F '2.4.8' homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests/run-all.sh || true
+          echo '=== current docs ==='
+          grep -n -F '2.4.8' README.md STATUS.md CHANGELOG.md SBOM.md docs/*.md 2>/dev/null || true
+          echo '=== current candidate invariant/test markers ==='
+          grep -R -n --include='*.php' --include='*.sh' -F '2.4.8' tests | tail -n 160 || true
