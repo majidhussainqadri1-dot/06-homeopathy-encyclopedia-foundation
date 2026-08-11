@@ -249,17 +249,18 @@ final class HE_V22_Governance {
 	}
 
 	public static function register_routes() {
-		register_rest_route( HE_V2_API::NS, '/research/(?P<id>\\d+)/review', array(
+		$uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+		register_rest_route( HE_V2_API::NS, '/research/(?P<id>' . $uuid . ')/review', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( __CLASS__, 'rest_review_research' ),
 			'permission_callback' => function( $request ) { return self::research_permission( $request, HE_V2_Auth::CAP_REVIEW ); },
 		) );
-		register_rest_route( HE_V2_API::NS, '/research/(?P<id>\\d+)/integrity', array(
+		register_rest_route( HE_V2_API::NS, '/research/(?P<id>' . $uuid . ')/integrity', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( __CLASS__, 'rest_create_research_integrity' ),
 			'permission_callback' => function() { return is_user_logged_in() && HE_V2_Auth::membership_allowed(); },
 		) );
-		register_rest_route( HE_V2_API::NS, '/research-integrity/(?P<id>\\d+)/apply', array(
+		register_rest_route( HE_V2_API::NS, '/research-integrity/(?P<id>' . $uuid . ')/apply', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( __CLASS__, 'rest_apply_research_integrity' ),
 			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH ); },
@@ -273,7 +274,8 @@ final class HE_V22_Governance {
 
 	private static function research_permission( $request, $cap ) {
 		global $wpdb;
-		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT post_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $request['id'] ) ), ARRAY_A );
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT post_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
 		if ( ! $row ) {
 			return new WP_Error( 'he_not_found', __( 'The requested record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
@@ -327,112 +329,77 @@ final class HE_V22_Governance {
 	}
 
 	public static function rest_review_research( WP_REST_Request $request ) {
-		$reservation = self::mutation_guard( $request, 'research-review-' . absint( $request['id'] ) );
-		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
-			return self::mutation_finish( $reservation, null, 201 );
-		}
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$reservation = self::mutation_guard( $request, 'research-review-' . $public_id );
+		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 201 ); }
 		global $wpdb;
-		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $request['id'] ) ), ARRAY_A );
-		if ( ! $row ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 );
-		}
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
+		if ( ! $row ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 ); }
 		$data = (array) $request->get_json_params();
 		$expected = absint( $data['expected_version'] ?? 0 );
-		if ( ! $expected || $expected !== (int) $row['row_version'] ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed after it was loaded for review. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 201 );
-		}
+		if ( ! $expected || $expected !== (int) $row['row_version'] ) { return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed after it was loaded for review. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 201 ); }
 		$decision = sanitize_key( $data['decision'] ?? 'changes_required' );
-		if ( ! in_array( $decision, array( 'approved', 'changes_required', 'rejected' ), true ) ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_invalid_review_decision', __( 'Invalid review decision.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ), 201 );
-		}
+		if ( ! in_array( $decision, array( 'approved', 'changes_required', 'rejected' ), true ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_invalid_review_decision', __( 'Invalid review decision.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ), 201 ); }
 		$conflict = ! empty( $data['conflict_declared'] );
-		if ( $conflict && 'approved' === $decision ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_review_conflict', __( 'A reviewer with a declared conflict cannot approve this record.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ), 201 );
-		}
+		if ( $conflict && 'approved' === $decision ) { return self::mutation_finish( $reservation, new WP_Error( 'he_review_conflict', __( 'A reviewer with a declared conflict cannot approve this record.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ), 201 ); }
 		$post = get_post( (int) $row['post_id'] );
 		$reviewer = get_current_user_id();
-		if ( $post && (int) $post->post_author === $reviewer && ! HE_V2_Auth::is_founder( $reviewer ) ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_independent_review_required', __( 'The author cannot provide the independent approval review.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ), 201 );
-		}
+		if ( ! $post ) { return self::mutation_finish( $reservation, new WP_Error( 'he_research_post_missing', __( 'The authoritative WordPress research object is unavailable.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ), 201 ); }
+		if ( (int) $post->post_author === $reviewer && ! HE_V2_Auth::is_founder( $reviewer ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_independent_review_required', __( 'The author cannot provide the independent approval review.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ), 201 ); }
 		$hash = self::research_hash( $row );
-		$reviews = HE_V2_Schema::table( 'reviews' );
-		$research = HE_V2_Schema::table( 'research' );
+		$reviews = HE_V2_Schema::table( 'reviews' ); $research = HE_V2_Schema::table( 'research' );
 		$ok = $wpdb->query( $wpdb->prepare(
 			"INSERT INTO {$reviews} (object_type,object_id,reviewer_id,scope,decision,conflict_declared,note,content_hash,reviewed_row_version,review_subject_author,created_at) SELECT 'research',r.id,%d,%s,%s,%d,%s,%s,r.row_version,%d,%s FROM {$research} r WHERE r.id=%d AND r.row_version=%d",
-			$reviewer,
-			sanitize_key( $data['scope'] ?? 'scientific' ),
-			$decision,
-			$conflict ? 1 : 0,
-			sanitize_textarea_field( $data['note'] ?? '' ),
-			$hash,
-			$post ? (int) $post->post_author : 0,
-			current_time( 'mysql', true ),
-			(int) $row['id'],
-			$expected
+			$reviewer, sanitize_key( $data['scope'] ?? 'scientific' ), $decision, $conflict ? 1 : 0, sanitize_textarea_field( $data['note'] ?? '' ), $hash, (int) $post->post_author, current_time( 'mysql', true ), (int) $row['id'], $expected
 		) );
-		if ( false === $ok ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_review_write_failed', __( 'The review could not be stored.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ), 201 );
-		}
-		if ( 1 !== (int) $ok ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed while the review decision was being stored. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 201 );
-		}
+		if ( false === $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_review_write_failed', __( 'The review could not be stored.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ), 201 ); }
+		if ( 1 !== (int) $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed while the review decision was being stored. Reload the current version before deciding.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 201 ); }
 		HE_V2_Domain::emit_event( 'ResearchRecordReviewed.v1', 'research', (int) $row['id'], array( 'decision' => $decision, 'scope' => sanitize_key( $data['scope'] ?? 'scientific' ) ) );
-		return self::mutation_finish( $reservation, array( 'review_id' => (int) $wpdb->insert_id, 'decision' => $decision, 'content_hash' => $hash, 'reviewed_row_version' => $expected ), 201 );
+		return self::mutation_finish( $reservation, array( 'review_id' => HE_V2_Domain::encode_public_cursor( 'review', (int) $wpdb->insert_id ), 'decision' => $decision, 'content_hash' => $hash, 'reviewed_row_version' => $expected ), 201 );
 	}
 
 	public static function rest_create_research_integrity( WP_REST_Request $request ) {
-		$reservation = self::mutation_guard( $request, 'research-integrity-' . absint( $request['id'] ) );
-		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
-			return self::mutation_finish( $reservation, null, 201 );
-		}
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$reservation = self::mutation_guard( $request, 'research-integrity-' . $public_id );
+		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 201 ); }
 		global $wpdb;
-		$research = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $request['id'] ) ), ARRAY_A );
-		if ( ! $research || ! in_array( $research['status'], array( 'published', 'corrected' ), true ) ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'The requested record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 );
-		}
+		$research = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
+		if ( ! $research || ! in_array( $research['status'], array( 'published', 'corrected' ), true ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'The requested record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 ); }
 		$data = (array) $request->get_json_params();
 		$type = sanitize_key( $data['type'] ?? 'correction' );
-		if ( ! in_array( $type, array( 'correction', 'retraction' ), true ) || ! trim( (string) ( $data['reason'] ?? '' ) ) ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_required', __( 'A correction or retraction type and reason are required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ), 201 );
+		if ( ! in_array( $type, array( 'correction', 'retraction' ), true ) || ! trim( (string) ( $data['reason'] ?? '' ) ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_required', __( 'A correction or retraction type and reason are required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ), 201 ); }
+		$replacement_id = 0;
+		$replacement_public = strtolower( sanitize_text_field( (string) ( $data['replacement_id'] ?? '' ) ) );
+		if ( '' !== $replacement_public ) {
+			if ( ctype_digit( $replacement_public ) || ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $replacement_public ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_canonical_public_id_required', __( 'Research replacements require a canonical public identifier.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 ); }
+			$replacement_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $replacement_public ) );
+			if ( ! $replacement_id || $replacement_id === (int) $research['id'] ) { return self::mutation_finish( $reservation, new WP_Error( 'he_invalid_replacement', __( 'A replacement must identify a different existing research record.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ), 201 ); }
 		}
-		$now = current_time( 'mysql', true );
+		$now = current_time( 'mysql', true ); $action_public_id = wp_generate_uuid4();
 		$ok = $wpdb->insert( HE_V2_Schema::table( 'integrity_actions' ), array(
-			'public_id' => wp_generate_uuid4(), 'object_type' => 'research', 'object_id' => (int) $research['id'],
-			'action_type' => $type, 'status' => 'submitted', 'reason' => sanitize_textarea_field( $data['reason'] ),
-			'evidence' => sanitize_textarea_field( $data['evidence'] ?? '' ), 'replacement_object_id' => absint( $data['replacement_id'] ?? 0 ),
+			'public_id' => $action_public_id, 'object_type' => 'research', 'object_id' => (int) $research['id'], 'action_type' => $type, 'status' => 'submitted',
+			'reason' => sanitize_textarea_field( $data['reason'] ), 'evidence' => sanitize_textarea_field( $data['evidence'] ?? '' ), 'replacement_object_id' => $replacement_id,
 			'row_version' => 1, 'created_by' => get_current_user_id(), 'created_at' => $now, 'updated_at' => $now,
 		) );
-		if ( ! $ok ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_write_failed', __( 'The integrity request could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ), 201 );
-		}
-		HE_V2_Domain::emit_event( 'ResearchIntegritySubmitted.v1', 'research', (int) $research['id'], array( 'action_type' => $type ) );
-		return self::mutation_finish( $reservation, array( 'id' => (int) $wpdb->insert_id, 'status' => 'submitted', 'type' => $type ), 201 );
+		if ( ! $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_write_failed', __( 'The integrity request could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ), 201 ); }
+		HE_V2_Domain::emit_event( 'ResearchIntegritySubmitted.v1', 'research', (int) $research['id'], array( 'action_type' => $type, 'integrity_action' => $action_public_id ) );
+		return self::mutation_finish( $reservation, array( 'id' => $action_public_id, 'status' => 'submitted', 'type' => $type ), 201 );
 	}
 
 	public static function rest_apply_research_integrity( WP_REST_Request $request ) {
-		$reservation = self::mutation_guard( $request, 'research-integrity-apply-' . absint( $request['id'] ) );
-		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
-			return self::mutation_finish( $reservation, null, 200 );
-		}
-		global $wpdb;
-		$data = (array) $request->get_json_params();
-		$expected = absint( $data['expected_version'] ?? 0 );
-		$actions = HE_V2_Schema::table( 'integrity_actions' );
-		$research_table = HE_V2_Schema::table( 'research' );
-		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
-			HE_V2_Schema::record_runtime_failure( 'research_integrity_transaction_start_failed', 'File 06 could not start the research-integrity apply transaction.' );
-			return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_apply_failed', __( 'The research integrity action could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ), 200 );
-		}
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$reservation = self::mutation_guard( $request, 'research-integrity-apply-' . $public_id );
+		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
+		global $wpdb; $data = (array) $request->get_json_params(); $expected = absint( $data['expected_version'] ?? 0 );
+		$actions = HE_V2_Schema::table( 'integrity_actions' ); $research_table = HE_V2_Schema::table( 'research' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { HE_V2_Schema::record_runtime_failure( 'research_integrity_transaction_start_failed', 'File 06 could not start the research-integrity apply transaction.' ); return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_apply_failed', __( 'The research integrity action could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ), 200 ); }
 		try {
-			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$actions} WHERE id=%d AND object_type='research' FOR UPDATE", absint( $request['id'] ) ), ARRAY_A );
+			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$actions} WHERE public_id=%s AND object_type='research' FOR UPDATE", $public_id ), ARRAY_A );
 			if ( ! $action || 'accepted' !== $action['status'] ) { throw new RuntimeException( 'acceptance-required' ); }
 			$research = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$research_table} WHERE id=%d FOR UPDATE", (int) $action['object_id'] ), ARRAY_A );
 			if ( ! $research ) { throw new RuntimeException( 'research-not-found' ); }
 			$object_permission = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH, (int) $research['post_id'], 'file06-research-integrity-apply' );
-			if ( is_wp_error( $object_permission ) ) {
-				$wpdb->query( 'ROLLBACK' );
-				return self::mutation_finish( $reservation, $object_permission, 200 );
-			}
+			if ( is_wp_error( $object_permission ) ) { $wpdb->query( 'ROLLBACK' ); return self::mutation_finish( $reservation, $object_permission, 200 ); }
 			if ( ! $expected || $expected !== (int) $research['row_version'] ) { throw new RuntimeException( 'research-version-conflict' ); }
 			$to = 'retraction' === $action['action_type'] ? 'retracted' : 'corrected';
 			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$research_table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $to, $research['id'], $expected ) );
@@ -440,18 +407,11 @@ final class HE_V22_Governance {
 			if ( 1 !== (int) $updated || 1 !== (int) $action_updated ) { throw new RuntimeException( 'integrity-version-conflict' ); }
 			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'integrity-commit-failed' ); }
 		} catch ( Throwable $error ) {
-			$wpdb->query( 'ROLLBACK' );
-			$message = $error->getMessage();
-			if ( 'research-not-found' === $message ) {
-				$result = new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
-			} elseif ( 'acceptance-required' === $message ) {
-				$result = new WP_Error( 'he_integrity_acceptance_required', __( 'The research integrity action must be accepted before it can be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-			} elseif ( in_array( $message, array( 'research-version-conflict', 'integrity-version-conflict' ), true ) ) {
-				$result = new WP_Error( 'he_version_conflict', __( 'The research or integrity record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-			} else {
-				HE_V2_Schema::record_runtime_failure( 'research_integrity_atomic_failed', 'File 06 rolled back or could not confirm the research-integrity transaction commit.' );
-				$result = new WP_Error( 'he_integrity_apply_failed', __( 'The research integrity action could not be applied atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
-			}
+			$wpdb->query( 'ROLLBACK' ); $message = $error->getMessage();
+			if ( 'research-not-found' === $message ) { $result = new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+			elseif ( 'acceptance-required' === $message ) { $result = new WP_Error( 'he_integrity_acceptance_required', __( 'The research integrity action must be accepted before it can be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); }
+			elseif ( in_array( $message, array( 'research-version-conflict', 'integrity-version-conflict' ), true ) ) { $result = new WP_Error( 'he_version_conflict', __( 'The research or integrity record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); }
+			else { HE_V2_Schema::record_runtime_failure( 'research_integrity_atomic_failed', 'File 06 rolled back or could not confirm the research-integrity transaction commit.' ); $result = new WP_Error( 'he_integrity_apply_failed', __( 'The research integrity action could not be applied atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); }
 			return self::mutation_finish( $reservation, $result, 200 );
 		}
 		$event = 'retracted' === $to ? 'ResearchRecordRetracted.v1' : 'ResearchPublicationCorrected.v1';
