@@ -179,7 +179,7 @@ final class HE_V2_API {
 			'safety_status' => array( 'sanitize_callback' => 'sanitize_key', 'default' => '' ),
 			'source_grade' => array( 'sanitize_callback' => 'sanitize_key', 'default' => '' ),
 			'letter' => array( 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ),
-			'cursor' => array( 'sanitize_callback' => 'absint', 'default' => 0 ),
+			'cursor' => array( 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ),
 			'limit' => array( 'sanitize_callback' => 'absint', 'default' => 20 ),
 		);
 	}

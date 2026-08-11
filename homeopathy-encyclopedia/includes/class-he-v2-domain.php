@@ -193,6 +193,28 @@ final class HE_V2_Domain {
 	}
 
 
+	public static function encode_public_cursor( $scope, $id ) {
+		$scope = sanitize_key( $scope ); $id = absint( $id );
+		if ( ! $scope || ! $id ) { return ''; }
+		$payload = wp_json_encode( array( 's' => $scope, 'i' => $id ) );
+		$encoded = rtrim( strtr( base64_encode( $payload ), '+/', '-_' ), '=' );
+		return $encoded . '.' . hash_hmac( 'sha256', $encoded, wp_salt( 'auth' ) );
+	}
+
+	public static function decode_public_cursor( $scope, $token ) {
+		$scope = sanitize_key( $scope ); $token = trim( (string) $token );
+		if ( '' === $token ) { return 0; }
+		if ( ! preg_match( '/^([A-Za-z0-9_-]+)\.([a-f0-9]{64})$/', $token, $m ) ) { return null; }
+		$expected = hash_hmac( 'sha256', $m[1], wp_salt( 'auth' ) );
+		if ( ! hash_equals( $expected, $m[2] ) ) { return null; }
+		$padded = strtr( $m[1], '-_', '+/' ) . str_repeat( '=', ( 4 - strlen( $m[1] ) % 4 ) % 4 );
+		$json = base64_decode( $padded, true );
+		$data = false !== $json ? json_decode( $json, true ) : null;
+		if ( ! is_array( $data ) || ( $data['s'] ?? '' ) !== $scope || empty( $data['i'] ) ) { return null; }
+		return absint( $data['i'] );
+	}
+
+
 	public static function guard_direct_publish( $data, $postarr ) {
 		if ( 'publish' !== ( $data['post_status'] ?? '' ) ) {
 			return $data;
@@ -1415,7 +1437,8 @@ final class HE_V2_Domain {
 	public static function search( $args ) {
 		global $wpdb;
 		$limit = min( 50, max( 1, absint( $args['limit'] ?? 20 ) ) );
-		$cursor = max( 0, absint( $args['cursor'] ?? 0 ) );
+		$cursor = self::decode_public_cursor( 'entries', $args['cursor'] ?? '' );
+		if ( null === $cursor ) { return new WP_Error( 'he_invalid_cursor', __( 'The pagination cursor is invalid or has been altered.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
 		$where = array( "c.status='published'", "c.review_status='approved'", "c.safety_status='approved'", 'c.merged_into_id=0', 'c.id>%d' );
 		$params = array( $cursor );
 		$term = self::normalize( $args['q'] ?? '' );
@@ -1457,7 +1480,7 @@ final class HE_V2_Domain {
 				);
 			}
 		}
-		return array( 'items' => $items, 'next_cursor' => $has_more && $rows ? (int) end( $rows )['id'] : null, 'limit' => $limit );
+		return array( 'items' => $items, 'next_cursor' => $has_more && $rows ? self::encode_public_cursor( 'entries', (int) end( $rows )['id'] ) : null, 'limit' => $limit );
 	}
 
 	public static function autocomplete( $q, $limit = 8 ) {

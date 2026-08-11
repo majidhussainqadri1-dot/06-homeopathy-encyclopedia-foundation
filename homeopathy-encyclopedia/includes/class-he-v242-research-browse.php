@@ -74,7 +74,8 @@ final class HE_V242_Research_Browse {
 	private static function browse( WP_REST_Request $request ) {
 		global $wpdb;
 		$limit = min( 50, max( 1, absint( $request->get_param( 'limit' ) ?: 20 ) ) );
-		$cursor = max( 0, absint( $request->get_param( 'cursor' ) ) );
+		$cursor = HE_V2_Domain::decode_public_cursor( 'research', $request->get_param( 'cursor' ) );
+		if ( null === $cursor ) { return new WP_Error( 'he_invalid_cursor', __( 'The research pagination cursor is invalid or has been altered.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
 		$scan_cursor = $cursor;
 		$items = array();
 		$scanned = 0;
@@ -104,7 +105,7 @@ final class HE_V242_Research_Browse {
 		}
 		return array(
 			'items' => array_slice( $items, 0, $limit ),
-			'next_cursor' => $has_more && $scan_cursor ? $scan_cursor : null,
+			'next_cursor' => $has_more && $scan_cursor ? HE_V2_Domain::encode_public_cursor( 'research', $scan_cursor ) : null,
 			'limit' => $limit,
 			'scanned' => $scanned,
 			'governance_filtered' => true,
