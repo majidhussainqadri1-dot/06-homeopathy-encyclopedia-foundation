@@ -1,0 +1,21 @@
+name: File 06 v2.4.8 Transaction Call-Site Audit
+on:
+  push:
+    branches: [audit/file-06-ninth-ten-round-v2.4.8]
+    paths: [.github/workflows/file06-v248-transaction-audit.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Locate transaction and event call sites
+        run: |
+          set -euo pipefail
+          echo '=== START TRANSACTION ==='
+          grep -R -n --include='*.php' -F "START TRANSACTION" homeopathy-encyclopedia || true
+          echo '=== COMMIT ==='
+          grep -R -n --include='*.php' -F "COMMIT" homeopathy-encyclopedia || true
+          echo '=== emit_event calls ==='
+          grep -R -n --include='*.php' -F "emit_event(" homeopathy-encyclopedia || true
