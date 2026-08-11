@@ -1460,7 +1460,7 @@ final class HE_V2_Domain {
 		$cursor = self::decode_public_cursor( 'entries', $args['cursor'] ?? '' );
 		if ( null === $cursor ) { return new WP_Error( 'he_invalid_cursor', __( 'The pagination cursor is invalid or has been altered.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
 		$where = array( "c.status='published'", "c.review_status='approved'", "c.safety_status='approved'", 'c.merged_into_id=0', 'c.id>%d' );
-		$params = array( $cursor );
+		$params = array( self::ENTRY_TYPE, $cursor );
 		$term = self::normalize( $args['q'] ?? '' );
 		if ( $term ) {
 			$words = array_values( array_filter( preg_split( '/\s+/u', $term ) ) );
@@ -1485,7 +1485,7 @@ final class HE_V2_Domain {
 			}
 		}
 		$params[] = $limit + 1;
-		$sql = 'SELECT c.* FROM ' . HE_V2_Schema::table( 'concepts' ) . ' c INNER JOIN ' . HE_V2_Schema::table( 'search_index' ) . ' i ON i.concept_id=c.id WHERE ' . implode( ' AND ', $where ) . ' ORDER BY c.id ASC LIMIT %d';
+		$sql = 'SELECT c.* FROM ' . HE_V2_Schema::table( 'concepts' ) . ' c INNER JOIN ' . HE_V2_Schema::table( 'search_index' ) . ' i ON i.concept_id=c.id INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type=%s AND p.post_status='publish' WHERE " . implode( ' AND ', $where ) . ' ORDER BY c.id ASC LIMIT %d';
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
 		$has_more = count( $rows ) > $limit;
 		$rows = array_slice( $rows, 0, $limit );
