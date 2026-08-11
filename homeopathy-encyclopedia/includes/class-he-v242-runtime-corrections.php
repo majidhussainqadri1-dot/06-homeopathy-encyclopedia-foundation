@@ -68,25 +68,25 @@ final class HE_V242_Runtime_Corrections {
 		$post_id = (int) $row['post_id'];
 		$delete_guard = array( 'HE_V242_Third_Audit', 'guard_hard_delete' );
 		$domain_delete = array( 'HE_V2_Domain', 'on_delete_post' );
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'composer_rollback_start_failed', 'File 06 could not start the entry composer rollback transaction.' );
+			return false;
+		}
 		remove_filter( 'pre_delete_post', $delete_guard, 1 );
 		remove_action( 'before_delete_post', $domain_delete, 10 );
 		try {
 			/* Delete the WordPress post inside the same DB transaction; if any later cleanup fails, rollback restores both sides. */
 			$deleted_post = wp_delete_post( $post_id, true );
-			if ( ! $deleted_post ) {
-				throw new RuntimeException( 'post-delete-failed' );
-			}
-			$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . HE_V2_Schema::table( 'relations' ) . ' WHERE source_concept_id=%d OR target_concept_id=%d', $concept_id, $concept_id ) );
+			if ( ! $deleted_post ) { throw new RuntimeException( 'post-delete-failed' ); }
+			$relation_deleted = $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . HE_V2_Schema::table( 'relations' ) . ' WHERE source_concept_id=%d OR target_concept_id=%d', $concept_id, $concept_id ) );
+			if ( false === $relation_deleted ) { throw new RuntimeException( 'relation-delete-failed' ); }
 			foreach ( array( 'aliases','references','versions','search_index','bookmarks' ) as $suffix ) {
-				$wpdb->delete( HE_V2_Schema::table( $suffix ), array( 'concept_id' => $concept_id ), array( '%d' ) );
+				if ( false === $wpdb->delete( HE_V2_Schema::table( $suffix ), array( 'concept_id' => $concept_id ), array( '%d' ) ) ) { throw new RuntimeException( 'child-delete-failed' ); }
 			}
-			$wpdb->delete( HE_V2_Schema::table( 'reviews' ), array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s','%d' ) );
-			$wpdb->delete( HE_V2_Schema::table( 'integrity_actions' ), array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s','%d' ) );
-			if ( 1 !== (int) $wpdb->delete( HE_V2_Schema::table( 'concepts' ), array( 'id' => $concept_id ), array( '%d' ) ) ) {
-				throw new RuntimeException( 'concept-delete-failed' );
-			}
-			$wpdb->query( 'COMMIT' );
+			if ( false === $wpdb->delete( HE_V2_Schema::table( 'reviews' ), array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s','%d' ) ) ) { throw new RuntimeException( 'review-delete-failed' ); }
+			if ( false === $wpdb->delete( HE_V2_Schema::table( 'integrity_actions' ), array( 'object_type' => 'concept', 'object_id' => $concept_id ), array( '%s','%d' ) ) ) { throw new RuntimeException( 'integrity-delete-failed' ); }
+			if ( 1 !== (int) $wpdb->delete( HE_V2_Schema::table( 'concepts' ), array( 'id' => $concept_id ), array( '%d' ) ) ) { throw new RuntimeException( 'concept-delete-failed' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'entry-rollback-commit-failed' ); }
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
 			/* wp_delete_post() can invalidate object cache before SQL rollback restores rows. */
