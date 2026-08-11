@@ -1011,31 +1011,26 @@ final class HE_V2_Domain {
 		$edges = array();
 		while ( $queue && count( $edges ) < $limit ) {
 			list( $current, $level ) = array_shift( $queue );
-			if ( isset( $visited[ $current ] ) || $level > $depth ) {
-				continue;
-			}
+			if ( isset( $visited[ $current ] ) || $level > $depth ) { continue; }
 			$visited[ $current ] = true;
 			$row = self::concept_by_id( $current );
-			if ( $row ) {
-				$dto = self::public_dto( $row );
-				if ( $dto ) {
-					$nodes[] = array( 'id' => $dto['id'], 'title' => $dto['title'], 'type' => $dto['type'], 'url' => $dto['canonical_url'] );
-				}
-			}
-			if ( $level >= $depth ) {
-				continue;
-			}
+			if ( ! $row ) { continue; }
+			$dto = self::public_dto( $row );
+			if ( ! $dto ) { continue; }
+			$nodes[] = array( 'id' => $dto['id'], 'title' => $dto['title'], 'type' => $dto['type'], 'url' => $dto['canonical_url'] );
+			if ( $level >= $depth ) { continue; }
 			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT r.* FROM ' . HE_V2_Schema::table( 'relations' ) . ' r INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' sc ON sc.id=r.source_concept_id INNER JOIN ' . HE_V2_Schema::table( 'references' ) . " ref ON ref.id=r.source_reference_id AND ref.concept_id=r.source_concept_id AND ref.version_id=sc.current_version WHERE r.status='active' AND sc.current_version>0 AND (r.source_concept_id=%d OR r.target_concept_id=%d) LIMIT %d", $current, $current, $limit ), ARRAY_A );
 			foreach ( $rows as $edge ) {
+				$source = self::concept_by_id( (int) $edge['source_concept_id'] );
+				$target = self::concept_by_id( (int) $edge['target_concept_id'] );
+				if ( ! $source || ! $target ) { continue; }
+				$source_dto = self::public_dto( $source );
+				$target_dto = self::public_dto( $target );
+				if ( ! $source_dto || ! $target_dto ) { continue; }
+				$edges[] = array( 'source' => $source_dto['id'], 'target' => $target_dto['id'], 'type' => $edge['relation_type'], 'owner' => $edge['owner_file'], 'version' => (int) $edge['row_version'] );
 				$other = (int) $edge['source_concept_id'] === $current ? (int) $edge['target_concept_id'] : (int) $edge['source_concept_id'];
-				if ( ! self::concept_by_id( $other ) ) {
-					continue;
-				}
-				$edges[] = array( 'source' => (int) $edge['source_concept_id'], 'target' => (int) $edge['target_concept_id'], 'type' => $edge['relation_type'], 'owner' => $edge['owner_file'], 'version' => (int) $edge['row_version'] );
 				$queue[] = array( $other, $level + 1 );
-				if ( count( $edges ) >= $limit ) {
-					break;
-				}
+				if ( count( $edges ) >= $limit ) { break; }
 			}
 		}
 		return array( 'nodes' => $nodes, 'edges' => $edges, 'bounded_depth' => $depth, 'bounded_limit' => $limit );
