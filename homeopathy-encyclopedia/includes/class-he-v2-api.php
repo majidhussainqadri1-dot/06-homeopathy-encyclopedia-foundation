@@ -216,11 +216,17 @@ final class HE_V2_API {
 			$data = $result->get_error_data();
 			$code = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 400;
 			$body = array( 'code' => $result->get_error_code(), 'message' => $result->get_error_message(), 'data' => $data );
-			HE_V2_Domain::idempotent_finish( $reservation['id'], $code, $body );
+			$finished = HE_V2_Domain::idempotent_finish( $reservation['id'], $code, $body );
+			if ( ! $finished ) {
+				return new WP_Error( 'he_idempotency_finalize_failed', __( 'The request outcome could not be recorded safely. Do not retry with a new key until the current state is reloaded.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
 			return $result;
 		}
 		$body = array( 'data' => $result, 'trace_id' => HE_V2_Domain::trace_id() );
-		HE_V2_Domain::idempotent_finish( $reservation['id'], $success_code, $body );
+		$finished = HE_V2_Domain::idempotent_finish( $reservation['id'], $success_code, $body );
+		if ( ! $finished ) {
+			return new WP_Error( 'he_idempotency_finalize_failed', __( 'The request may have completed, but its retry record could not be finalized safely. Reload the current state before retrying.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+		}
 		return new WP_REST_Response( $body, $success_code );
 	}
 

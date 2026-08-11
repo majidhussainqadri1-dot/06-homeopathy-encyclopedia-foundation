@@ -1459,7 +1459,11 @@ final class HE_V2_Domain {
 			HE_V2_Schema::record_runtime_failure( 'idempotency_finish_failed', 'The reserved File 06 response could not be persisted.' );
 			return false;
 		}
-		return 1 === (int) $updated;
+		if ( 1 !== (int) $updated ) {
+			HE_V2_Schema::record_runtime_failure( 'idempotency_finish_stale_lease', 'A File 06 idempotency reservation was reclaimed or changed before its original worker could finalize the response.' );
+			return false;
+		}
+		return true;
 	}
 
 	public static function maintenance() {
