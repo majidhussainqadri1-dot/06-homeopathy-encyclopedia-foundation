@@ -103,19 +103,43 @@ jobs:
           php /tmp/wp-cli.phar --info
           chmod +x /tmp/wp-cli.phar
           sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
-      - name: WordPress 7.0.1 lifecycle smoke
+      - name: WordPress 7.0.1 lifecycle smoke with strict runtime-log gate
         shell: bash
         run: |
           set -euo pipefail
+          fail_on_runtime_noise() {
+            local log="$1"
+            if grep -Eiq 'WordPress database error|PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' "$log"; then
+              echo 'File 06 emitted a database/runtime warning or error:' >&2
+              cat "$log" >&2
+              exit 1
+            fi
+          }
           mkdir -p /tmp/wp
           cd /tmp/wp
           wp core download --version=7.0.1 --force
           wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
           wp core install --url=http://file06.test --title='File 06 CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
           cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
-          wp plugin activate homeopathy-encyclopedia
+
+          activation_log=/tmp/file06-activation.log
+          wp plugin activate homeopathy-encyclopedia >"$activation_log" 2>&1
+          cat "$activation_log"
+          fail_on_runtime_noise "$activation_log"
+
           wp eval 'if ( HE_VERSION !== "2.4.4" || HE_SCHEMA_VERSION !== 10 || HE_CONTRACT_VERSION !== "2.4.4" ) { throw new Exception("File 06 runtime contract mismatch"); } echo "runtime-contract-ok\n";'
+          wp eval 'if ((int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==HE_V24_Future_Schema::VERSION || HE_V24_Future_Schema::VERSION!==2) { throw new Exception("future schema option/version mismatch"); } if (!HE_V24_Migration_Safety::ready()) { throw new Exception("future migration not ready after fresh activation"); } echo "future-migration-ready\n";'
+          wp eval 'global $wpdb; foreach(array("claims","claim_evidence","provenance","external_records","concept_mappings","similarity","researcher_ids","freshness","impact_queue","research_gaps","watchlists","translations") as $name){$t=HE_V24_Future_Schema::table($name); if($t!==$wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s",$t))){throw new Exception("missing future table ".$name);}} echo "future-schema-tables-ok\n";'
           wp eval 'foreach(array("HE_V24_Migration_Safety","HE_V24_Future_API","HE_V241_Governance","HE_V242_Reference_Graph","HE_V242_Research_Immutability") as $c){if(!class_exists($c)){throw new Exception("missing ".$c);}} echo "v244-runtime-classes-ok\n";'
-          wp plugin deactivate homeopathy-encyclopedia
-          wp plugin activate homeopathy-encyclopedia
-          wp eval 'if ((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10){throw new Exception("schema option mismatch");} echo "reactivation-ok\n";'
+
+          deactivation_log=/tmp/file06-deactivation.log
+          wp plugin deactivate homeopathy-encyclopedia >"$deactivation_log" 2>&1
+          cat "$deactivation_log"
+          fail_on_runtime_noise "$deactivation_log"
+
+          reactivation_log=/tmp/file06-reactivation.log
+          wp plugin activate homeopathy-encyclopedia >"$reactivation_log" 2>&1
+          cat "$reactivation_log"
+          fail_on_runtime_noise "$reactivation_log"
+
+          wp eval 'if ((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10){throw new Exception("schema option mismatch");} if ((int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2){throw new Exception("future schema option mismatch after reactivation");} if (!HE_V24_Migration_Safety::ready()){throw new Exception("future migration not ready after reactivation");} echo "reactivation-ok\n";'
