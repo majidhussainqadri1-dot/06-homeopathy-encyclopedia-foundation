@@ -246,32 +246,23 @@ final class HE_V2_Domain {
 	}
 
 	public static function on_save_research( $post_id, $post, $update ) {
-		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
-			return;
-		}
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) { return; }
 		global $wpdb;
 		$table = HE_V2_Schema::table( 'research' );
 		$existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE post_id=%d", $post_id ) );
-		if ( ! $existing ) {
-			$wpdb->insert( $table, array(
-				'public_id' => wp_generate_uuid4(),
-				'post_id' => $post_id,
-				'record_type' => 'publication',
-				'status' => 'publish' === $post->post_status ? 'published' : 'proposal',
-				'title' => $post->post_title,
-				'question' => $post->post_excerpt,
-				'protocol' => $post->post_content,
-				'investigators_json' => '[]',
-				'ethics_json' => '{}',
-				'consent_json' => '{}',
-				'conflicts_json' => '[]',
-				'data_class' => 'restricted',
-				'case_json' => '{}',
-				'metadata_json' => '{}',
-				'created_by' => (int) $post->post_author,
-				'created_at' => current_time( 'mysql', true ),
-				'updated_at' => current_time( 'mysql', true ),
-			), array( '%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s' ) );
+		if ( $existing ) { return; }
+		$wpdb->insert( $table, array(
+			'public_id' => wp_generate_uuid4(), 'post_id' => $post_id, 'record_type' => 'publication',
+			'status' => 'publish' === $post->post_status ? 'published' : 'proposal', 'title' => $post->post_title,
+			'question' => $post->post_excerpt, 'protocol' => $post->post_content, 'investigators_json' => '[]',
+			'ethics_json' => '{}', 'consent_json' => '{}', 'conflicts_json' => '[]', 'data_class' => 'restricted',
+			'case_json' => '{}', 'metadata_json' => '{}', 'created_by' => (int) $post->post_author,
+			'created_at' => current_time( 'mysql', true ), 'updated_at' => current_time( 'mysql', true ),
+		), array( '%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s' ) );
+		$persisted = $wpdb->get_row( $wpdb->prepare( "SELECT id,post_id,record_type FROM {$table} WHERE post_id=%d", $post_id ), ARRAY_A );
+		if ( ! $persisted || (int) $persisted['post_id'] !== (int) $post_id || 'publication' !== $persisted['record_type'] ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'research_first_save_projection_failed', 'A WordPress research object was saved without a verified canonical File 06 research projection; mutations were paused.' );
 		}
 	}
 
