@@ -67,7 +67,7 @@ final class HE_V22_Research_Guard {
 		foreach ( (array) $items as $item ) {
 			$item = sanitize_text_field( $item );
 			if ( '' !== $item ) {
-				$out[] = array( 'name' => $item );
+				$out[] = $item;
 			}
 		}
 		return array_slice( $out, 0, 50 );

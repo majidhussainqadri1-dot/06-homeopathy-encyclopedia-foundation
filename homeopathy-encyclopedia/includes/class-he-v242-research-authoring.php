@@ -22,12 +22,14 @@ final class HE_V242_Research_Authoring {
 	}
 
 	private static function investigators( $value ) {
-		if ( is_array( $value ) ) {
-			$parts = $value;
-		} else {
-			$parts = preg_split( '/[\r\n,;]+/u', (string) $value );
+		$parts = is_array( $value ) ? $value : preg_split( '/[\r\n,;]+/u', (string) $value );
+		$out = array();
+		foreach ( (array) $parts as $item ) {
+			if ( is_array( $item ) ) { $item = $item['name'] ?? ''; }
+			$item = sanitize_text_field( (string) $item );
+			if ( '' !== $item ) { $out[] = $item; }
 		}
-		return array_values( array_unique( array_filter( array_map( 'sanitize_text_field', (array) $parts ) ) ) );
+		return array_values( array_unique( $out ) );
 	}
 
 	public static function add_box() {
@@ -44,7 +46,7 @@ final class HE_V242_Research_Authoring {
 	public static function render_box( $post ) {
 		global $wpdb;
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT investigators_json,conflicts_json,metadata_json FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE post_id=%d', absint( $post->ID ) ), ARRAY_A );
-		$investigators = $row ? json_decode( (string) $row['investigators_json'], true ) : array();
+		$investigators = self::investigators( $row ? json_decode( (string) $row['investigators_json'], true ) : array() );
 		$conflicts = $row ? json_decode( (string) $row['conflicts_json'], true ) : array();
 		$metadata = $row ? json_decode( (string) $row['metadata_json'], true ) : array();
 		$statement = is_array( $conflicts ) ? (string) ( $conflicts['statement'] ?? ( isset( $conflicts[0] ) ? implode( '; ', array_map( 'strval', $conflicts ) ) : '' ) ) : '';
