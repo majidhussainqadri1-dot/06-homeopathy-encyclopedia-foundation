@@ -25,6 +25,8 @@ $schedule=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-schedu
 v249_ok(false!==strpos($schedule,'scheduled_publish_atomic_failed') && false!==strpos($schedule,'scheduled-wordpress-publish-failed') && false!==strpos($schedule,'FOR UPDATE'),'R7 scheduled publication can leave published domain state or orphan snapshots when WordPress/CAS publication fails');
 $domain=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v249_ok(false!==strpos($domain,'research_publish_atomic_failed') && false!==strpos($domain,'research-wordpress-publish-failed') && false!==strpos($domain,'he_research_publish_post_missing'),'R8 research publication can commit domain published state when the governed WordPress publication fails or is missing');
+$gov=v249_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
+v249_ok(false!==strpos($gov,'research_integrity_atomic_failed') && false!==strpos($gov,"object_type='research' FOR UPDATE") && false!==strpos($gov,'integrity-commit-failed'),'R9 research-integrity apply ignores transaction start/commit certainty and reads mutable action state before locking');
 /*__V249_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.9 tenth-review regressions FAILED:
 - ".implode("

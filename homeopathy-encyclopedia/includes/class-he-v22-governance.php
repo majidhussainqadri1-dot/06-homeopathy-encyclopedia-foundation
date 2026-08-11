@@ -410,28 +410,40 @@ final class HE_V22_Governance {
 			return self::mutation_finish( $reservation, null, 200 );
 		}
 		global $wpdb;
-		$action = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . " WHERE id=%d AND object_type='research'", absint( $request['id'] ) ), ARRAY_A );
-		if ( ! $action || 'accepted' !== $action['status'] ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_acceptance_required', __( 'The research integrity action must be accepted before it can be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 200 );
-		}
-		$research = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', (int) $action['object_id'] ), ARRAY_A );
-		if ( ! $research ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 200 );
-		}
 		$data = (array) $request->get_json_params();
 		$expected = absint( $data['expected_version'] ?? 0 );
-		if ( $expected !== (int) $research['row_version'] ) {
-			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The research record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 200 );
+		$actions = HE_V2_Schema::table( 'integrity_actions' );
+		$research_table = HE_V2_Schema::table( 'research' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'research_integrity_transaction_start_failed', 'File 06 could not start the research-integrity apply transaction.' );
+			return self::mutation_finish( $reservation, new WP_Error( 'he_integrity_apply_failed', __( 'The research integrity action could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ), 200 );
 		}
-		$to = 'retraction' === $action['action_type'] ? 'retracted' : 'corrected';
-		$wpdb->query( 'START TRANSACTION' );
-		$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'research' ) . ' SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d', $to, $research['id'], $expected ) );
-		$action_updated = $wpdb->query( $wpdb->prepare( "UPDATE " . HE_V2_Schema::table( 'integrity_actions' ) . " SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", get_current_user_id(), (int) $action['id'], (int) $action['row_version'] ) );
-		if ( 1 !== (int) $updated || 1 !== (int) $action_updated ) {
+		try {
+			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$actions} WHERE id=%d AND object_type='research' FOR UPDATE", absint( $request['id'] ) ), ARRAY_A );
+			if ( ! $action || 'accepted' !== $action['status'] ) { throw new RuntimeException( 'acceptance-required' ); }
+			$research = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$research_table} WHERE id=%d FOR UPDATE", (int) $action['object_id'] ), ARRAY_A );
+			if ( ! $research ) { throw new RuntimeException( 'research-not-found' ); }
+			if ( ! $expected || $expected !== (int) $research['row_version'] ) { throw new RuntimeException( 'research-version-conflict' ); }
+			$to = 'retraction' === $action['action_type'] ? 'retracted' : 'corrected';
+			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$research_table} SET status=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $to, $research['id'], $expected ) );
+			$action_updated = $wpdb->query( $wpdb->prepare( "UPDATE {$actions} SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", get_current_user_id(), (int) $action['id'], (int) $action['row_version'] ) );
+			if ( 1 !== (int) $updated || 1 !== (int) $action_updated ) { throw new RuntimeException( 'integrity-version-conflict' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'integrity-commit-failed' ); }
+		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
-			return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The integrity action changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ), 200 );
+			$message = $error->getMessage();
+			if ( 'research-not-found' === $message ) {
+				$result = new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+			} elseif ( 'acceptance-required' === $message ) {
+				$result = new WP_Error( 'he_integrity_acceptance_required', __( 'The research integrity action must be accepted before it can be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+			} elseif ( in_array( $message, array( 'research-version-conflict', 'integrity-version-conflict' ), true ) ) {
+				$result = new WP_Error( 'he_version_conflict', __( 'The research or integrity record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+			} else {
+				HE_V2_Schema::record_runtime_failure( 'research_integrity_atomic_failed', 'File 06 rolled back or could not confirm the research-integrity transaction commit.' );
+				$result = new WP_Error( 'he_integrity_apply_failed', __( 'The research integrity action could not be applied atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
+			return self::mutation_finish( $reservation, $result, 200 );
 		}
-		$wpdb->query( 'COMMIT' );
 		$event = 'retracted' === $to ? 'ResearchRecordRetracted.v1' : 'ResearchPublicationCorrected.v1';
 		HE_V2_Domain::emit_event( $event, 'research', (int) $research['id'], array( 'reason' => $action['reason'], 'integrity_action' => $action['public_id'] ) );
 		return self::mutation_finish( $reservation, self::research_public_or_private_dto( (int) $research['id'], true ), 200 );
