@@ -333,6 +333,7 @@ final class HE_V2_API {
 		$reservation = $this->require_mutation_guards( $request, 'add-reference-' . $request['id'] );
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
 		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::add_reference( $row['id'], (array) $request->get_json_params(), get_current_user_id(), absint( $request->get_param( 'version_id' ) ) );
+		if ( ! is_wp_error( $result ) ) { $result = array( 'reference_id' => HE_V2_Domain::encode_public_cursor( 'reference', (int) $result ) ); }
 		return $this->mutation_response( $reservation, $result, 201 );
 	}
 
@@ -403,7 +404,9 @@ final class HE_V2_API {
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
 		$data = (array) $request->get_json_params();
 		$target = HE_V2_Domain::concept_by_id( $data['target_id'] ?? '', true );
-		$result = is_wp_error( $reservation ) ? $reservation : ( ! $target ? new WP_Error( 'he_relation_target_missing', __( 'Relationship target not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) : HE_V2_Domain::add_relation( $row['id'], $target['id'], sanitize_key( $data['type'] ?? '' ), absint( $data['reference_id'] ?? 0 ), get_current_user_id() ) );
+		$reference_id = HE_V2_Domain::decode_public_cursor( 'reference', (string) ( $data['reference_id'] ?? '' ) );
+		if ( null === $reference_id || ! $reference_id ) { $result = new WP_Error( 'he_reference_public_id_required', __( 'Relationship provenance requires the opaque reference identifier returned by the reference command.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+		else { $result = is_wp_error( $reservation ) ? $reservation : ( ! $target ? new WP_Error( 'he_relation_target_missing', __( 'Relationship target not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) : HE_V2_Domain::add_relation( $row['id'], $target['id'], sanitize_key( $data['type'] ?? '' ), $reference_id, get_current_user_id() ) ); }
 		return $this->mutation_response( $reservation, $result, 201 );
 	}
 
