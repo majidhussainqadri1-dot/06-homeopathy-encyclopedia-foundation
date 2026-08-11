@@ -4,7 +4,8 @@ defined( 'ABSPATH' ) || exit;
 
 final class HE_V22_Admin_First_Save {
 	public static function hooks() {
-		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'save_research_meta' ), 50, 2 );
+		/* Domain materializes at 30; replay before completeness/research hardening savers at 45+. */
+		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'save_research_meta' ), 40, 2 );
 	}
 
 	public static function save_research_meta( $post_id, $post ) {
@@ -28,7 +29,7 @@ final class HE_V22_Admin_First_Save {
 		 * HE_V2_Domain::on_save_research materializes a new row at priority 30 with
 		 * row_version=1. Existing rows are handled by HE_V2_Admin at priority 20,
 		 * which increments their version before this hook runs. This gate therefore
-		 * prevents the historical double-write/double-version behavior on later saves.
+		 * prevents historical double-write/double-version behavior on later saves.
 		 */
 		if ( 1 !== (int) $row['row_version'] ) {
 			return;
