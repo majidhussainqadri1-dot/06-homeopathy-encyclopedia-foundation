@@ -16,6 +16,9 @@ v246_ok(false===strpos($core_api,"return current_user_can( 'activate_plugins' )"
 $domain=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v246_ok(0===substr_count($domain,"'show_in_rest' => true,"),'R4 File06 taxonomies still expose uncontrolled core REST writes');
 v246_ok(substr_count($domain,"'show_in_rest' => false,")>=5,'R4 controlled REST ownership marker missing');
+$public_guard=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');
+v246_ok(false!==strpos($public_guard,"'public' === \$row['data_class']") && false!==strpos($public_guard,"case_anonymized") && false!==strpos($public_guard,"case_consent_verified"),'R5 successful-case public governance gate incomplete');
+v246_ok(false===strpos($public_guard,"'successful-case' === \$row['record_type'] ? json_decode"),'R5 unconditional successful-case rendering remains');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("

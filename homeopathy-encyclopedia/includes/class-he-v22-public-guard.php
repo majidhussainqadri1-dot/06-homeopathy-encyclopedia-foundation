@@ -48,7 +48,7 @@ final class HE_V22_Public_Guard {
 			return '<div class="he-v2 he-v2__notice he-v2__notice--restricted" role="alert">' . esc_html__( 'This research record is not publicly available.', 'homeopathy-encyclopedia' ) . '</div>';
 		}
 
-		$case = 'successful-case' === $row['record_type'] ? json_decode( (string) $row['case_json'], true ) : array();
+		$case = 'successful-case' === $row['record_type'] && 'public' === $row['data_class'] && in_array( $row['status'], array( 'published', 'corrected' ), true ) && ! empty( $row['case_anonymized'] ) && ! empty( $row['case_consent_verified'] ) ? json_decode( (string) $row['case_json'], true ) : array();
 		$dataset = 'dataset' === $row['record_type'] ? json_decode( (string) $row['metadata_json'], true ) : array();
 		ob_start();
 		?>
