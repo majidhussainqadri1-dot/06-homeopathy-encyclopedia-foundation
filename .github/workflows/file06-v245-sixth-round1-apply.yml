@@ -1,0 +1,102 @@
+name: File 06 v2.4.5 Sixth Review Round 1 Apply
+on:
+  push:
+    branches:
+      - audit/file-06-sixth-ten-round-v2.4.5
+    paths:
+      - '.github/workflows/file06-v245-sixth-round1-apply.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-sixth-ten-round-v2.4.5
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Correct canonical public Future read reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v24-future-api.php')
+          s=p.read_text()
+          marker="\t\tself::route( $ns, '/future/command-center', 'GET', 'rest_command_center', HE_V2_Auth::CAP_REVIEW );"
+          insert="""\t\t/* Canonical public-ID surfaces for public Future intelligence reads. Legacy numeric reads remain blocked by HE_V24_Public_Provenance. */
+          \t\tself::route( $ns, '/future/public/claims/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_claims', 'read' );
+          \t\tself::route( $ns, '/future/public/graph/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_graph', 'read' );
+          \t\tself::route( $ns, '/future/public/time-machine/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_time_machine', 'read' );
+          \t\tself::route( $ns, '/future/public/freshness/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_freshness', 'read' );
+          \t\tself::route( $ns, '/future/public/citations/(?P<id>[a-fA-F0-9-]{36})/(?P<format>[a-z0-9_-]+)', 'GET', 'rest_citations', 'read' );
+          """+marker
+          if '/future/public/graph/' not in s:
+              if marker not in s: raise SystemExit('route marker not found')
+              s=s.replace(marker,insert,1)
+          helper_marker="\tpublic static function rest_claims( WP_REST_Request $request ) {"
+          helper="""\tprivate static function public_read_concept( WP_REST_Request $request ) {
+          \t\tglobal $wpdb;
+          \t\t$identifier = trim( (string) $request->get_param( 'id' ) );
+          \t\tif ( '' === $identifier ) { $identifier = trim( (string) $request->get_param( 'concept_id' ) ); }
+          \t\tif ( '' === $identifier ) { return null; }
+          \t\tif ( ctype_digit( $identifier ) ) { return HE_V24_Future_Schema::concept_row( absint( $identifier ), true ); }
+          \t\tif ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $identifier ) ) { return null; }
+          \t\t$public_id = strtolower( $identifier );
+          \t\treturn $wpdb->get_row( $wpdb->prepare(
+          \t\t\t'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . \" WHERE public_id=%s AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0\",
+          \t\t\t$public_id
+          \t\t), ARRAY_A );
+          \t}
+
+          \tpublic static function rest_claims( WP_REST_Request $request ) {"""
+          if 'private static function public_read_concept' not in s:
+              if helper_marker not in s: raise SystemExit('claims marker not found')
+              s=s.replace(helper_marker,helper,1)
+          old="""\t\t$concept_id = absint( $request->get_param( 'concept_id' ) );
+          \t\tif ( ! $concept_id ) {
+          \t\t\treturn new WP_Error( 'he_future_concept_required', __( 'concept_id is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
+          \t\t}
+          \t\treturn rest_ensure_response( HE_V24_Future_Schema::public_claims( $concept_id ) );"""
+          new="""\t\t$concept = self::public_read_concept( $request );
+          \t\tif ( ! $concept ) {
+          \t\t\treturn new WP_Error( 'he_not_found', __( 'The requested knowledge record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+          \t\t}
+          \t\treturn rest_ensure_response( HE_V24_Future_Schema::public_claims( (int) $concept['id'] ) );"""
+          if old in s: s=s.replace(old,new,1)
+          s=s.replace("HE_V24_Future_Schema::concept_row( absint( $request['id'] ), true )", "self::public_read_concept( $request )")
+          p.write_text(s)
+
+          t=Path('tests/test-file06-v245-sixth-ten-round-regressions.php')
+          t.write_text("""<?php
+          declare(strict_types=1);
+          function f06_v245_assert($condition, $message) { if (!$condition) { fwrite(STDERR, "FAIL: {$message}\\n"); exit(1); } }
+          $api = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-future-api.php');
+          $prov = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-public-provenance.php');
+          foreach (array('/future/public/claims/','/future/public/graph/','/future/public/time-machine/','/future/public/freshness/','/future/public/citations/') as $route) {
+              f06_v245_assert(strpos($api, $route) !== false, 'Round 1 canonical public route missing: ' . $route);
+          }
+          f06_v245_assert(strpos($api, 'private static function public_read_concept') !== false, 'Round 1 canonical public concept resolver missing');
+          f06_v245_assert(strpos($prov, 'is_legacy_internal_public_read') !== false, 'Round 1 legacy numeric public-read block missing');
+          echo "File 06 v2.4.5 sixth-review regressions: PASS\\n";
+          """)
+          PY
+      - name: Validate corrected source and Round 1 regression
+        run: |
+          set -euo pipefail
+          php -l homeopathy-encyclopedia/includes/class-he-v24-future-api.php
+          php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git diff --check
+      - name: Commit Round 1 correction
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'majidhussainqadri1-dot'
+          git config user.email 'majidhussainqadri1@gmail.com'
+          git add homeopathy-encyclopedia/includes/class-he-v24-future-api.php tests/test-file06-v245-sixth-ten-round-regressions.php
+          git commit -m 'fix(file-06): expose canonical public Future read contracts'
+          git push origin HEAD:audit/file-06-sixth-ten-round-v2.4.5
