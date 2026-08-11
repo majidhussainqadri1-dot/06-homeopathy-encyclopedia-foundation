@@ -423,7 +423,12 @@ final class HE_V2_Schema {
 				'post_type' => 'he_entry', 'post_status' => array( 'publish','pending','draft','private' ), 'posts_per_page' => 200,
 				'fields' => 'ids', 'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => true, 'paged' => $page,
 			) );
-			foreach ( $query->posts as $post_id ) { HE_V2_Domain::ensure_concept_for_post( $post_id ); }
+			foreach ( $query->posts as $post_id ) {
+				if ( ! HE_V2_Domain::ensure_concept_for_post( $post_id ) ) {
+					self::record_runtime_failure( 'legacy_migration_projection_failed', 'File 06 stopped legacy migration because a canonical entry projection could not be verified.' );
+					throw new RuntimeException( 'File 06 legacy migration projection failed.' );
+				}
+			}
 			$count = count( $query->posts ); ++$page;
 		} while ( 200 === $count );
 		update_option( 'he_v2_legacy_migrated', 1, false );
