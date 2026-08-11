@@ -191,10 +191,12 @@ final class HE_V2_Admin {
 		);
 		if ( ! in_array( $type, array( 'proposal','protocol','publication','successful-case','dataset' ), true ) ) { $type = 'proposal'; }
 		if ( ! in_array( $data_class, array( 'public','restricted','highly-restricted' ), true ) || ( 'dataset' === $type && 'public' === $data_class ) ) { $data_class = 'restricted'; }
+		$loaded_expected = isset( $_POST[ HE_V242_Third_Audit::RESEARCH_EXPECTED_VERSION ] ) ? absint( $_POST[ HE_V242_Third_Audit::RESEARCH_EXPECTED_VERSION ] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$expected = $loaded_expected ?: (int) $row['row_version'];
 		$updated = $wpdb->query( $wpdb->prepare(
 			"UPDATE {$table} SET record_type=%s,title=%s,question=%s,protocol=%s,ethics_json=%s,consent_json=%s,data_class=%s,case_anonymized=%d,case_consent_verified=%d,case_tag=%s,case_json=%s,metadata_json=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d",
 			$type, $post->post_title, $post->post_excerpt, $post->post_content, wp_json_encode( $ethics ), wp_json_encode( $consent ), $data_class,
-			$anonymized ? 1 : 0, $consent['verified'] ? 1 : 0, $case_tag, wp_json_encode( $case ), wp_json_encode( $metadata ), (int) $row['id'], (int) $row['row_version']
+			$anonymized ? 1 : 0, $consent['verified'] ? 1 : 0, $case_tag, wp_json_encode( $case ), wp_json_encode( $metadata ), (int) $row['id'], $expected
 		) );
 		if ( 1 !== (int) $updated ) {
 			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
