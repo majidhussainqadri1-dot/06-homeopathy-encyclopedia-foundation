@@ -926,33 +926,52 @@ final class HE_V2_Domain {
 	public static function apply_integrity_action( $action_id, $expected_version, $actor_id ) {
 		global $wpdb;
 		$table = HE_V2_Schema::table( 'integrity_actions' );
-		$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", absint( $action_id ) ), ARRAY_A );
-		if ( ! $action ) {
-			return new WP_Error( 'he_not_found', __( 'Integrity action not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		$concepts = HE_V2_Schema::table( 'concepts' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			HE_V2_Schema::record_runtime_failure( 'integrity_apply_transaction_start_failed', 'File 06 could not start the integrity-apply transaction.' );
+			return new WP_Error( 'he_integrity_apply_failed', __( 'The integrity action could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
 		}
-		if ( 'accepted' !== $action['status'] ) {
-			return new WP_Error( 'he_integrity_not_accepted', __( 'Only an accepted integrity action may be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
+		$event = null;
+		$concept_id = 0;
+		try {
+			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d FOR UPDATE", absint( $action_id ) ), ARRAY_A );
+			if ( ! $action ) { throw new RuntimeException( 'integrity-not-found' ); }
+			if ( (int) $action['row_version'] !== absint( $expected_version ) ) { throw new RuntimeException( 'integrity-version-conflict' ); }
+			if ( 'accepted' !== $action['status'] ) { throw new RuntimeException( 'integrity-not-accepted' ); }
+			if ( ! in_array( $action['action_type'], array( 'correction', 'retraction' ), true ) ) { throw new RuntimeException( 'integrity-unsupported-type' ); }
+			$concept = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$concepts} WHERE id=%d FOR UPDATE", (int) $action['object_id'] ), ARRAY_A );
+			if ( ! $concept ) { throw new RuntimeException( 'concept-not-found' ); }
+			$concept_id = (int) $concept['id'];
+			if ( 'retraction' === $action['action_type'] ) {
+				$changed = $wpdb->query( $wpdb->prepare( "UPDATE {$concepts} SET status='retracted',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $concept_id, (int) $concept['row_version'] ) );
+				if ( 1 !== (int) $changed ) { throw new RuntimeException( 'concept-version-conflict' ); }
+				$event = array( 'EncyclopediaEntryRetracted.v1', array( 'reason' => $action['reason'], 'replacement_id' => $action['replacement_object_id'] ) );
+			} else {
+				$version_id = self::snapshot_version( $concept_id, $action['reason'], 'corrected', $actor_id );
+				if ( ! $version_id ) { throw new RuntimeException( 'correction-snapshot-failed' ); }
+				$changed = $wpdb->query( $wpdb->prepare( "UPDATE {$concepts} SET status='published',current_version=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $version_id, $concept_id, (int) $concept['row_version'] ) );
+				if ( 1 !== (int) $changed ) { throw new RuntimeException( 'concept-version-conflict' ); }
+				$event = array( 'EncyclopediaEntryCorrected.v1', array( 'version_id' => $version_id, 'reason' => $action['reason'] ) );
+			}
+			$applied = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", absint( $actor_id ), (int) $action['id'], (int) $action['row_version'] ) );
+			if ( 1 !== (int) $applied ) { throw new RuntimeException( 'integrity-version-conflict' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'integrity-commit-failed' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			$map = array(
+				'integrity-not-found' => array( 'he_not_found', 404 ),
+				'concept-not-found' => array( 'he_not_found', 404 ),
+				'integrity-version-conflict' => array( 'he_version_conflict', 409 ),
+				'concept-version-conflict' => array( 'he_version_conflict', 409 ),
+				'integrity-not-accepted' => array( 'he_integrity_not_accepted', 409 ),
+				'integrity-unsupported-type' => array( 'he_integrity_apply_unsupported', 409 ),
+			);
+			list( $code, $status ) = $map[ $error->getMessage() ] ?? array( 'he_integrity_apply_failed', 503 );
+			if ( 503 === $status ) { HE_V2_Schema::record_runtime_failure( 'integrity_apply_atomic_failed', 'File 06 rolled back an integrity action because its canonical mutation or transaction commit could not complete atomically.' ); }
+			return new WP_Error( $code, __( 'The integrity action could not be applied safely.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) );
 		}
-		if ( ! in_array( $action['action_type'], array( 'correction', 'retraction' ), true ) ) {
-			return new WP_Error( 'he_integrity_apply_unsupported', __( 'Merge and appeal actions must use their dedicated governed workflows.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-		}
-		$result = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='applied',decided_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d AND status='accepted'", absint( $actor_id ), $action['id'], absint( $expected_version ) ) );
-		if ( 1 !== (int) $result ) {
-			return new WP_Error( 'he_version_conflict', __( 'The integrity record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
-		}
-		$concept = self::concept_by_id( (int) $action['object_id'], true );
-		if ( ! $concept ) {
-			return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
-		}
-		if ( 'retraction' === $action['action_type'] ) {
-			$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'status' => 'retracted', 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
-			self::emit_event( 'EncyclopediaEntryRetracted.v1', 'concept', $concept['id'], array( 'reason' => $action['reason'], 'replacement_id' => $action['replacement_object_id'] ) );
-		} elseif ( 'correction' === $action['action_type'] ) {
-			$version_id = self::snapshot_version( $concept['id'], $action['reason'], 'corrected', $actor_id );
-			$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'status' => 'published', 'current_version' => $version_id, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => $concept['id'] ), array( '%s','%d','%s' ), array( '%d' ) );
-			self::emit_event( 'EncyclopediaEntryCorrected.v1', 'concept', $concept['id'], array( 'version_id' => $version_id, 'reason' => $action['reason'] ) );
-		}
-		self::reindex_concept( $concept['id'] );
+		if ( $event ) { self::emit_event( $event[0], 'concept', $concept_id, $event[1] ); }
+		self::reindex_concept( $concept_id );
 		return true;
 	}
 
