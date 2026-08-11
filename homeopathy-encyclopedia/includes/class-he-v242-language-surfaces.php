@@ -113,10 +113,24 @@ final class HE_V242_Language_Surfaces {
 	public static function normalize_language_meta( $meta_id, $object_id, $meta_key, $meta_value ) {
 		if ( self::$normalizing || '_he_language' !== $meta_key || HE_V2_Domain::ENTRY_TYPE !== get_post_type( $object_id ) ) { return; }
 		$canonical = HE_V242_Multilingual::canonical_locale( $meta_value );
-		if ( ! $canonical || $canonical === (string) $meta_value ) { return; }
-		self::$normalizing = true;
-		update_post_meta( $object_id, '_he_language', $canonical );
-		self::$normalizing = false;
+		if ( ! $canonical ) {
+			HE_V2_Schema::record_runtime_failure( 'invalid_source_language', 'An invalid source-language code was rejected during metadata normalization.' );
+			return;
+		}
+		if ( $canonical !== (string) $meta_value ) {
+			self::$normalizing = true;
+			update_post_meta( $object_id, '_he_language', $canonical );
+			self::$normalizing = false;
+		}
+		global $wpdb;
+		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT id,language,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $object_id ) ), ARRAY_A );
+		if ( ! $concept || $canonical === (string) $concept['language'] ) { return; }
+		$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'language' => $canonical, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
+		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready() ) {
+			$wpdb->query( $wpdb->prepare( "UPDATE " . HE_V24_Future_Schema::table( 'translations' ) . " SET status='translation-outdated',updated_at=UTC_TIMESTAMP() WHERE concept_id=%d AND source_locale<>%s AND status IN ('draft','approved','published')", (int) $concept['id'], $canonical ) );
+			HE_V24_Future_Schema::queue_impact( 'concept', $concept['public_id'], 'KnowledgeTranslationOutdated.v1', array( 'concept_id' => $concept['public_id'], 'reason' => 'source-language-changed' ) );
+		}
+		HE_V242_Third_Audit::repair_canonical_alias_language( $object_id, get_post( $object_id ), true );
 	}
 
 	private static function public_languages() {
