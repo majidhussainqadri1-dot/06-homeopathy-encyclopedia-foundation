@@ -10,6 +10,7 @@ final class HE_V243_Fifth_Audit {
 		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'reconcile_research_case_topic' ), 190, 2 );
 		add_filter( 'wp_privacy_personal_data_exporters', array( __CLASS__, 'privacy_exporters' ), 30 );
 		add_filter( 'wp_privacy_personal_data_erasers', array( __CLASS__, 'privacy_erasers' ), 30 );
+		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'guard_dataset_access_target' ), 350, 3 );
 	}
 
 	public static function normalize_research_admin_input( $data, $postarr ) {
@@ -57,6 +58,26 @@ final class HE_V243_Fifth_Audit {
 		} else {
 			wp_remove_object_terms( $post_id, array( 'کامیاب کیس' ), HE_V2_Domain::TAX_TOPIC );
 		}
+	}
+
+	public static function guard_dataset_access_target( $response, $handler, $request ) {
+		if ( null !== $response || ! $request instanceof WP_REST_Request || 'POST' !== $request->get_method() ) {
+			return $response;
+		}
+		$prefix = '/' . HE_V2_API::NS;
+		$route = $request->get_route();
+		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/datasets/(\d+)/access$#', $route, $match ) ) {
+			return $response;
+		}
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare(
+			'SELECT id,post_id,record_type,status FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d',
+			absint( $match[1] )
+		), ARRAY_A );
+		if ( ! $row || 'dataset' !== $row['record_type'] || 'published' !== $row['status'] || 'publish' !== get_post_status( (int) $row['post_id'] ) ) {
+			return new WP_Error( 'he_dataset_not_found', __( 'Dataset metadata could not be found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		}
+		return $response;
 	}
 
 	public static function privacy_exporters( $exporters ) {
