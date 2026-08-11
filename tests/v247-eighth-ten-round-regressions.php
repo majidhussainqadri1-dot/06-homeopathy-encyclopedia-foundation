@@ -24,5 +24,11 @@ v247_ok(false!==strpos($integrations,'dashboard_post_allowed') && false!==strpos
 $v22integrity=v247_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-governance.php');
 v247_ok(false!==strpos($v22integrity,'The research integrity action must be accepted before it can be applied') && false!==strpos($v22integrity,'row_version=row_version+1') && false!==strpos($v22integrity,"status='accepted'"),'R9 research integrity apply accepted CAS');
 /* R8 fresh review: privacy, translation, migration and public-read layers rechecked; no new source defect established. */
+$bootstrap=v247_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
+$runall=v247_read($root.'/tests/run-all.sh');
+v247_ok(false!==strpos($bootstrap,' * Version: 2.4.7') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.7' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.7' );"),'R10 runtime/contract version truth not 2.4.7');
+v247_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.7'"),'R10 hardening contract version drift');
+v247_ok(false!==strpos($runall,'v247-eighth-ten-round-regressions.php'),'R10 eighth-cycle suite absent from aggregate gate');
+v247_ok(false!==strpos($runall,'file06-v2.4.7-a.zip') && false!==strpos($runall,'file06-v2.4.7-b.zip'),'R10 package labels not 2.4.7');
 /*__V247_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.7 eighth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.7 eighth-review regressions: PASS\n";

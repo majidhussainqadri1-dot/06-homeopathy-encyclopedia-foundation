@@ -32,10 +32,10 @@ v246_ok(false!==strpos($schema,"update_option( 'he_v24_freshness_cursor', (int) 
 v246_ok(false!==strpos($schema,"he_future_gap_write_failed") && false!==strpos($schema,"he_future_freshness_write_failed"),'R9 maintenance write failure propagation missing');
 $bootstrap=v246_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
 $runall=v246_read($root.'/tests/run-all.sh');
-v246_ok(false!==strpos($bootstrap,' * Version: 2.4.6') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.6' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.6' );"),'R10 runtime/contract version truth not 2.4.6');
-v246_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.6'"),'R10 hardening version drift');
+v246_ok(false!==strpos($bootstrap,' * Version:') && false!==strpos($bootstrap,"define( 'HE_VERSION',") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION',"),'Historical R10 runtime/contract declarations missing');
+v246_ok(false!==strpos($bootstrap,"'future_hardening_version'=>"),'Historical R10 hardening declaration missing');
 v246_ok(false!==strpos($runall,'v246-seventh-ten-round-regressions.php'),'R10 seventh-cycle suite absent from aggregate gate');
-v246_ok(false!==strpos($runall,'file06-v2.4.6-a.zip') && false!==strpos($runall,'file06-v2.4.6-b.zip'),'R10 package labels not 2.4.6');
+v246_ok(false!==strpos($runall,'-a.zip') && false!==strpos($runall,'-b.zip'),'Historical R10 deterministic package labels missing');
 /*__V246_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:
 - ".implode("

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.7 — Eighth fresh ten-round corrective candidate
+
+- Completed ten sequential review → fix → regression rounds.
+- Defect rounds: 1, 2, 3, 4, 5, 6, 7, 9 and 10; round 8 clean.
+- Bound research external scholarly review to explicit File 06 reviewer assignment.
+- Closed the earlier V22 public research browse path that shadowed later successful-case/dataset privacy guards.
+- Rebound outgoing graph provenance atomically when merging concepts.
+- Restricted public search evidence grade/text references to the current immutable snapshot.
+- Required optimistic expected-version binding for research and entry human reviews.
+- Applied native editor/reviewer scope to publishing-dashboard inventory/item reads.
+- Made research-integrity apply own accepted-state CAS and increment action row version.
+- Staging/live/operational states remain unverified.
+
 ## 2.4.6 — Seventh fresh ten-round corrective candidate
 
 - Completed ten sequential review → immediate-fix → regression cycles.
