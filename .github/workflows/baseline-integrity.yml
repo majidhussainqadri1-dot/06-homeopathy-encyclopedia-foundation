@@ -1,0 +1,51 @@
+name: File 06 Baseline Integrity
+
+on:
+  push:
+    branches: [ baseline/file-06-original-import ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  exact-source:
+    if: github.event_name == 'push' || github.head_ref == 'baseline/file-06-original-import'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify exact checksums
+        run: sha256sum --check --strict CHECKSUMS.sha256
+      - name: Verify exact inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(awk '{print $2}' CHECKSUMS.sha256 | LC_ALL=C sort)"
+          actual="$(find homeopathy-encyclopedia -type f -print | LC_ALL=C sort)"
+          test "$expected" = "$actual"
+          test "$(find homeopathy-encyclopedia -type f | wc -l)" -eq 17
+          test "$(find homeopathy-encyclopedia -type f -printf '%s\n' | awk '{s+=$1} END {print s+0}')" -eq 66071
+      - name: Verify checksum-manifest hash
+        run: echo 'b69f4452f5be64ba3ae7002b7767be46375904a98ae9d484f899d27c14c7bc20  CHECKSUMS.sha256' | sha256sum --check --strict
+
+  php-syntax:
+    if: github.event_name == 'push' || github.head_ref == 'baseline/file-06-original-import'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint all PHP files
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            php -l "$file"
+          done < <(find homeopathy-encyclopedia -type f -name '*.php' -print0 | sort -z)
