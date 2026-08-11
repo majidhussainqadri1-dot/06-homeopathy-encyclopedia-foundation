@@ -36,9 +36,9 @@ final class HE_V242_Watchlist {
 		}
 		if ( 'research' === $type ) {
 			global $wpdb;
-			$row = $wpdb->get_row( $wpdb->prepare( 'SELECT public_id,post_id,status FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $id ), ARRAY_A );
+			$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $id ), ARRAY_A );
 			$post = $row ? get_post( (int) $row['post_id'] ) : null;
-			return $row && $post && 'publish' === $post->post_status && in_array( $row['status'], array( 'published','corrected','retracted' ), true ) ? array( 'type' => 'research', 'id' => $row['public_id'], 'label' => get_the_title( $post ) ) : null;
+			return $row && $post && 'publish' === $post->post_status && HE_V22_Research_Guard::public_surface_eligible( $row ) ? array( 'type' => 'research', 'id' => $row['public_id'], 'label' => get_the_title( $post ) ) : null;
 		}
 		return null;
 	}
