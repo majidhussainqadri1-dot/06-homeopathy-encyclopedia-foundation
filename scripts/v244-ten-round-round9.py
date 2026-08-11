@@ -1,0 +1,55 @@
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# Runtime version / contract truth.
+p = ROOT / 'homeopathy-encyclopedia/homeopathy-encyclopedia.php'
+text = p.read_text(encoding='utf-8')
+if text.count('2.4.3') != 3:
+    raise SystemExit('round9 expected exactly three runtime 2.4.3 markers')
+p.write_text(text.replace('2.4.3', '2.4.4'), encoding='utf-8')
+
+# WordPress package readme.
+p = ROOT / 'homeopathy-encyclopedia/readme.txt'
+text = p.read_text(encoding='utf-8')
+text = text.replace('Stable tag: 2.4.1', 'Stable tag: 2.4.4', 1)
+text = text.replace('The 2.4.1 candidate also requires', 'The 2.4.4 candidate also requires', 1)
+marker = '== Changelog ==\n\n'
+entry = "= 2.4.4 =\n* Fifth fresh ten-round corrective candidate: fail-closed Future routes during migration, minimized public research DTOs, deterministic research save concurrency, canonical source-language ownership, research reviewer privacy lifecycle coverage, unconditional published-research admin immutability, and refreshed exact-head QA.\n\n"
+if marker not in text:
+    raise SystemExit('round9 readme changelog marker missing')
+text = text.replace(marker, marker + entry, 1)
+p.write_text(text, encoding='utf-8')
+
+# Human repository overview: remove stale package claims rather than relabeling old evidence.
+p = ROOT / 'README.md'
+text = p.read_text(encoding='utf-8')
+text = text.replace('# File 06 — Homeopathy Encyclopedia 2.4.2', '# File 06 — Homeopathy Encyclopedia 2.4.4', 1)
+text = text.replace('This branch is the third fresh 80-round review/fix candidate', 'This branch is the fifth fresh ten-round review/fix candidate', 1)
+text = text.replace('- Plugin version: `2.4.2`', '- Plugin version: `2.4.4`', 1)
+text = text.replace('- Contract: `2.4.2`', '- Contract: `2.4.4`', 1)
+text = text.replace('06-homeopathy-encyclopedia-foundation-2.4.2.zip', '06-homeopathy-encyclopedia-foundation-2.4.4.zip', 1)
+start = 'Final reviewed package evidence:\n\n'
+end = '\n## Release truth\n'
+if start in text and end in text:
+    before, rest = text.split(start, 1)
+    _, after = rest.split(end, 1)
+    text = before + 'Final reviewed package evidence: **pending the round-10 exact-head reproducible-package gate.**\n' + end + after
+p.write_text(text, encoding='utf-8')
+
+# Status must not carry forward old v2.4.2 package hashes as if they described the new candidate.
+p = ROOT / 'STATUS.md'
+text = p.read_text(encoding='utf-8')
+text = text.replace('# File 06 Status — 2.4.2 Third Fresh 80-Round Candidate', '# File 06 Status — 2.4.4 Fifth Fresh Ten-Round Candidate', 1)
+text = text.replace('| Coded | `audit/file-06-third-80-round-v2.4.2` |', '| Coded | `audit/file-06-fifth-ten-round-v2.4.4` — exact final HEAD pending round 10 |', 1)
+text = text.replace('| Reviewed | Third fresh 80-round review/fix cycle completed; two separate post-final-code reviews are recorded in `docs/REVIEW-V242-ROUND-1.md` and `docs/REVIEW-V242-ROUND-2.md` |', '| Reviewed | Fifth fresh ten-round corrective cycle in progress; rounds 1–9 completed, final QA round pending |', 1)
+text = text.replace('| Packaged | Deterministic double build PASS |', '| Packaged | Pending round-10 exact-head deterministic double build |', 1)
+text = text.replace('| Automated QA | GitHub Actions run `31454206508`: PHP 7.4 PASS, PHP 8.3 PASS, core/first-80/Future-18/second-80/third-80 invariants PASS, reproducible package PASS, WordPress 7.0.1 + PHP 8.3 fresh-install/plugin-lifecycle smoke PASS |', '| Automated QA | Per-round source validation/regression suites green; final exact-head matrix pending round 10 |', 1)
+text = text.replace('| Package SHA-256 | `b031e5bfec3130713fe812cf14614a83c43d35ed92c130f02e98b0c98fd7975a` |', '| Package SHA-256 | Pending round 10 |', 1)
+text = text.replace('| Package bytes | `183423` |', '| Package bytes | Pending round 10 |', 1)
+text = text.replace('| Source-tree SHA-256 | `4e36b9f8ecd6346861b17f44b5eded0fa0d2210bbb16178030d8ff111100829a` |', '| Source-tree SHA-256 | Pending round 10 |', 1)
+text = text.replace('- Plugin: `2.4.2`', '- Plugin: `2.4.4`', 1)
+text = text.replace('- Contract: `2.4.2`', '- Contract: `2.4.4`', 1)
+p.write_text(text, encoding='utf-8')
+
+print('Applied File 06 v2.4.4 round-9 runtime/release-truth metadata correction')
