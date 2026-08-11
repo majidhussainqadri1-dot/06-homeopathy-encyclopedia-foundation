@@ -58,7 +58,7 @@ final class HE_V2_Admin {
 		<div class="he-v2 he-v2__admin-grid">
 			<label><span><?php esc_html_e( 'Knowledge type', 'homeopathy-encyclopedia' ); ?></span><select name="he_v2_type" required><?php foreach ( HE_V2_Domain::types() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $type, $slug ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
 			<label><span><?php esc_html_e( 'Body system', 'homeopathy-encyclopedia' ); ?></span><select name="he_v2_system" required><?php foreach ( HE_V2_Domain::systems() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $system, $slug ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
-			<label><span><?php esc_html_e( 'Language', 'homeopathy-encyclopedia' ); ?></span><select name="he_v2_language"><option value="en-US" <?php selected( $language, 'en-US' ); ?>>English (US)</option><option value="ur-PK" <?php selected( $language, 'ur-PK' ); ?>>اردو</option><option value="ar" <?php selected( $language, 'ar' ); ?>>العربية</option></select></label>
+			<label><span><?php esc_html_e( 'Source language', 'homeopathy-encyclopedia' ); ?></span><input type="text" value="<?php echo esc_attr( class_exists( 'HE_V242_Multilingual' ) ? ( HE_V242_Multilingual::canonical_locale( $language ) ?: $language ) : $language ); ?>" readonly><small><?php esc_html_e( 'Edit the canonical BCP-47 source language in the Original source language box.', 'homeopathy-encyclopedia' ); ?></small></label>
 			<?php if ( $concept ) : ?>
 				<div class="he-v2__panel"><strong><?php esc_html_e( 'Canonical public ID', 'homeopathy-encyclopedia' ); ?></strong><code><?php echo esc_html( $concept['public_id'] ); ?></code><br><strong><?php esc_html_e( 'Workflow state', 'homeopathy-encyclopedia' ); ?></strong> <?php echo esc_html( $concept['status'] ); ?><br><strong><?php esc_html_e( 'Record version', 'homeopathy-encyclopedia' ); ?></strong> <?php echo absint( $concept['row_version'] ); ?><br><strong><?php esc_html_e( 'Published version', 'homeopathy-encyclopedia' ); ?></strong> <?php echo absint( $concept['current_version'] ); ?></div>
 				<input type="hidden" name="he_v2_expected_version" value="<?php echo absint( $concept['row_version'] ); ?>">
@@ -100,9 +100,12 @@ final class HE_V2_Admin {
 		if ( isset( HE_V2_Domain::systems()[ $system ] ) ) {
 			wp_set_object_terms( $post_id, array( $system ), HE_V2_Domain::TAX_SYSTEM, false );
 		}
-		$language = sanitize_text_field( wp_unslash( $_POST['he_v2_language'] ?? 'en-US' ) );
-		if ( in_array( $language, array( 'en-US', 'ur-PK', 'ar' ), true ) ) {
-			update_post_meta( $post_id, '_he_language', $language );
+		/* v2.4.2+ owns source-language writes; never transiently reset a wider BCP-47 source through the legacy three-locale field. */
+		if ( ! class_exists( 'HE_V242_Language_Surfaces' ) || ! isset( $_POST[ HE_V242_Language_Surfaces::NONCE_FIELD ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$language = sanitize_text_field( wp_unslash( $_POST['he_v2_language'] ?? 'en-US' ) );
+			if ( in_array( $language, array( 'en-US', 'ur-PK', 'ar' ), true ) ) {
+				update_post_meta( $post_id, '_he_language', $language );
+			}
 		}
 		$fields = isset( $_POST['he_v2_fields'] ) ? HE_V2_Domain::sanitize_structured( wp_unslash( $_POST['he_v2_fields'] ) ) : array();
 		update_post_meta( $post_id, '_he_structured', $fields );
