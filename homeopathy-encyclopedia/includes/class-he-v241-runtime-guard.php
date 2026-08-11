@@ -128,9 +128,14 @@ final class HE_V241_Runtime_Guard {
 	}
 
 	private static function acquire_lease( $option, $ttl ) {
+		global $wpdb;
 		$existing = get_option( $option, array() );
 		if ( is_array( $existing ) && ! empty( $existing['time'] ) && ( time() - absint( $existing['time'] ) ) > absint( $ttl ) ) {
-			delete_option( $option );
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				$option,
+				maybe_serialize( $existing )
+			) );
 		}
 		$token = wp_generate_uuid4();
 		return add_option( $option, array( 'token' => $token, 'time' => time() ), '', false ) ? $token : '';
