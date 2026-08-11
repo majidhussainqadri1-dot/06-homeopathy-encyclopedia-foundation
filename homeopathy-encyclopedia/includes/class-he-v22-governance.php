@@ -656,8 +656,9 @@ final class HE_V22_Governance {
 		}
 		$ethics = json_decode( (string) $row['ethics_json'], true );
 		$consent = json_decode( (string) $row['consent_json'], true );
-		if ( empty( $ethics['approval_reference'] ) || ( 'successful-case' === $row['record_type'] && empty( $consent['verified'] ) ) ) {
-			return new WP_Error( 'he_ethics_gate_failed', __( 'Ethics approval and required consent must be documented.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		$case_governance_failed = 'successful-case' === $row['record_type'] && ( empty( $consent['verified'] ) || empty( $row['case_consent_verified'] ) || empty( $row['case_anonymized'] ) );
+		if ( empty( $ethics['approval_reference'] ) || $case_governance_failed ) {
+			return new WP_Error( 'he_ethics_gate_failed', __( 'Ethics approval, verified consent and anonymization must be documented before release.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
 		if ( HE_V2_Auth::is_founder() && ! $publishing ) {
 			return true;
