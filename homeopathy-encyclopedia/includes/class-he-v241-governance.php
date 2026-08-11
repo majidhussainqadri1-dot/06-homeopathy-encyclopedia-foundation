@@ -145,7 +145,7 @@ final class HE_V241_Governance {
 		return is_array( $types ) && in_array( $type, $types, true );
 	}
 
-	private static function reviewer_assigned( $post_id, $user_id, $scope = '' ) {
+	public static function reviewer_assigned( $post_id, $user_id, $scope = '' ) {
 		$user_id = absint( $user_id );
 		if ( HE_V2_Auth::is_founder( $user_id ) ) {
 			return true;

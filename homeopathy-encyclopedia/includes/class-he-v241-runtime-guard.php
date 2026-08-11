@@ -121,7 +121,17 @@ final class HE_V241_Runtime_Guard {
 			}
 			if ( 'research' === $record['object_type'] && ! empty( $record['object_id'] ) ) {
 				$research = self::research_row( $record['object_id'] );
-				return $research ? HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REVIEW, (int) $research['post_id'], 'file06-external-review-research' ) : new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+				if ( ! $research ) {
+					return new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+				}
+				$permission = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REVIEW, (int) $research['post_id'], 'file06-external-review-research' );
+				if ( true !== $permission ) {
+					return $permission;
+				}
+				if ( ! HE_V241_Governance::reviewer_assigned( (int) $research['post_id'], get_current_user_id() ) ) {
+					return new WP_Error( 'he_reviewer_assignment_required', __( 'An active File 06 research reviewer assignment is required for this external-evidence decision.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
+				}
+				return true;
 			}
 		}
 		return $response;
