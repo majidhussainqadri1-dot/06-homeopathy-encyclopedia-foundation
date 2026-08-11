@@ -8,6 +8,7 @@ final class HE_V22_Public_Guard {
 		add_filter( 'the_title', array( __CLASS__, 'research_title' ), 98, 2 );
 		add_filter( 'get_the_excerpt', array( __CLASS__, 'research_excerpt' ), 98, 2 );
 		add_filter( 'posts_where', array( __CLASS__, 'research_public_query_where' ), 99, 2 );
+		add_filter( 'posts_results', array( __CLASS__, 'research_public_query_results' ), 99, 2 );
 		add_filter( 'wp_robots', array( __CLASS__, 'robots' ), 99 );
 		add_action( 'wp_head', array( __CLASS__, 'research_head' ), 25 );
 		add_filter( 'sabri_search_connectors', array( __CLASS__, 'search_events' ), 110 );
@@ -30,6 +31,17 @@ final class HE_V22_Public_Guard {
 			" AND ({$wpdb->posts}.post_type<>%s OR EXISTS (SELECT 1 FROM {$research} he_public_research WHERE he_public_research.post_id={$wpdb->posts}.ID AND he_public_research.status IN (%s,%s,%s) AND ((he_public_research.record_type=%s AND he_public_research.data_class IN (%s,%s)) OR (he_public_research.record_type<>%s AND he_public_research.data_class=%s)) AND (he_public_research.record_type<>%s OR (he_public_research.case_anonymized=1 AND he_public_research.case_consent_verified=1))))",
 			HE_V2_Domain::RESEARCH_TYPE, 'published', 'corrected', 'retracted', 'dataset', 'restricted', 'highly-restricted', 'dataset', 'public', 'successful-case'
 		);
+	}
+
+	public static function research_public_query_results( $posts, $query ) {
+		if ( is_admin() || ! $query instanceof WP_Query || ! $query->is_main_query() || ! is_array( $posts ) ) { return $posts; }
+		$out = array();
+		foreach ( $posts as $post ) {
+			if ( ! is_object( $post ) || HE_V2_Domain::RESEARCH_TYPE !== $post->post_type ) { $out[] = $post; continue; }
+			$row = self::row_for_post( (int) $post->ID );
+			if ( self::is_public_row( $row ) ) { $out[] = $post; }
+		}
+		return $out;
 	}
 
 	public static function research_title( $title, $post_id = 0 ) {
