@@ -239,7 +239,9 @@ final class HE_V2_Admin {
 		}
 		$dry_run = ! empty( $_POST['dry_run'] );
 		$result = HE_V2_Schema::repair( $dry_run );
-		set_transient( 'he_v2_admin_notice_' . get_current_user_id(), array( 'type' => 'success', 'message' => wp_json_encode( $result ) ), 60 );
+		if ( is_wp_error( $result ) ) { $notice = array( 'type' => 'error', 'message' => $result->get_error_message() ); }
+		else { $notice = array( 'type' => 'success', 'message' => wp_json_encode( $result ) ); }
+		set_transient( 'he_v2_admin_notice_' . get_current_user_id(), $notice, 60 );
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . HE_V2_Domain::ENTRY_TYPE . '&page=he-v2-operations' ) );
 		exit;
 	}
