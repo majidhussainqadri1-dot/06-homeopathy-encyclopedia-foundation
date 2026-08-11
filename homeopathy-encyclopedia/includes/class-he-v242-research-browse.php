@@ -48,8 +48,26 @@ final class HE_V242_Research_Browse {
 		} else {
 			$out['protocol'] = 'public' === $row['data_class'] ? $row['protocol'] : '';
 		}
-		if ( 'successful-case' === $row['record_type'] ) { $out['case'] = json_decode( (string) $row['case_json'], true ); }
-		if ( 'dataset' === $row['record_type'] ) { $out['dataset_metadata'] = json_decode( (string) $row['metadata_json'], true ); }
+		if ( 'successful-case' === $row['record_type'] ) {
+			$case = json_decode( (string) $row['case_json'], true );
+			if ( 'public' === $row['data_class'] ) {
+				$out['case'] = is_array( $case ) ? $case : array();
+			} else {
+				$out['case_details_restricted'] = true;
+			}
+		}
+		if ( 'dataset' === $row['record_type'] ) {
+			$metadata = json_decode( (string) $row['metadata_json'], true );
+			$metadata = is_array( $metadata ) ? $metadata : array();
+			$public_metadata = array();
+			foreach ( array( 'description','de_identification','lawful_basis','access_policy' ) as $field ) {
+				if ( isset( $metadata[ $field ] ) && is_scalar( $metadata[ $field ] ) ) {
+					$public_metadata[ $field ] = sanitize_textarea_field( (string) $metadata[ $field ] );
+				}
+			}
+			$out['dataset_metadata'] = $public_metadata;
+			$out['dataset_payload_public'] = false;
+		}
 		return $out;
 	}
 
