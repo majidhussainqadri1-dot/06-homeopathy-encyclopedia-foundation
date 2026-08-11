@@ -111,7 +111,12 @@ final class HE_V242_Language_Surfaces {
 		}
 		update_post_meta( $post_id, '_he_language', $locale );
 		global $wpdb;
-		$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'language' => $locale, 'updated_at' => current_time( 'mysql', true ) ), array( 'post_id' => absint( $post_id ) ), array( '%s','%s' ), array( '%d' ) );
+		$stored = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT language FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $post_id ) ) );
+		if ( $stored !== $locale ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'source_language_persistence_failed', 'The source-language meta/domain write did not converge; File 06 entered safe mode.' );
+			return;
+		}
 		HE_V242_Third_Audit::repair_canonical_alias_language( $post_id, $post, true );
 	}
 
@@ -136,7 +141,15 @@ final class HE_V242_Language_Surfaces {
 		global $wpdb;
 		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT id,language,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $object_id ) ), ARRAY_A );
 		if ( ! $concept || $canonical === (string) $concept['language'] ) { return; }
-		$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'language' => $canonical, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
+		$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . ' SET language=%s,updated_at=UTC_TIMESTAMP() WHERE id=%d AND language=%s', $canonical, (int) $concept['id'], (string) $concept['language'] ) );
+		if ( 1 !== (int) $updated ) {
+			self::$normalizing = true;
+			update_post_meta( $object_id, '_he_language', (string) $concept['language'] );
+			self::$normalizing = false;
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'source_language_domain_cas_failed', 'The source-language domain row changed or failed to persist; meta was restored and File 06 entered safe mode.' );
+			return;
+		}
 		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready() ) {
 			$wpdb->query( $wpdb->prepare( "UPDATE " . HE_V24_Future_Schema::table( 'translations' ) . " SET status='translation-outdated',updated_at=UTC_TIMESTAMP() WHERE concept_id=%d AND source_locale<>%s AND status IN ('draft','approved','published')", (int) $concept['id'], $canonical ) );
 			HE_V24_Future_Schema::queue_impact( 'concept', $concept['public_id'], 'KnowledgeTranslationOutdated.v1', array( 'concept_id' => $concept['public_id'], 'reason' => 'source-language-changed' ) );
