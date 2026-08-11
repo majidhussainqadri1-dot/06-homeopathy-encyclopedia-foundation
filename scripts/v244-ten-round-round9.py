@@ -17,7 +17,8 @@ text = replace_required(text, "define( 'HE_VERSION', '2.4.3' );", "define( 'HE_V
 text = replace_required(text, "define( 'HE_CONTRACT_VERSION', '2.4.3' );", "define( 'HE_CONTRACT_VERSION', '2.4.4' );", 'HE_CONTRACT_VERSION')
 p.write_text(text, encoding='utf-8')
 
-# Stable core invariant contracts must follow the active candidate version.
+# All inherited invariant suites that intentionally assert the active release
+# contract must track the current candidate rather than rejecting a valid bump.
 p = ROOT / 'tests/v2-invariants.php'
 text = p.read_text(encoding='utf-8')
 text = replace_required(text, "HE_VERSION', '2.4.3", "HE_VERSION', '2.4.4", 'core invariant version')
@@ -31,6 +32,38 @@ text = replace_required(text, 'grep -q "Version: 2.4.3"', 'grep -q "Version: 2.4
 text = replace_required(text, 'grep -q "HE_CONTRACT_VERSION\', \'2.4.3"', 'grep -q "HE_CONTRACT_VERSION\', \'2.4.4"', 'source invariant contract')
 text = replace_required(text, 'File 06 v2.4.3 source-tree invariants passed.', 'File 06 v2.4.4 source-tree invariants passed.', 'source invariant result label')
 p.write_text(text, encoding='utf-8')
+
+for rel, replacements in {
+    'tests/v23-future-invariants.php': [
+        ("define( 'HE_VERSION', '2.4.3' )", "define( 'HE_VERSION', '2.4.4' )", 'v23 runtime'),
+        ("HE_CONTRACT_VERSION', '2.4.3", "HE_CONTRACT_VERSION', '2.4.4", 'v23 contract'),
+        ('under v2.4.3 third-80 hardening.', 'under v2.4.4 fifth-ten-round hardening.', 'v23 label'),
+    ],
+    'tests/v24-80-round-invariants.php': [
+        ('Version: 2.4.3', 'Version: 2.4.4', 'v24 header'),
+        ("HE_VERSION', '2.4.3", "HE_VERSION', '2.4.4", 'v24 runtime'),
+        ("HE_CONTRACT_VERSION', '2.4.3", "HE_CONTRACT_VERSION', '2.4.4", 'v24 contract'),
+        ('under v2.4.3.', 'under v2.4.4.', 'v24 label'),
+    ],
+    'tests/v241-second-80-invariants.php': [
+        ('Version: 2.4.3', 'Version: 2.4.4', 'v241 header'),
+        ("HE_VERSION', '2.4.3", "HE_VERSION', '2.4.4", 'v241 runtime'),
+        ("HE_CONTRACT_VERSION', '2.4.3", "HE_CONTRACT_VERSION', '2.4.4", 'v241 contract'),
+        ('FAILED under v2.4.3:', 'FAILED under v2.4.4:', 'v241 failure label'),
+        ('present under v2.4.3.', 'present under v2.4.4.', 'v241 success label'),
+    ],
+    'tests/v242-third-80-final.php': [
+        ("HE_VERSION', '2.4.3", "HE_VERSION', '2.4.4", 'v242 runtime'),
+        ("HE_CONTRACT_VERSION', '2.4.3", "HE_CONTRACT_VERSION', '2.4.4", 'v242 contract'),
+        ('File 06 v2.4.3 corrected third-80 matrix FAILED:', 'File 06 v2.4.4 inherited third-80 matrix FAILED:', 'v242 failure label'),
+        ('File 06 v2.4.3 corrected third fresh 80-round matrix passed (80/80).', 'File 06 v2.4.4 inherited third fresh 80-round matrix passed (80/80).', 'v242 success label'),
+    ],
+}.items():
+    p = ROOT / rel
+    text = p.read_text(encoding='utf-8')
+    for old, new, label in replacements:
+        text = replace_required(text, old, new, label)
+    p.write_text(text, encoding='utf-8')
 
 # WordPress package readme.
 p = ROOT / 'homeopathy-encyclopedia/readme.txt'
