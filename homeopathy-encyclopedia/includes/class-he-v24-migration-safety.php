@@ -1,5 +1,5 @@
 <?php
-/** Migration preflight/postflight for File 06 v2.4 Future-18 schema hardening. */
+/** Migration preflight/postflight for File 06 v2.4+ Future-18 schema hardening. */
 defined( 'ABSPATH' ) || exit;
 
 final class HE_V24_Migration_Safety {
@@ -8,6 +8,10 @@ final class HE_V24_Migration_Safety {
 	const OPTION_IMPACT_CURSOR = 'he_v24_impact_migration_cursor';
 	const OPTION_PROVENANCE_DONE = 'he_v24_provenance_migration_done';
 	const OPTION_IMPACT_DONE = 'he_v24_impact_migration_done';
+	const OPTION_ORCID_CURSOR = 'he_v24_orcid_postflight_cursor';
+	const OPTION_EMITTED_CURSOR = 'he_v24_emitted_postflight_cursor';
+	const OPTION_ORCID_DONE = 'he_v24_orcid_postflight_done';
+	const OPTION_EMITTED_DONE = 'he_v24_emitted_postflight_done';
 	const OPTION_PENDING = 'he_v24_migration_pending';
 
 	public static function table_exists( $table ) {
@@ -66,7 +70,6 @@ final class HE_V24_Migration_Safety {
 		return $provenance_done && $impact_done;
 	}
 
-	/** Rebuild the legacy provenance chain deterministically in bounded, resumable ID order. */
 	private static function backfill_provenance_batch() {
 		global $wpdb;
 		$table = HE_V24_Future_Schema::table( 'provenance' );
@@ -111,7 +114,6 @@ final class HE_V24_Migration_Safety {
 		return true;
 	}
 
-	/** Backfill legacy impact idempotency keys without unbounded table materialization. */
 	private static function backfill_impact_batch() {
 		global $wpdb;
 		$table = HE_V24_Future_Schema::table( 'impact_queue' );
@@ -136,30 +138,85 @@ final class HE_V24_Migration_Safety {
 		return true;
 	}
 
+	/** Bounded, resumable reconciliation that must finish before Future routes are considered ready. */
 	public static function postflight() {
 		global $wpdb;
 		$external = HE_V24_Future_Schema::table( 'external_records' );
 		if ( self::index_exists( $external, 'provider_external' ) ) {
 			$wpdb->query( "ALTER TABLE `{$external}` DROP INDEX `provider_external`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
+
+		$orcid_done = (bool) get_option( self::OPTION_ORCID_DONE, false );
 		$mappings = HE_V24_Future_Schema::table( 'concept_mappings' );
-		if ( self::table_exists( $mappings ) ) {
-			$wpdb->query( "UPDATE `{$mappings}` SET mapping_state='legacy-invalid' WHERE vocabulary='orcid' AND mapping_state<>'legacy-invalid'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( ! $orcid_done && self::table_exists( $mappings ) ) {
+			$cursor = absint( get_option( self::OPTION_ORCID_CURSOR, 0 ) );
+			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM `{$mappings}` WHERE id>%d AND vocabulary='orcid' AND mapping_state<>'legacy-invalid' ORDER BY id ASC LIMIT %d", $cursor, self::BATCH ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( $ids as $id ) {
+				$updated = $wpdb->update( $mappings, array( 'mapping_state' => 'legacy-invalid' ), array( 'id' => absint( $id ) ) );
+				if ( false === $updated ) { throw new RuntimeException( 'File 06 ORCID postflight write failed at row ' . absint( $id ) ); }
+				$cursor = absint( $id );
+			}
+			$more = (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `{$mappings}` WHERE id>%d AND vocabulary='orcid' AND mapping_state<>'legacy-invalid' ORDER BY id ASC LIMIT 1", $cursor ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			if ( $more ) {
+				update_option( self::OPTION_ORCID_CURSOR, $cursor, false );
+			} else {
+				delete_option( self::OPTION_ORCID_CURSOR );
+				update_option( self::OPTION_ORCID_DONE, 1, false );
+				$orcid_done = true;
+			}
+		} elseif ( ! self::table_exists( $mappings ) ) {
+			$orcid_done = true;
+			update_option( self::OPTION_ORCID_DONE, 1, false );
 		}
+
+		$emitted_done = (bool) get_option( self::OPTION_EMITTED_DONE, false );
 		$impact = HE_V24_Future_Schema::table( 'impact_queue' );
-		if ( self::table_exists( $impact ) ) {
-			$wpdb->query( "UPDATE `{$impact}` SET impact_state='retry',last_error='legacy v2.3 emission lacked consumer acknowledgement',next_attempt_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE impact_state='emitted'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( ! $emitted_done && self::table_exists( $impact ) ) {
+			$cursor = absint( get_option( self::OPTION_EMITTED_CURSOR, 0 ) );
+			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM `{$impact}` WHERE id>%d AND impact_state='emitted' ORDER BY id ASC LIMIT %d", $cursor, self::BATCH ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( $ids as $id ) {
+				$updated = $wpdb->update( $impact, array( 'impact_state' => 'retry', 'last_error' => 'legacy v2.3 emission lacked consumer acknowledgement', 'next_attempt_at' => current_time( 'mysql', true ), 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => absint( $id ), 'impact_state' => 'emitted' ) );
+				if ( false === $updated ) { throw new RuntimeException( 'File 06 impact postflight write failed at row ' . absint( $id ) ); }
+				$cursor = absint( $id );
+			}
+			$more = (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `{$impact}` WHERE id>%d AND impact_state='emitted' ORDER BY id ASC LIMIT 1", $cursor ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			if ( $more ) {
+				update_option( self::OPTION_EMITTED_CURSOR, $cursor, false );
+			} else {
+				delete_option( self::OPTION_EMITTED_CURSOR );
+				update_option( self::OPTION_EMITTED_DONE, 1, false );
+				$emitted_done = true;
+			}
+		} elseif ( ! self::table_exists( $impact ) ) {
+			$emitted_done = true;
+			update_option( self::OPTION_EMITTED_DONE, 1, false );
 		}
+		return $orcid_done && $emitted_done;
+	}
+
+	public static function ready() {
+		return (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) >= HE_V24_Future_Schema::VERSION
+			&& (bool) get_option( self::OPTION_PROVENANCE_DONE, false )
+			&& (bool) get_option( self::OPTION_IMPACT_DONE, false )
+			&& (bool) get_option( self::OPTION_ORCID_DONE, false )
+			&& (bool) get_option( self::OPTION_EMITTED_DONE, false )
+			&& ! get_option( self::OPTION_PENDING );
 	}
 
 	public static function activate() {
 		if ( ! self::preflight() ) {
 			update_option( self::OPTION_PENDING, 1, false );
-			HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 migration is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+			HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 preflight migration is progressing in bounded batches; Future-18 routes remain fail-closed.' );
 			return false;
 		}
-		HE_V24_Future_Schema::install();
-		self::postflight();
+		if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) {
+			HE_V24_Future_Schema::install();
+		}
+		if ( ! self::postflight() ) {
+			update_option( self::OPTION_PENDING, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'future_migration_pending', 'File 06 Future-18 postflight reconciliation is progressing in bounded batches; Future-18 routes remain fail-closed.' );
+			return false;
+		}
 		delete_option( self::OPTION_PENDING );
 		$failure = get_option( HE_V2_Schema::OPTION_FAILURE, array() );
 		if ( is_array( $failure ) && 'future_migration_pending' === ( $failure['code'] ?? '' ) ) { delete_option( HE_V2_Schema::OPTION_FAILURE ); }
@@ -167,7 +224,7 @@ final class HE_V24_Migration_Safety {
 	}
 
 	public static function maybe_upgrade() {
-		if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) { return self::activate(); }
+		if ( ! self::ready() ) { return self::activate(); }
 		return true;
 	}
 }
