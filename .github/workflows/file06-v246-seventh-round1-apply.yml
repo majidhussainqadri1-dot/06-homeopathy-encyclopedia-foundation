@@ -1,0 +1,63 @@
+name: File 06 v2.4.6 Seventh Review Round 1 Apply
+on:
+  push:
+    branches: [audit/file-06-seventh-ten-round-v2.4.6]
+    paths: [.github/workflows/file06-v246-seventh-round1-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-seventh-ten-round-v2.4.6
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Fix research first-save state drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-domain.php')
+          s=p.read_text()
+          old="'status' => 'draft' === $post->post_status ? 'proposal' : 'published',"
+          new="'status' => 'publish' === $post->post_status ? 'published' : 'proposal',"
+          if old not in s:
+              raise SystemExit('round1 marker missing')
+          p.write_text(s.replace(old,new,1))
+
+          t=Path('tests/v246-seventh-ten-round-regressions.php')
+          t.write_text("""<?php
+          /** File 06 v2.4.6 seventh fresh ten-round regression controls. */
+          $root=dirname(__DIR__);$fail=array();
+          function v246_read($p){$v=file_get_contents($p);if(false===$v){throw new RuntimeException($p);}return $v;}
+          function v246_ok($ok,$m){global $fail;if(!$ok)$fail[]=$m;}
+          $domain=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
+          v246_ok(false!==strpos($domain,"'status' => 'publish' === $post->post_status ? 'published' : 'proposal',"),'R1 research first-save state must fail closed');
+          v246_ok(false===strpos($domain,"'status' => 'draft' === $post->post_status ? 'proposal' : 'published',"),'R1 non-draft must not imply published');
+          /*__V246_MORE__*/
+          if($fail){fwrite(STDERR,"File 06 v2.4.6 seventh-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.6 seventh-review regressions: PASS\n";
+          """.replace('          ','') )
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php -l tests/v246-seventh-ten-round-regressions.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+      - name: Commit Round 1 correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): fail closed on research first-save state'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
