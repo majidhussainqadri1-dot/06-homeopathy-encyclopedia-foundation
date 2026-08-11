@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Verify core, prior audits, Future-18 and third fresh 80 rounds
+      - name: Verify core, prior audits, Future-18 and corrected third fresh 80 rounds
         run: |
           set -euo pipefail
           php tests/v2-invariants.php
@@ -41,7 +41,7 @@ jobs:
           php tests/v23-future-invariants.php
           php tests/v24-80-round-invariants.php
           php tests/v241-second-80-invariants.php
-          php tests/v242-third-80-invariants.php
+          php tests/v242-third-80-final.php
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
           python3 -m py_compile scripts/build-release.py scripts/source-tree-hash.py scripts/verify-manifest.py
 
@@ -77,8 +77,8 @@ jobs:
               required=(
                   'class-he-v242-third-audit.php','class-he-v242-runtime-corrections.php','class-he-v242-multilingual.php',
                   'class-he-v242-research-browse.php','class-he-v242-research-authoring.php','class-he-v242-language-surfaces.php',
-                  'class-he-v242-watchlist.php','class-he-v242-reference-graph.php','class-he-v242-research-immutability.php',
-                  'class-he-v242-public-translation-guard.php','class-he-v242-language-migration.php')
+                  'class-he-v242-translation-compat.php','class-he-v242-watchlist.php','class-he-v242-reference-graph.php',
+                  'class-he-v242-research-immutability.php','class-he-v242-public-translation-guard.php','class-he-v242-language-migration.php')
               for name in required:
                   assert name in bootstrap, name
           PY
@@ -109,7 +109,7 @@ jobs:
           coverage: none
       - name: Install WP-CLI
         run: |
-          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds-pages/gh-pages/phar/wp-cli.phar
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
           php /tmp/wp-cli.phar --info
           chmod +x /tmp/wp-cli.phar
           sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
@@ -125,7 +125,7 @@ jobs:
           cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
           wp plugin activate homeopathy-encyclopedia
           wp eval 'if ( HE_VERSION !== "2.4.2" || HE_SCHEMA_VERSION !== 10 || HE_CONTRACT_VERSION !== "2.4.2" ) { throw new Exception("File 06 runtime contract mismatch"); } echo "runtime-contract-ok\n";'
-          wp eval 'foreach(array("HE_V242_Third_Audit","HE_V242_Multilingual","HE_V242_Research_Authoring","HE_V242_Language_Migration") as $c){if(!class_exists($c)){throw new Exception("missing ".$c);}} $targets=HE_V242_Multilingual::targets_for_source("tr"); if(count($targets)!==9||count(array_unique($targets))!==9){throw new Exception("translation targets");} echo "third-audit-classes-ok\n";'
+          wp eval 'foreach(array("HE_V242_Third_Audit","HE_V242_Multilingual","HE_V242_Research_Authoring","HE_V242_Language_Migration","HE_V242_Translation_Compat") as $c){if(!class_exists($c)){throw new Exception("missing ".$c);}} $targets=HE_V242_Multilingual::targets_for_source("tr"); if(count($targets)!==9||count(array_unique($targets))!==9){throw new Exception("translation targets");} echo "third-audit-classes-ok\n";'
           wp plugin deactivate homeopathy-encyclopedia
           wp plugin activate homeopathy-encyclopedia
           wp eval 'if ((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10){throw new Exception("schema option mismatch");} echo "reactivation-ok\n";'
