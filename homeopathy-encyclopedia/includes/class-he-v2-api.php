@@ -90,7 +90,7 @@ final class HE_V2_API {
 			'callback' => array( $this, 'create_integrity' ),
 			'permission_callback' => function() { return is_user_logged_in() && HE_V2_Auth::membership_allowed(); },
 		) );
-		register_rest_route( self::NS, '/integrity/(?P<id>\d+)/apply', array(
+		register_rest_route( self::NS, '/integrity/(?P<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})/apply', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( $this, 'apply_integrity' ),
 			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH ); },
@@ -368,9 +368,13 @@ final class HE_V2_API {
 	}
 
 	public function apply_integrity( WP_REST_Request $request ) {
-		$reservation = $this->require_mutation_guards( $request, 'apply-integrity-' . $request['id'] );
+		global $wpdb;
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$action_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . ' WHERE public_id=%s', $public_id ) );
+		if ( ! $action_id ) { return new WP_Error( 'he_not_found', __( 'Integrity action not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+		$reservation = $this->require_mutation_guards( $request, 'apply-integrity-' . $public_id );
 		$data = (array) $request->get_json_params();
-		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::apply_integrity_action( absint( $request['id'] ), absint( $data['expected_version'] ?? 0 ), get_current_user_id() );
+		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::apply_integrity_action( $action_id, absint( $data['expected_version'] ?? 0 ), get_current_user_id() );
 		return $this->mutation_response( $reservation, $result );
 	}
 
