@@ -50,7 +50,7 @@ final class HE_V242_Research_Browse {
 		}
 		if ( 'successful-case' === $row['record_type'] ) {
 			$case = json_decode( (string) $row['case_json'], true );
-			if ( 'public' === $row['data_class'] ) {
+			if ( 'public' === $row['data_class'] && 'retracted' !== $row['status'] ) {
 				$out['case'] = is_array( $case ) ? $case : array();
 			} else {
 				$out['case_details_restricted'] = true;

@@ -1218,8 +1218,9 @@ final class HE_V2_Domain {
 		if ( ! $row ) {
 			return null;
 		}
-		if ( ! $private && ( ! class_exists( 'HE_V22_Research_Guard' ) || ! HE_V22_Research_Guard::public_surface_eligible( $row ) ) ) {
-			return null;
+		if ( ! $private ) {
+			$post = ! empty( $row['post_id'] ) ? get_post( (int) $row['post_id'] ) : null;
+			if ( ! class_exists( 'HE_V22_Research_Guard' ) || ! HE_V22_Research_Guard::public_surface_eligible( $row ) || ! $post || self::RESEARCH_TYPE !== $post->post_type || 'publish' !== $post->post_status ) { return null; }
 		}
 		$dto = array(
 			'id' => $row['public_id'],
@@ -1229,12 +1230,12 @@ final class HE_V2_Domain {
 			'question' => $row['question'],
 			'protocol' => $row['protocol'],
 			'case_tag' => $row['case_tag'],
-			'case' => 'successful-case' === $row['record_type'] ? json_decode( $row['case_json'], true ) : null,
+			'case' => 'successful-case' === $row['record_type'] && 'retracted' !== $row['status'] ? json_decode( $row['case_json'], true ) : null,
 			'dataset_metadata' => 'dataset' === $row['record_type'] ? json_decode( $row['metadata_json'], true ) : null,
 			'canonical_url' => $row['post_id'] ? get_permalink( (int) $row['post_id'] ) : '',
 			'updated_at' => $row['updated_at'],
 		);
-		if ( ! $private && 'public' !== $row['data_class'] ) {
+		if ( ! $private && ( 'public' !== $row['data_class'] || 'retracted' === $row['status'] ) ) {
 			$dto['protocol'] = '';
 		}
 		if ( $private ) {
