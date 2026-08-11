@@ -1,0 +1,251 @@
+name: File 06 v2.4.6 Seventh Review Rounds 2-9 Apply
+on:
+  push:
+    branches: [audit/file-06-seventh-ten-round-v2.4.6]
+    paths: [.github/workflows/file06-v246-seventh-rounds2-9-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-seventh-ten-round-v2.4.6
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Round 2 - make public freshness GET read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          schema=Path('homeopathy-encyclopedia/includes/class-he-v24-future-schema.php')
+          s=schema.read_text()
+          old='public static function refresh_freshness( $concept_id ) {'
+          new='public static function refresh_freshness( $concept_id, $persist = true ) {'
+          if old not in s: raise SystemExit('R2 signature marker missing')
+          s=s.replace(old,new,1)
+          old="\t\t$wpdb->replace( self::table( 'freshness' ), $row );\n\t\treturn $row;"
+          new="\t\tif ( $persist && false === $wpdb->replace( self::table( 'freshness' ), $row ) ) {\n\t\t\treturn new WP_Error( 'he_future_freshness_write_failed', __( 'Freshness state could not be stored.', 'homeopathy-encyclopedia' ) );\n\t\t}\n\t\treturn $row;"
+          if old not in s: raise SystemExit('R2 persistence marker missing')
+          schema.write_text(s.replace(old,new,1))
+          api=Path('homeopathy-encyclopedia/includes/class-he-v24-future-api.php')
+          a=api.read_text()
+          old="if ( ! $row ) { $row = HE_V24_Future_Schema::refresh_freshness( $concept['id'] ); unset( $row['concept_id'] ); }"
+          new="if ( ! $row ) { $row = HE_V24_Future_Schema::refresh_freshness( $concept['id'], false ); if ( is_wp_error( $row ) ) { return $row; } unset( $row['concept_id'] ); }"
+          if old not in a: raise SystemExit('R2 API marker missing')
+          api.write_text(a.replace(old,new,1))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$schema=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');\n$future_api=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-api.php');\nv246_ok(false!==strpos($schema,'refresh_freshness( $concept_id, $persist = true )'),'R2 freshness persistence switch missing');\nv246_ok(false!==strpos($future_api,"refresh_freshness( \\$concept['id'], false )"),'R2 public freshness GET still persists');\n'''
+          if marker not in x: raise SystemExit('R2 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v24-future-schema.php
+          php -l homeopathy-encyclopedia/includes/class-he-v24-future-api.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git config user.name majidhussainqadri1-dot; git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/includes/class-he-v24-future-schema.php homeopathy-encyclopedia/includes/class-he-v24-future-api.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): keep public freshness reads side-effect free'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 3 - bind protected health to File 00 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-api.php'); s=p.read_text()
+          old="'permission_callback' => function() { return current_user_can( 'activate_plugins' ); },"
+          new="'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REPAIR ); },"
+          if old not in s: raise SystemExit('R3 health permission marker missing')
+          p.write_text(s.replace(old,new,1))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$core_api=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-api.php');\nv246_ok(false!==strpos($core_api,"/health") && false!==strpos($core_api,"HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REPAIR )"),'R3 health route bypasses File00-backed authorization');\nv246_ok(false===strpos($core_api,"return current_user_can( 'activate_plugins' )"),'R3 legacy health capability bypass remains');\n'''
+          if marker not in x: raise SystemExit('R3 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v2-api.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-api.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): fail closed health access through File 00 claims'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 4 - close uncontrolled core taxonomy REST mutation surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-domain.php'); s=p.read_text()
+          if s.count("'show_in_rest' => true,") != 3: raise SystemExit('R4 expected exactly three public taxonomy REST surfaces')
+          p.write_text(s.replace("'show_in_rest' => true,", "'show_in_rest' => false,"))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$domain=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');\nv246_ok(0===substr_count($domain,"'show_in_rest' => true,"),'R4 File06 taxonomies still expose uncontrolled core REST writes');\nv246_ok(substr_count($domain,"'show_in_rest' => false,")>=5,'R4 controlled REST ownership marker missing');\n'''
+          if marker not in x: raise SystemExit('R4 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v2-domain.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): keep taxonomy writes behind governed File 06 APIs'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 5 - prevent restricted successful-case page disclosure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v22-public-guard.php'); s=p.read_text()
+          old="$case = 'successful-case' === $row['record_type'] ? json_decode( (string) $row['case_json'], true ) : array();"
+          new="$case = 'successful-case' === $row['record_type'] && 'public' === $row['data_class'] && in_array( $row['status'], array( 'published', 'corrected' ), true ) && ! empty( $row['case_anonymized'] ) && ! empty( $row['case_consent_verified'] ) ? json_decode( (string) $row['case_json'], true ) : array();"
+          if old not in s: raise SystemExit('R5 case disclosure marker missing')
+          p.write_text(s.replace(old,new,1))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$public_guard=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');\nv246_ok(false!==strpos($public_guard,"'public' === \\$row['data_class']") && false!==strpos($public_guard,"case_anonymized") && false!==strpos($public_guard,"case_consent_verified"),'R5 successful-case public governance gate incomplete');\nv246_ok(false===strpos($public_guard,"'successful-case' === \\$row['record_type'] ? json_decode"),'R5 unconditional successful-case rendering remains');\n'''
+          if marker not in x: raise SystemExit('R5 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v22-public-guard.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-public-guard.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): suppress restricted or ungoverned successful-case details'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 6 - fail closed title excerpt and robots for non-public research
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v22-public-guard.php'); s=p.read_text()
+          old="return self::is_public_row( $row ) ? (string) $row['title'] : $title;"
+          new="return self::is_public_row( $row ) ? (string) $row['title'] : __( 'Research record unavailable', 'homeopathy-encyclopedia' );"
+          if old not in s: raise SystemExit('R6 title marker missing')
+          s=s.replace(old,new,1)
+          old="return self::is_public_row( $row ) ? (string) $row['question'] : $excerpt;"
+          new="return self::is_public_row( $row ) ? (string) $row['question'] : '';"
+          if old not in s: raise SystemExit('R6 excerpt marker missing')
+          s=s.replace(old,new,1)
+          old="\t\t\t$row = $post ? self::row_for_post( $post->ID ) : null;\n\t\t\tif ( $row && in_array( $row['status'], array( 'published', 'corrected' ), true ) ) {"
+          new="\t\t\t$row = $post ? self::row_for_post( $post->ID ) : null;\n\t\t\tif ( ! self::is_public_row( $row ) ) {\n\t\t\t\t$robots['noindex'] = true;\n\t\t\t\t$robots['nofollow'] = true;\n\t\t\t\t$robots['noarchive'] = true;\n\t\t\t\treturn $robots;\n\t\t\t}\n\t\t\tif ( in_array( $row['status'], array( 'published', 'corrected' ), true ) ) {"
+          if old not in s: raise SystemExit('R6 robots marker missing')
+          p.write_text(s.replace(old,new,1))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$public_guard=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v22-public-guard.php');\nv246_ok(false!==strpos($public_guard,"Research record unavailable"),'R6 non-public research title still leaks');\nv246_ok(false!==strpos($public_guard,"if ( ! self::is_public_row( \\$row ) )") && false!==strpos($public_guard,"['noarchive'] = true"),'R6 non-public research robots fail-closed gate missing');\n'''
+          if marker not in x: raise SystemExit('R6 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v22-public-guard.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v22-public-guard.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): fail closed non-public research presentation metadata'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 7 - prevent private concept IDs leaking through public DTO links
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v241-public-dto-guard.php'); s=p.read_text()
+          old="'SELECT public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE id=%d'"
+          new="'SELECT public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . \" WHERE id=%d AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0\""
+          if old not in s: raise SystemExit('R7 replacement lookup marker missing')
+          s=s.replace(old,new,1)
+          old="'SELECT id,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . \" WHERE id IN ({$placeholders})\""
+          new="'SELECT id,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . \" WHERE id IN ({$placeholders}) AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0\""
+          if old not in s: raise SystemExit('R7 graph map marker missing')
+          p.write_text(s.replace(old,new,1))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$dto=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v241-public-dto-guard.php');\nv246_ok(substr_count($dto,"status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0")>=2,'R7 public DTO concept lookups are not publication-gated');\n'''
+          if marker not in x: raise SystemExit('R7 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v241-public-dto-guard.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v241-public-dto-guard.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): publication-gate linked concept identifiers in public DTOs'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 8 - fresh privacy lifecycle review - no source defect established
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$future_privacy=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-privacy.php');\nv246_ok(false!==strpos($future_privacy,"he_v2_privacy_legal_hold") && false!==strpos($future_privacy,"DELETE FROM") && false!==strpos($future_privacy,"deidentify"),'R8 Future privacy lifecycle controls missing');\n'''
+          if marker not in x: raise SystemExit('R8 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'test(file-06): record clean seventh review round 8 privacy controls'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
+
+      - name: Round 9 - advance maintenance cursors only after successful row work
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v24-future-schema.php'); s=p.read_text()
+          old="\t\tif ( $rows ) {\n\t\t\tupdate_option( $option, (int) end( $rows )['id'], false );\n\t\t}\n\t\treturn $rows;"
+          if old not in s: raise SystemExit('R9 preadvance marker missing')
+          s=s.replace(old,"\t\treturn $rows;",1)
+          old="\t\t\t$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );\n\t\t\tforeach ( $fresh as $row ) { self::refresh_freshness( (int) $row['id'] ); }\n\t\t\t$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );\n\t\t\tforeach ( $gaps as $row ) { self::detect_gaps( (int) $row['id'] ); }"
+          new="\t\t\t$fresh = self::scan_concepts_with_cursor( 'he_v24_freshness_cursor' );\n\t\t\tforeach ( $fresh as $row ) {\n\t\t\t\t$result = self::refresh_freshness( (int) $row['id'] );\n\t\t\t\tif ( is_wp_error( $result ) || ! is_array( $result ) ) { break; }\n\t\t\t\tupdate_option( 'he_v24_freshness_cursor', (int) $row['id'], false );\n\t\t\t}\n\t\t\t$gaps = self::scan_concepts_with_cursor( 'he_v24_gap_cursor' );\n\t\t\tforeach ( $gaps as $row ) {\n\t\t\t\t$result = self::detect_gaps( (int) $row['id'] );\n\t\t\t\tif ( is_wp_error( $result ) ) { break; }\n\t\t\t\tupdate_option( 'he_v24_gap_cursor', (int) $row['id'], false );\n\t\t\t}"
+          if old not in s: raise SystemExit('R9 maintenance loop marker missing')
+          s=s.replace(old,new,1)
+          # Propagate research-gap write failure rather than advancing over an unpersisted row.
+          old="\t\t$gaps = array();\n\t\tif ( $refs < 2 )"
+          new="\t\t$gaps = array();\n\t\t$write_ok = true;\n\t\tif ( $refs < 2 )"
+          if old not in s: raise SystemExit('R9 gap write state marker missing')
+          s=s.replace(old,new,1)
+          old="\t\t\t\t$wpdb->update( self::table( 'research_gaps' ), array( 'state' => 'resolved', 'resolved_at' => $now, 'updated_at' => $now ), array( 'concept_id' => $concept['id'], 'gap_type' => $gap_type ) );"
+          new="\t\t\t\tif ( false === $wpdb->update( self::table( 'research_gaps' ), array( 'state' => 'resolved', 'resolved_at' => $now, 'updated_at' => $now ), array( 'concept_id' => $concept['id'], 'gap_type' => $gap_type ) ) ) { $write_ok = false; }"
+          if old not in s: raise SystemExit('R9 gap resolve marker missing')
+          s=s.replace(old,new,1)
+          old="\t\t\t\t$wpdb->update( self::table( 'research_gaps' ), $row, array( 'id' => $id ) );\n\t\t\t} else {\n\t\t\t\t$row['concept_id'] = $concept['id']; $row['gap_type'] = $type; $row['detected_at'] = $now;\n\t\t\t\t$wpdb->insert( self::table( 'research_gaps' ), $row );"
+          new="\t\t\t\tif ( false === $wpdb->update( self::table( 'research_gaps' ), $row, array( 'id' => $id ) ) ) { $write_ok = false; }\n\t\t\t} else {\n\t\t\t\t$row['concept_id'] = $concept['id']; $row['gap_type'] = $type; $row['detected_at'] = $now;\n\t\t\t\tif ( false === $wpdb->insert( self::table( 'research_gaps' ), $row ) ) { $write_ok = false; }"
+          if old not in s: raise SystemExit('R9 gap upsert marker missing')
+          s=s.replace(old,new,1)
+          old="\t\treturn count( $gaps );\n\t}\n\n\tprivate static function crossref_signal"
+          new="\t\tif ( ! $write_ok ) { return new WP_Error( 'he_future_gap_write_failed', __( 'Research-gap state could not be stored.', 'homeopathy-encyclopedia' ) ); }\n\t\treturn count( $gaps );\n\t}\n\n\tprivate static function crossref_signal"
+          if old not in s: raise SystemExit('R9 gap return marker missing')
+          p.write_text(s.replace(old,new,1))
+          t=Path('tests/v246-seventh-ten-round-regressions.php'); x=t.read_text(); marker='/*__V246_MORE__*/'
+          block='''$schema=v246_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');\nv246_ok(false===strpos($schema,"update_option( $option, (int) end( $rows )['id'], false )"),'R9 maintenance scan still pre-advances cursor');\nv246_ok(false!==strpos($schema,"update_option( 'he_v24_freshness_cursor', (int) \\$row['id'], false )") && false!==strpos($schema,"update_option( 'he_v24_gap_cursor', (int) \\$row['id'], false )"),'R9 per-row successful cursor advance missing');\nv246_ok(false!==strpos($schema,"he_future_gap_write_failed") && false!==strpos($schema,"he_future_freshness_write_failed"),'R9 maintenance write failure propagation missing');\n'''
+          if marker not in x: raise SystemExit('R9 test marker missing')
+          t.write_text(x.replace(marker,block+marker,1))
+          PY
+          php -l homeopathy-encyclopedia/includes/class-he-v24-future-schema.php
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+          git add homeopathy-encyclopedia/includes/class-he-v24-future-schema.php tests/v246-seventh-ten-round-regressions.php
+          git commit -m 'fix(file-06): make freshness and gap maintenance cursors retry safe'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
