@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.11 — Twelfth fresh ten-round corrected candidate
+- Ten sequential review/fix/retest rounds completed; defects corrected in rounds 1–10.
+- Unified nuanced research public eligibility, privacy erasure object de-identification, research admin CAS, investigator compatibility, language canonicalization and public translation identifier hygiene.
+- Repository candidate only; staging/live/operational evidence remains unverified.
+
 ## 2.4.10 — Eleventh fresh ten-round corrective candidate
 
 - Completed ten sequential review → immediate-fix → regression rounds.

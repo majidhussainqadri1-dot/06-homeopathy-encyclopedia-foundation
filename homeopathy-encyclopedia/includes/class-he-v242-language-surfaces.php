@@ -34,6 +34,10 @@ final class HE_V242_Language_Surfaces {
 		}
 		$locale = HE_V242_Multilingual::canonical_locale( $request->get_param( 'locale' ) );
 		global $wpdb;
+		$public_source_version = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT version_number FROM ' . HE_V2_Schema::table( 'versions' ) . ' WHERE id=%d AND concept_id=%d', (int) $concept['current_version'], (int) $concept['id'] ) );
+		if ( ! $public_source_version ) {
+			return new WP_Error( 'he_not_found', __( 'The public source version is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+		}
 		$table = HE_V24_Future_Schema::table( 'translations' );
 		$params = array( (int) $concept['id'], (int) $concept['current_version'] );
 		$where = "concept_id=%d AND source_version=%d AND status='published'";
@@ -51,7 +55,7 @@ final class HE_V242_Language_Surfaces {
 			$items[] = array(
 				'locale' => HE_V242_Multilingual::canonical_locale( $row['locale'] ) ?: $row['locale'],
 				'source_locale' => HE_V242_Multilingual::canonical_locale( $row['source_locale'] ?: $concept['language'] ),
-				'source_version' => (int) $row['source_version'],
+				'source_version' => $public_source_version,
 				'translation_version' => (int) $row['translation_version'],
 				'content' => $content,
 				'content_hash' => $row['content_hash'],
@@ -65,7 +69,7 @@ final class HE_V242_Language_Surfaces {
 		return rest_ensure_response( array(
 			'concept_id' => $concept['public_id'],
 			'source_locale' => HE_V242_Multilingual::canonical_locale( $concept['language'] ),
-			'source_version' => (int) $concept['current_version'],
+			'source_version' => $public_source_version,
 			'targets' => HE_V242_Multilingual::targets_for_source( $concept['language'] ),
 			'items' => $items,
 			'localized_url_owner' => 'cross-file-multilingual-publishing-search',

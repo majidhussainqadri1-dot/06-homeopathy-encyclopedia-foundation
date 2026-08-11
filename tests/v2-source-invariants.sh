@@ -18,9 +18,9 @@ for file in \
   test -f "$plugin/includes/$file"
 done
 ! grep -R --line-number --include='*.php' --include='*.js' --include='*.css' -E '(AKIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)' "$plugin"
-grep -q "Version: 2.4.10" "$plugin/homeopathy-encyclopedia.php"
+grep -q "Version: 2.4.11" "$plugin/homeopathy-encyclopedia.php"
 grep -q "HE_SCHEMA_VERSION', 10" "$plugin/homeopathy-encyclopedia.php"
-grep -q "HE_CONTRACT_VERSION', '2.4.10" "$plugin/homeopathy-encyclopedia.php"
+grep -q "HE_CONTRACT_VERSION', '2.4.11" "$plugin/homeopathy-encyclopedia.php"
 grep -q "future_requirement_count" "$plugin/homeopathy-encyclopedia.php"
 grep -q "research_reviewer_assignment_required" "$plugin/homeopathy-encyclopedia.php"
 grep -q "research_apply_requires_accepted_state" "$plugin/homeopathy-encyclopedia.php"
@@ -83,4 +83,4 @@ grep -q -- "--he-primary:var(--sabri-color-primary" "$plugin/assets/css/encyclop
 ! grep -q -- "--sabri-primary:#" "$plugin/assets/css/encyclopedia-v2.css"
 ! grep -R --line-number -- '--he-orange' "$plugin"
 grep -q "default='06-homeopathy-encyclopedia-foundation'" "$root/scripts/build-release.py"
-echo "File 06 v2.4.10 source-tree invariants passed."
+echo "File 06 v2.4.11 source-tree invariants passed."
