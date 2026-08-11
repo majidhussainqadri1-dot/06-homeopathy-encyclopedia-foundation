@@ -147,7 +147,7 @@ final class HE_V2_API {
 			'callback' => array( $this, 'transition_research' ),
 			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_RESEARCH ); },
 		) );
-		register_rest_route( self::NS, '/datasets/(?P<id>\d+)/access', array(
+		register_rest_route( self::NS, '/datasets/(?P<id>[A-Za-z0-9-]+)/access', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( $this, 'request_dataset_access' ),
 			'permission_callback' => function() { return is_user_logged_in() && HE_V2_Auth::membership_allowed(); },
@@ -426,7 +426,7 @@ final class HE_V2_API {
 	public function request_dataset_access( WP_REST_Request $request ) {
 		$reservation = $this->require_mutation_guards( $request, 'dataset-access-' . $request['id'] );
 		$data = (array) $request->get_json_params();
-		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::request_dataset_access( absint( $request['id'] ), $data['purpose'] ?? '', $data['lawful_basis'] ?? '', get_current_user_id() );
+		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::request_dataset_access( sanitize_text_field( $request['id'] ), $data['purpose'] ?? '', $data['lawful_basis'] ?? '', get_current_user_id() );
 		return $this->mutation_response( $reservation, $result, 201 );
 	}
 
