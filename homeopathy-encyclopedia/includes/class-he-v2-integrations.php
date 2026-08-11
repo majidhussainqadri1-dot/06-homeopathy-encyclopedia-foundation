@@ -299,9 +299,10 @@ final class HE_V2_Integrations {
 		global $wpdb;
 		$event_id = $event_id && preg_match( '/^[a-f0-9-]{16,64}$/i', $event_id ) ? $event_id : wp_generate_uuid4();
 		$table = HE_V2_Schema::table( 'events' );
+		$safe_payload = HE_V2_Domain::minimize_event_payload( is_array( $payload ) ? $payload : array() );
 		$inserted = $wpdb->query( $wpdb->prepare(
 			"INSERT IGNORE INTO {$table} (event_id,event_name,object_type,object_id,actor_id,trace_id,payload_json,created_at) VALUES (%s,%s,'external',0,0,%s,%s,%s)",
-			$event_id, sanitize_text_field( $name ), HE_V2_Domain::trace_id(), wp_json_encode( is_array( $payload ) ? $payload : array() ), current_time( 'mysql', true )
+			$event_id, sanitize_text_field( $name ), HE_V2_Domain::trace_id(), wp_json_encode( $safe_payload ), current_time( 'mysql', true )
 		) );
 		if ( false === $inserted ) {
 			HE_V2_Schema::record_runtime_failure( 'consumed_event_write_failed', 'A File 06 consumed-domain-event audit row could not be persisted.' );

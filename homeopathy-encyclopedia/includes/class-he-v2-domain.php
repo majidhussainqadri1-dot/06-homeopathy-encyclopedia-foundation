@@ -1442,11 +1442,33 @@ final class HE_V2_Domain {
 		return count( $ids );
 	}
 
+	public static function minimize_event_payload( $value, $depth = 0 ) {
+		if ( $depth > 6 ) { return '[truncated]'; }
+		if ( is_array( $value ) ) {
+			$out = array();
+			foreach ( $value as $key => $item ) {
+				$safe_key = is_int( $key ) ? $key : sanitize_key( (string) $key );
+				if ( ! is_int( $key ) && preg_match( '/(?:password|passwd|secret|token|email|phone|mobile|address|cnic|passport|national[_-]?id|patient[_-]?id|mrn|consent[_-]?document)/i', (string) $key ) ) {
+					$out[ $safe_key ?: 'redacted' ] = '[redacted]';
+					continue;
+				}
+				$out[ $safe_key ] = self::minimize_event_payload( $item, $depth + 1 );
+			}
+			return $out;
+		}
+		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) || null === $value ) { return $value; }
+		$text = sanitize_textarea_field( (string) $value );
+		$text = preg_replace( '/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/u', '[redacted-email]', $text );
+		$text = preg_replace( '/\b(?:\+?92|0)?3\d{9}\b/u', '[redacted-phone]', $text );
+		$text = preg_replace( '/\b\d{5}-\d{7}-\d\b/u', '[redacted-cnic]', $text );
+		return mb_substr( $text, 0, 1000, 'UTF-8' );
+	}
+
 	public static function emit_event( $name, $object_type, $object_id, $payload ) {
 		global $wpdb;
 		$event_id = wp_generate_uuid4();
 		$trace_id = self::trace_id();
-		$payload = is_array( $payload ) ? $payload : array();
+		$payload = self::minimize_event_payload( is_array( $payload ) ? $payload : array() );
 		$payload['owner'] = 'file-06';
 		$payload['contract_version'] = HE_CONTRACT_VERSION;
 		$payload['occurred_at'] = gmdate( 'c' );
