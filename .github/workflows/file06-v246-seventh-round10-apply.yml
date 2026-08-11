@@ -1,0 +1,217 @@
+name: File 06 v2.4.6 Seventh Review Round 10 Apply
+on:
+  push:
+    branches: [audit/file-06-seventh-ten-round-v2.4.6]
+    paths: [.github/workflows/file06-v246-seventh-round10-apply.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: audit/file-06-seventh-ten-round-v2.4.6
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Round 10 - align v2.4.6 runtime aggregate QA and release truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('.')
+          # Runtime candidate truth.
+          p=Path('homeopathy-encyclopedia/homeopathy-encyclopedia.php'); s=p.read_text()
+          if '2.4.5' not in s: raise SystemExit('R10 bootstrap prior-version marker missing')
+          p.write_text(s.replace('2.4.5','2.4.6'))
+
+          p=Path('homeopathy-encyclopedia/readme.txt'); s=p.read_text()
+          s=s.replace('Stable tag: 2.4.5','Stable tag: 2.4.6',1)
+          s=s.replace('The 2.4.5 candidate','The 2.4.6 candidate',1)
+          marker='== Changelog ==\n\n'
+          entry="= 2.4.6 =\n* Seventh ten-round corrective candidate: fail-closed research first-save state, side-effect-free public freshness reads, File-00-bound protected health, governed taxonomy REST ownership, successful-case page privacy gates, fail-closed non-public research metadata/robots, publication-gated linked public IDs, and retry-safe freshness/gap maintenance cursors.\n\n"
+          if '= 2.4.6 =' not in s:
+              if marker not in s: raise SystemExit('R10 readme changelog marker missing')
+              s=s.replace(marker,marker+entry,1)
+          p.write_text(s)
+
+          # Current-candidate invariant suites are intentionally version-specific.
+          for name in ['tests/v2-invariants.php','tests/v2-source-invariants.sh','tests/v23-future-invariants.php','tests/v24-80-round-invariants.php','tests/v241-second-80-invariants.php','tests/v242-third-80-final.php']:
+              q=Path(name); x=q.read_text()
+              if '2.4.5' not in x: raise SystemExit('R10 expected current-version marker missing in '+name)
+              q.write_text(x.replace('2.4.5','2.4.6'))
+
+          # The completed v2.4.5 suite remains historical and must not reject a later candidate solely by version label.
+          q=Path('tests/test-file06-v245-sixth-ten-round-regressions.php'); x=q.read_text()
+          reps=[
+            ("f06_v245_assert(strpos($bootstrap, ' * Version: 2.4.5') !== false, 'Round 10 plugin header version not 2.4.5');","f06_v245_assert(strpos($bootstrap, ' * Version:') !== false, 'Historical Round 10 plugin header declaration missing');"),
+            ("f06_v245_assert(strpos($bootstrap, \"define( 'HE_VERSION', '2.4.5' );\") !== false, 'Round 10 runtime version not 2.4.5');","f06_v245_assert(strpos($bootstrap, \"define( 'HE_VERSION',\") !== false, 'Historical Round 10 runtime version declaration missing');"),
+            ("f06_v245_assert(strpos($bootstrap, \"define( 'HE_CONTRACT_VERSION', '2.4.5' );\") !== false, 'Round 10 contract version not 2.4.5');","f06_v245_assert(strpos($bootstrap, \"define( 'HE_CONTRACT_VERSION',\") !== false, 'Historical Round 10 contract declaration missing');"),
+            ("f06_v245_assert(strpos($bootstrap, \"'future_hardening_version'=>'2.4.5'\") !== false, 'Round 10 hardening version not 2.4.5');","f06_v245_assert(strpos($bootstrap, \"'future_hardening_version'=>\") !== false, 'Historical Round 10 hardening declaration missing');"),
+            ("f06_v245_assert(strpos($runall, 'file06-v2.4.5-a.zip') !== false && strpos($runall, 'file06-v2.4.5-b.zip') !== false, 'Round 10 package labels not 2.4.5');","f06_v245_assert(strpos($runall, '-a.zip') !== false && strpos($runall, '-b.zip') !== false, 'Historical Round 10 deterministic package labels missing');")
+          ]
+          for old,new in reps:
+              if old not in x: raise SystemExit('R10 historical v245 marker missing: '+old)
+              x=x.replace(old,new,1)
+          q.write_text(x)
+
+          # Aggregate gate must execute this seventh-cycle suite and package the current candidate.
+          q=Path('tests/run-all.sh'); x=q.read_text()
+          marker='php "$root/tests/test-file06-v245-sixth-ten-round-regressions.php"\n'
+          if 'v246-seventh-ten-round-regressions.php' not in x:
+              if marker not in x: raise SystemExit('R10 aggregate v245 marker missing')
+              x=x.replace(marker,marker+'php "$root/tests/v246-seventh-ten-round-regressions.php"\n',1)
+          x=x.replace('file06-v2.4.5-a.zip','file06-v2.4.6-a.zip').replace('file06-v2.4.5-b.zip','file06-v2.4.6-b.zip')
+          x=x.replace('All File 06 v2.4.5 automated checks, inherited review matrices, sixth ten-round regressions and deterministic package comparison passed.','All File 06 v2.4.6 automated checks, inherited review matrices, seventh ten-round regressions and deterministic package comparison passed.')
+          q.write_text(x)
+
+          # Round-10 exact-current assertions.
+          q=Path('tests/v246-seventh-ten-round-regressions.php'); x=q.read_text(); marker='/*__V246_MORE__*/'
+          block='''$bootstrap=v246_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');\n$runall=v246_read($root.'/tests/run-all.sh');\nv246_ok(false!==strpos($bootstrap,' * Version: 2.4.6') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.6' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.6' );"),'R10 runtime/contract version truth not 2.4.6');\nv246_ok(false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.6'"),'R10 hardening contract version drift');\nv246_ok(false!==strpos($runall,'v246-seventh-ten-round-regressions.php'),'R10 seventh-cycle suite absent from aggregate gate');\nv246_ok(false!==strpos($runall,'file06-v2.4.6-a.zip') && false!==strpos($runall,'file06-v2.4.6-b.zip'),'R10 package labels not 2.4.6');\n'''
+          if marker not in x: raise SystemExit('R10 v246 marker missing')
+          q.write_text(x.replace(marker,block+marker,1))
+
+          # Current repository/release documentation: do not embed self-referential final hashes or claim staging/live.
+          Path('README.md').write_text("""# File 06 — Homeopathy Encyclopedia 2.4.6
+
+This branch is the seventh fresh ten-round review/fix candidate for the File 06 v1.1 Future Knowledge Intelligence 18 governing plan and the later ten-language publishing constitution where applicable. Repository evidence is not staging or live evidence.
+
+## Runtime candidate
+
+- Branch: `audit/file-06-seventh-ten-round-v2.4.6`
+- Plugin version: `2.4.6`
+- Global schema: `10`
+- V24 Future internal schema: `2`
+- Contract: `2.4.6`
+- REST namespace: `sabri/v2/file-06`
+- PHP: `7.4+`
+- Final CI target: WordPress `7.0.1`, PHP `8.3`, MySQL `8`
+- Future requirements: `F06-FUT-001..018`
+- Multilingual policy: original/source language + nine governed translations
+
+## Seventh ten-round review result
+
+Defects were found and corrected in rounds `1, 2, 3, 4, 5, 6, 7, 9, 10`. Round `8` produced no new product/source defect.
+
+Corrections include fail-closed research first-save state mapping; read-only public freshness GET behavior; File-00-backed protected health authorization; removal of uncontrolled core taxonomy REST writes; successful-case page privacy/consent/anonymization gates; fail-closed title/excerpt/robots for non-public research; publication-gated replacement/graph public identifiers; and retry-safe freshness/research-gap cursor advancement with write-failure propagation.
+
+## Verification
+
+Run `bash tests/run-all.sh`. The final exact package SHA-256, byte count and source-tree SHA-256 are emitted by the final exact-HEAD v2.4.6 workflow and are deliberately not embedded here.
+
+## Release truth
+
+`Specified`, `Coded`, `Packaged`, `Automated-QA Green`, `Staging-Accepted`, `Live-Deployed`, and `Operational` are distinct states. This branch is a repository candidate only until exact target-environment staging, upgrade/migration, companion-contract, browser/RTL/accessibility/cache, backup/restore and rollback acceptance are completed.
+""")
+          Path('STATUS.md').write_text("""# File 06 Status — 2.4.6 Seventh Fresh Ten-Round Candidate
+
+| Status | Evidence |
+|---|---|
+| Specified | Current File 06 v1.1 + Future Knowledge Intelligence 18 + applicable later ten-language constitution |
+| Coded | `audit/file-06-seventh-ten-round-v2.4.6`; exact final HEAD is determined only after final QA workflow creation |
+| Reviewed | Seventh fresh ten-round review/fix cycle completed |
+| Defect rounds | `1, 2, 3, 4, 5, 6, 7, 9, 10` |
+| Clean rounds | `8` |
+| Runtime | `2.4.6 / schema 10 / contract 2.4.6 / Future schema 2` |
+| Packaged | Final deterministic package evidence is emitted by exact-head final workflow |
+| Automated QA | Authoritative only from completed final exact-head v2.4.6 workflow |
+| Staging accepted | **No / unverified** |
+| Live deployed | **No / unverified** |
+| Operational | **No / unverified** |
+
+Repository, staging and live are separate realities. Green CI or a reproducible package does not prove the actually deployed build, live DB/schema/migration state, configuration, cache/provider behavior, backup/restore, rollback or Founder acceptance.
+""")
+
+          ch=Path('CHANGELOG.md'); old=ch.read_text(); entry="""# Changelog
+
+## 2.4.6 — Seventh fresh ten-round corrective candidate
+
+- Completed ten sequential review → immediate fix → regression cycles.
+- Defect rounds: 1, 2, 3, 4, 5, 6, 7, 9 and 10; round 8 clean.
+- Closed research first-save state drift, public GET write side effects, protected health File00 bypass, uncontrolled taxonomy REST writes, successful-case page disclosure, non-public research metadata/indexing leakage, private linked concept identifier leakage, and maintenance cursor skip-on-failure behavior.
+- Aligned runtime, contract, aggregate tests and current release documentation to 2.4.6.
+- Staging/live/operational status remains unverified.
+
+"""
+          body=old[len('# Changelog\n\n'):] if old.startswith('# Changelog\n\n') else old
+          ch.write_text(entry+body)
+
+          sbom={
+            'bomFormat':'CycloneDX','specVersion':'1.5','serialNumber':'urn:uuid:9af1d41e-bcef-47cf-9b64-507547194806','version':4,
+            'metadata':{'timestamp':'2026-08-11T10:00:00Z','component':{'type':'application','name':'File 06 Homeopathy Encyclopedia','version':'2.4.6','purl':'pkg:wordpress/homeopathy-encyclopedia@2.4.6'}},
+            'components':[
+              {'type':'framework','name':'WordPress','version':'>=6.1; final CI target 7.0.1','scope':'required'},
+              {'type':'platform','name':'PHP','version':'>=7.4; final CI target 8.3','scope':'required'},
+              {'type':'external','name':'File 00 identity/current-claim contract','version':'versioned platform contract','scope':'required'},
+              {'type':'external','name':'File 19 notification delivery contract','version':'versioned platform contract','scope':'optional'},
+              {'type':'external','name':'File 24 assurance contract','version':'versioned platform contract','scope':'optional'},
+              {'type':'external','name':'File 26 global search/ranking contract','version':'versioned platform contract','scope':'optional'}],
+            'release':{'file':'06-homeopathy-encyclopedia-foundation-2.4.6.zip','sha256':None,'bytes':None,'source_tree_sha256':None,'evidence_policy':'Exact values are emitted by the final exact-head workflow; not self-embedded in source.','schema':10,'future_schema':2,'contract':'2.4.6','seventh_review_rounds':10,'defect_rounds':[1,2,3,4,5,6,7,9,10],'staging_accepted':False,'live_deployed':False,'operational':False}}
+          Path('SBOM.json').write_text(json.dumps(sbom,ensure_ascii=False,indent=2)+'\n')
+
+          Path('docs/RELEASE-NOTES.md').write_text("""# File 06 — Release Notes 2.4.6
+
+File 06 v2.4.6 is the seventh fresh ten-round corrective repository candidate. It retains the governed File 06 v1.1/Future-18 scope and applies the later multilingual constitution where applicable.
+
+Defects were found and corrected in rounds `1, 2, 3, 4, 5, 6, 7, 9, 10`; round `8` was clean. The fixes address research first-save publication drift, GET-side-effect freshness persistence, protected health authorization, taxonomy REST ownership, successful-case privacy, fail-closed non-public research presentation/indexing, publication-gated linked public IDs, and retry-safe maintenance cursors.
+
+Final exact-head automated run number and package/source hashes are deliberately not embedded in this source document. They must be taken from the completed exact-head final workflow. Staging, deployed-build parity, actual DB/migration state and live verification remain separate gates.
+""")
+          Path('docs/TEST-REPORT.md').write_text("""# File 06 v2.4.6 Automated Test Report
+
+Date: 2026-08-11
+Candidate: `2.4.6 / schema 10 / contract 2.4.6 / Future schema 2`
+Branch: `audit/file-06-seventh-ten-round-v2.4.6`
+
+## Review result
+
+Ten sequential review/fix rounds completed. Defects: `1, 2, 3, 4, 5, 6, 7, 9, 10`. Clean: `8`.
+
+## Automated evidence policy
+
+The authoritative automated result is the final exact-head workflow created after this release-truth commit. It must pass PHP 7.4/8.3 syntax, the complete inherited + v2.4.6 aggregate gate, deterministic double packaging, and WordPress 7.0.1/PHP 8.3/MySQL 8 activation/deactivation/reactivation with a strict plugin runtime-error log gate.
+
+This repository report does not constitute staging or live acceptance.
+""")
+          Path('docs/RELEASE-SIGNOFF.md').write_text("""# Release Sign-off Record
+
+- Module: File 06 — Homeopathy Encyclopedia
+- Candidate: `2.4.6`
+- Schema: `10`; Future schema: `2`; Contract: `2.4.6`
+- Branch: `audit/file-06-seventh-ten-round-v2.4.6`
+- Seventh fresh ten-round review: completed
+- Defect rounds corrected: `1, 2, 3, 4, 5, 6, 7, 9, 10`
+- Clean round: `8`
+- Repository automated sign-off: **pending exact-head final workflow at the moment this source record is committed**
+- Staging acceptance: **pending / unverified**
+- Founder production approval: **pending after staging**
+- Live deployment: **unverified**
+- Operational acceptance: **unverified**
+
+The exact final run/package/source hashes are external evidence from the final exact-head workflow; embedding them here would change the source hash and invalidate exact-head identity.
+""")
+          PY
+          php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          php -l tests/v246-seventh-ten-round-regressions.php
+          php -l tests/test-file06-v245-sixth-ten-round-regressions.php
+          python3 -m json.tool SBOM.json >/dev/null
+          php tests/v246-seventh-ten-round-regressions.php
+          bash tests/run-all.sh
+          git diff --check
+      - name: Commit Round 10 correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name majidhussainqadri1-dot
+          git config user.email majidhussainqadri1@gmail.com
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt tests README.md STATUS.md CHANGELOG.md SBOM.json docs/RELEASE-NOTES.md docs/TEST-REPORT.md docs/RELEASE-SIGNOFF.md
+          git commit -m 'fix(file-06): align v2.4.6 release truth and aggregate QA'
+          git push origin HEAD:audit/file-06-seventh-ten-round-v2.4.6
