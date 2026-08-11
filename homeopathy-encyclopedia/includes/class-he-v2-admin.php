@@ -171,25 +171,19 @@ final class HE_V2_Admin {
 			'de_identified' => true,
 			'access_default' => 'restricted',
 		);
-		$wpdb->update( $table, array(
-			'record_type' => $type,
-			'title' => $post->post_title,
-			'question' => $post->post_excerpt,
-			'protocol' => $post->post_content,
-			'ethics_json' => wp_json_encode( $ethics ),
-			'consent_json' => wp_json_encode( $consent ),
-			'data_class' => $data_class,
-			'case_anonymized' => $anonymized ? 1 : 0,
-			'case_consent_verified' => $consent['verified'] ? 1 : 0,
-			'case_tag' => $case_tag,
-			'case_json' => wp_json_encode( $case ),
-			'metadata_json' => wp_json_encode( $metadata ),
-			'row_version' => (int) $row['row_version'] + 1,
-			'updated_at' => current_time( 'mysql', true ),
-		), array( 'id' => $row['id'] ) );
-		if ( $case_tag ) {
-			wp_set_object_terms( $post_id, array( $case_tag ), HE_V2_Domain::TAX_TOPIC, false );
+		if ( ! in_array( $type, array( 'proposal','protocol','publication','successful-case','dataset' ), true ) ) { $type = 'proposal'; }
+		if ( ! in_array( $data_class, array( 'public','restricted','highly-restricted' ), true ) || ( 'dataset' === $type && 'public' === $data_class ) ) { $data_class = 'restricted'; }
+		$updated = $wpdb->query( $wpdb->prepare(
+			"UPDATE {$table} SET record_type=%s,title=%s,question=%s,protocol=%s,ethics_json=%s,consent_json=%s,data_class=%s,case_anonymized=%d,case_consent_verified=%d,case_tag=%s,case_json=%s,metadata_json=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d",
+			$type, $post->post_title, $post->post_excerpt, $post->post_content, wp_json_encode( $ethics ), wp_json_encode( $consent ), $data_class,
+			$anonymized ? 1 : 0, $consent['verified'] ? 1 : 0, $case_tag, wp_json_encode( $case ), wp_json_encode( $metadata ), (int) $row['id'], (int) $row['row_version']
+		) );
+		if ( 1 !== (int) $updated ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'legacy_research_admin_cas_failed', 'Legacy research admin metadata could not be persisted against the expected row version.' );
+			return;
 		}
+		if ( $case_tag ) { wp_set_object_terms( $post_id, array( $case_tag ), HE_V2_Domain::TAX_TOPIC, false ); }
 	}
 
 	public function operations_page() {

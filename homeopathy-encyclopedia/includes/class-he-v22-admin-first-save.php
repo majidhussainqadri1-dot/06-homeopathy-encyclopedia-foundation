@@ -48,20 +48,24 @@ final class HE_V22_Admin_First_Save {
 		if ( array_key_exists( 'he_v2_dataset_metadata', $_POST ) ) {
 			$metadata['description'] = sanitize_textarea_field( wp_unslash( $_POST['he_v2_dataset_metadata'] ) );
 		}
-		$wpdb->update( $table, array(
-			'record_type' => $record_type,
-			'question' => sanitize_textarea_field( wp_unslash( $_POST['he_question'] ?? $row['question'] ) ),
-			'protocol' => wp_kses_post( wp_unslash( $_POST['he_protocol'] ?? $row['protocol'] ) ),
-			'ethics_json' => wp_json_encode( $ethics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'consent_json' => wp_json_encode( $consent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'data_class' => $data_class,
-			'case_anonymized' => ! empty( $_POST['he_v2_case_anonymized'] ) ? 1 : 0,
-			'case_consent_verified' => ! empty( $_POST['he_v2_consent_verified'] ) ? 1 : 0,
-			'case_tag' => 'successful-case' === $record_type ? 'کامیاب کیس' : '',
-			'case_json' => wp_json_encode( $case, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'metadata_json' => wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
-			'row_version' => (int) $row['row_version'] + 1,
-			'updated_at' => current_time( 'mysql', true ),
-		), array( 'id' => (int) $row['id'] ) );
+		$updated = $wpdb->query( $wpdb->prepare(
+			"UPDATE {$table} SET record_type=%s,question=%s,protocol=%s,ethics_json=%s,consent_json=%s,data_class=%s,case_anonymized=%d,case_consent_verified=%d,case_tag=%s,case_json=%s,metadata_json=%s,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d",
+			$record_type,
+			sanitize_textarea_field( wp_unslash( $_POST['he_question'] ?? $row['question'] ) ),
+			wp_kses_post( wp_unslash( $_POST['he_protocol'] ?? $row['protocol'] ) ),
+			wp_json_encode( $ethics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			wp_json_encode( $consent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			$data_class,
+			! empty( $_POST['he_v2_case_anonymized'] ) ? 1 : 0,
+			! empty( $_POST['he_v2_consent_verified'] ) ? 1 : 0,
+			'successful-case' === $record_type ? 'کامیاب کیس' : '',
+			wp_json_encode( $case, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			wp_json_encode( $metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
+			(int) $row['id'], (int) $row['row_version']
+		) );
+		if ( 1 !== (int) $updated ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'research_first_save_cas_failed', 'Research first-save governance fields could not be persisted against the expected row version.' );
+		}
 	}
 }

@@ -553,15 +553,18 @@ final class HE_V24_Future_Schema {
 			$acknowledged = true === $ack || ( is_array( $ack ) && ! empty( $ack['acknowledged'] ) );
 			$attempts = (int) $row['attempts'] + 1;
 			if ( $acknowledged ) {
-				$wpdb->update( self::table( 'impact_queue' ), array( 'impact_state' => 'acknowledged', 'attempts' => $attempts, 'last_error' => '', 'acknowledged_at' => current_time( 'mysql', true ), 'next_attempt_at' => null, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ) );
+				$written = $wpdb->update( self::table( 'impact_queue' ), array( 'impact_state' => 'acknowledged', 'attempts' => $attempts, 'last_error' => '', 'acknowledged_at' => current_time( 'mysql', true ), 'next_attempt_at' => null, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ) );
+				if ( 1 !== (int) $written ) { HE_V2_Schema::record_runtime_failure( 'impact_queue_ack_write_failed', 'A consumer acknowledgement could not be persisted; queue processing stopped for this run.' ); break; }
 				continue;
 			}
 			if ( $attempts >= count( $delays ) ) {
-				$wpdb->update( self::table( 'impact_queue' ), array( 'impact_state' => 'dead-letter', 'attempts' => $attempts, 'last_error' => 'consumer acknowledgement not received', 'next_attempt_at' => null, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ) );
+				$written = $wpdb->update( self::table( 'impact_queue' ), array( 'impact_state' => 'dead-letter', 'attempts' => $attempts, 'last_error' => 'consumer acknowledgement not received', 'next_attempt_at' => null, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ) );
+				if ( 1 !== (int) $written ) { HE_V2_Schema::record_runtime_failure( 'impact_queue_dead_letter_write_failed', 'A dead-letter transition could not be persisted; queue processing stopped for this run.' ); break; }
 				continue;
 			}
 			$next = gmdate( 'Y-m-d H:i:s', time() + $delays[ $attempts - 1 ] * MINUTE_IN_SECONDS );
-			$wpdb->update( self::table( 'impact_queue' ), array( 'impact_state' => 'retry', 'attempts' => $attempts, 'last_error' => 'consumer acknowledgement not received', 'next_attempt_at' => $next, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ) );
+			$written = $wpdb->update( self::table( 'impact_queue' ), array( 'impact_state' => 'retry', 'attempts' => $attempts, 'last_error' => 'consumer acknowledgement not received', 'next_attempt_at' => $next, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ) );
+			if ( 1 !== (int) $written ) { HE_V2_Schema::record_runtime_failure( 'impact_queue_retry_write_failed', 'A retry transition could not be persisted; queue processing stopped for this run.' ); break; }
 		}
 	}
 

@@ -974,7 +974,8 @@ final class HE_V22_Governance {
 		/* The legacy save hook could materialize a published domain state from a pending post. */
 		$empty_ethics = empty( $row['ethics_json'] ) || '{}' === trim( (string) $row['ethics_json'] );
 		if ( 'published' === $row['status'] && 'publish' !== $post->post_status && $empty_ethics ) {
-			$wpdb->update( $table, array( 'status' => 'proposal', 'row_version' => (int) $row['row_version'] + 1, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $row['id'] ), array( '%s','%d','%s' ), array( '%d' ) );
+			$normalized = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status='proposal',row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='published' AND row_version=%d", (int) $row['id'], (int) $row['row_version'] ) );
+			if ( false === $normalized ) { HE_V2_Schema::record_runtime_failure( 'manual_research_state_normalization_failed', 'Legacy manual research state normalization could not be persisted safely.' ); }
 		}
 	}
 
