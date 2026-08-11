@@ -585,7 +585,7 @@ final class HE_V22_Governance {
 			'safety' => get_post_meta( (int) $row['post_id'], '_he_safety_status', true ),
 		);
 		global $wpdb;
-		$payload['references'] = $wpdb->get_results( $wpdb->prepare( 'SELECT source_type,author,title,edition,volume,page_locator,publisher,year,url,doi,evidence_grade,rights_status,quotation_word_count FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d ORDER BY id ASC', (int) $row['id'] ), ARRAY_A );
+		$payload['references'] = $wpdb->get_results( $wpdb->prepare( 'SELECT source_type,author,title,edition,volume,page_locator,publisher,year,url,doi,evidence_grade,rights_status,quotation_word_count FROM ' . HE_V2_Schema::table( 'references' ) . ' WHERE concept_id=%d AND (version_id=0 OR version_id=%d) ORDER BY id ASC', (int) $row['id'], (int) $row['current_version'] ), ARRAY_A );
 		return hash( 'sha256', wp_json_encode( $payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
 	}
 
