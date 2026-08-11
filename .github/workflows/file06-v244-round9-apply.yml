@@ -1,4 +1,4 @@
-name: File 06 v2.4.4 Ten-Round Review Round 9 Fix Retry
+name: File 06 v2.4.4 Ten-Round Review Round 9 Fix Retry 2
 on:
   push:
     branches:
@@ -26,6 +26,7 @@ jobs:
           set -euo pipefail
           git diff --check
           php -l homeopathy-encyclopedia/homeopathy-encyclopedia.php
+          php -l tests/v2-invariants.php
           grep -q "Version: 2.4.4" homeopathy-encyclopedia/homeopathy-encyclopedia.php
           grep -q "Stable tag: 2.4.4" homeopathy-encyclopedia/readme.txt
           grep -q "pending the round-10 exact-head" README.md
@@ -37,6 +38,6 @@ jobs:
           set -euo pipefail
           git config user.name 'majidhussainqadri1-dot'
           git config user.email 'majidhussainqadri1@gmail.com'
-          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt README.md STATUS.md
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt README.md STATUS.md tests/v2-invariants.php
           git commit -m 'chore(file-06): align v2.4.4 runtime and release truth metadata'
           git push origin HEAD:audit/file-06-fifth-ten-round-v2.4.4
