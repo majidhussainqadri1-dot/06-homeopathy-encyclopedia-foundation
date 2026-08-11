@@ -81,6 +81,17 @@ $has( $repository_readme, '# File 06 — Homeopathy Encyclopedia 2.4.4', 'round 
 $status = $read( 'STATUS.md' );
 $has( $status, '# File 06 Status — 2.4.4 Fifth Fresh Ten-Round Candidate', 'round 9 status label' );
 
+// Round 10 runtime-log audit — V24 owns the final Future schema and old V23 dbDelta is never replayed.
+$future_schema = $read( 'homeopathy-encyclopedia/includes/class-he-v24-future-schema.php' );
+$has( $future_schema, 'const VERSION = 2;', 'round 10 future schema internal upgrade version' );
+$has( $future_schema, "self::table( 'claim_evidence' )", 'round 10 V24 owns claim_evidence final schema' );
+$has( $future_schema, "self::table( 'concept_mappings' )", 'round 10 V24 owns concept_mappings final schema' );
+$has( $future_schema, "self::table( 'similarity' )", 'round 10 V24 owns similarity final schema' );
+$has( $future_schema, 'Future schema dbDelta failed', 'round 10 dbDelta errors fail closed' );
+$not( $bootstrap, "HE_V23_Future::install();", 'round 10 activation never replays obsolete V23 schema' );
+$not( $bootstrap, "HE_V23_Future::maybe_upgrade();", 'round 10 startup never replays obsolete V23 schema' );
+$has( $bootstrap, "'future_hardening_version'=>'2.4.4'", 'round 10 contract hardening version aligned' );
+
 // Round 10 — the aggregate gate itself must retain all prior and current regressions.
 $run_all = $read( 'tests/run-all.sh' );
 $has( $run_all, 'v243-ten-round-regressions.php', 'round 10 previous ten-round regression suite retained' );

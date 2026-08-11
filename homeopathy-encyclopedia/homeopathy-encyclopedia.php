@@ -70,7 +70,6 @@ require_once HE_DIR . 'includes/class-he-v242-translation-compat.php';
 function he_activate_future_runtime() {
 	wp_clear_scheduled_hook( HE_V23_Future::CRON );
 	wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON );
-	HE_V23_Future::install();
 	HE_V24_Migration_Safety::activate();
 }
 
@@ -88,7 +87,7 @@ function he_contract_descriptor() {
 		'canonical_routes'=>array('/encyclopedia/','/encyclopedia/{type}/','/encyclopedia/entry/{canonical_slug}/','/research/','/research/{permanent_id}/','/knowledge/editor/'),
 		'queries'=>array('search_knowledge','get_entry','get_related_graph','browse_research','health','get_type_schemas','get_claim_graph','get_provenance','get_time_machine','get_freshness','get_research_gaps','get_integrity_command_center','get_governed_public_translations'),
 		'commands'=>array('create_entry_draft','assign_editor_type_scope','assign_entry_reviewer','assign_research_reviewer','submit_entry_review','publish_entry_version','merge_concepts','submit_research','submit_research_review','submit_integrity_action','transition_integrity_action','bounded_reindex','stage_external_metadata','review_external_metadata','scan_duplicate_candidates','queue_consumer_revalidation','save_governed_translation','review_governed_translation','publish_governed_translation','manage_watchlist','map_researcher_orcid'),
-		'events'=>array_values(array_unique($events)),'privacy_class'=>'mixed-public-restricted','fixed_type_count'=>count(HE_V22_Type_Schemas::schemas()),'future_requirement_count'=>18,'future_hardening_version'=>'2.4.3',
+		'events'=>array_values(array_unique($events)),'privacy_class'=>'mixed-public-restricted','fixed_type_count'=>count(HE_V22_Type_Schemas::schemas()),'future_requirement_count'=>18,'future_hardening_version'=>'2.4.4',
 		'consumer_files'=>array('file-05','file-12','file-15','file-16','file-21','file-26'),'search_semantics'=>array('exact','phrase','token','alias','transliteration-alias','spelling-recovery','safe-autocomplete'),
 		'authorization'=>array('file00_claims_required'=>true,'native_object_scope_required'=>true,'editor_type_assignment_required'=>true,'reviewer_assignment_required'=>true,'research_reviewer_assignment_required'=>true,'integrity_object_scope_before_short_circuit'=>true,'admin_and_composer_scope_enforced'=>true,'successful_guards_continue_to_callback'=>true),
 		'migration'=>array('resumable'=>true,'quarantine'=>true,'batch_max'=>100,'verified_future_schema'=>true,'preflight_existing_rows'=>true,'bounded_postflight'=>true,'future_routes_fail_closed_until_ready'=>true,'legacy_language_normalization_bounded'=>true),
@@ -104,7 +103,6 @@ function he_start_v2() {
 	load_plugin_textdomain( 'homeopathy-encyclopedia', false, dirname( HE_BASENAME ) . '/languages' );
 	try {
 		HE_V22_Governance::maybe_upgrade();
-		if ( (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) < HE_V24_Future_Schema::VERSION ) { HE_V23_Future::maybe_upgrade(); }
 		HE_V24_Migration_Safety::maybe_upgrade();
 	} catch ( Throwable $error ) { HE_V2_Schema::record_runtime_failure( 'schema_upgrade_failed', $error->getMessage() ); }
 

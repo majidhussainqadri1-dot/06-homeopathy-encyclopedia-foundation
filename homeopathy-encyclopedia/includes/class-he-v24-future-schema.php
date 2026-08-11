@@ -9,7 +9,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class HE_V24_Future_Schema {
 	const OPTION_VERSION = 'he_v24_future_version';
-	const VERSION = 1;
+	const VERSION = 2;
 	const CRON = 'he_v24_future_maintenance';
 	const BATCH = 40;
 	const MAX_PROVIDER_BYTES = 524288;
@@ -74,12 +74,57 @@ final class HE_V24_Future_Schema {
 			created_by bigint(20) unsigned NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY public_id(public_id),
-			UNIQUE KEY concept_claim(concept_id,claim_key),
-			KEY concept_review(concept_id,review_status),
-			KEY version_id(version_id),
-			KEY claim_state(claim_state)
+			PRIMARY KEY  (id),
+			UNIQUE KEY public_id (public_id),
+			UNIQUE KEY concept_claim (concept_id,claim_key),
+			KEY concept_review (concept_id,review_status),
+			KEY version_id (version_id),
+			KEY claim_state (claim_state)
+		) {$c};";
+
+		$sql[] = "CREATE TABLE " . self::table( 'claim_evidence' ) . " (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			claim_id bigint(20) unsigned NOT NULL,
+			reference_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			external_id varchar(191) NOT NULL DEFAULT '',
+			relation varchar(24) NOT NULL,
+			weight decimal(5,2) NOT NULL DEFAULT 0,
+			note text NOT NULL,
+			created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY claim_source (claim_id,reference_id,external_id(96),relation),
+			KEY claim_id (claim_id)
+		) {$c};";
+
+		$sql[] = "CREATE TABLE " . self::table( 'concept_mappings' ) . " (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			concept_id bigint(20) unsigned NOT NULL,
+			vocabulary varchar(30) NOT NULL,
+			external_id varchar(191) NOT NULL,
+			preferred_label text NOT NULL,
+			mapping_state varchar(30) NOT NULL DEFAULT 'proposed',
+			reviewed_by bigint(20) unsigned NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY concept_vocab (concept_id,vocabulary,external_id(100)),
+			KEY vocabulary (vocabulary)
+		) {$c};";
+
+		$sql[] = "CREATE TABLE " . self::table( 'similarity' ) . " (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			concept_a bigint(20) unsigned NOT NULL,
+			concept_b bigint(20) unsigned NOT NULL,
+			score decimal(6,5) NOT NULL DEFAULT 0,
+			reason_json longtext NOT NULL,
+			state varchar(24) NOT NULL DEFAULT 'candidate',
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY pair (concept_a,concept_b),
+			KEY score (score),
+			KEY state (state)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'provenance' ) . " (
@@ -95,10 +140,10 @@ final class HE_V24_Future_Schema {
 			parent_hash char(64) NOT NULL DEFAULT '',
 			record_hash char(64) NOT NULL DEFAULT '',
 			created_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY record_hash(record_hash),
-			KEY object_lookup(object_type,object_id(96)),
-			KEY created_at(created_at)
+			PRIMARY KEY  (id),
+			UNIQUE KEY record_hash (record_hash),
+			KEY object_lookup (object_type,object_id(96)),
+			KEY created_at (created_at)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'external_records' ) . " (
@@ -115,11 +160,11 @@ final class HE_V24_Future_Schema {
 			source_updated_at datetime NULL,
 			checked_at datetime NOT NULL,
 			review_required tinyint(1) unsigned NOT NULL DEFAULT 1,
-			PRIMARY KEY(id),
-			UNIQUE KEY provider_binding(provider,external_id(96),object_type,object_id),
-			KEY concept_id(concept_id),
-			KEY object_lookup(object_type,object_id),
-			KEY review_required(review_required)
+			PRIMARY KEY  (id),
+			UNIQUE KEY provider_binding (provider,external_id(96),object_type,object_id),
+			KEY concept_id (concept_id),
+			KEY object_lookup (object_type,object_id),
+			KEY review_required (review_required)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'researcher_ids' ) . " (
@@ -132,10 +177,10 @@ final class HE_V24_Future_Schema {
 			reviewed_by bigint(20) unsigned NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY provider_external(provider,external_id(120)),
-			UNIQUE KEY user_provider(user_id,provider),
-			KEY mapping_state(mapping_state)
+			PRIMARY KEY  (id),
+			UNIQUE KEY provider_external (provider,external_id(120)),
+			UNIQUE KEY user_provider (user_id,provider),
+			KEY mapping_state (mapping_state)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'freshness' ) . " (
@@ -147,10 +192,10 @@ final class HE_V24_Future_Schema {
 			risk_tier varchar(16) NOT NULL DEFAULT 'normal',
 			priority_score decimal(7,2) NOT NULL DEFAULT 0,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(concept_id),
-			KEY freshness_state(freshness_state),
-			KEY priority_score(priority_score),
-			KEY review_due_at(review_due_at)
+			PRIMARY KEY  (concept_id),
+			KEY freshness_state (freshness_state),
+			KEY priority_score (priority_score),
+			KEY review_due_at (review_due_at)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'impact_queue' ) . " (
@@ -168,11 +213,11 @@ final class HE_V24_Future_Schema {
 			acknowledged_at datetime NULL,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY dedupe_key(dedupe_key),
-			KEY impact_state(impact_state),
-			KEY consumer_file(consumer_file),
-			KEY source_lookup(source_type,source_id(96))
+			PRIMARY KEY  (id),
+			UNIQUE KEY dedupe_key (dedupe_key),
+			KEY impact_state (impact_state),
+			KEY consumer_file (consumer_file),
+			KEY source_lookup (source_type,source_id(96))
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'research_gaps' ) . " (
@@ -187,11 +232,11 @@ final class HE_V24_Future_Schema {
 			detected_at datetime NOT NULL,
 			resolved_at datetime NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY concept_gap(concept_id,gap_type),
-			KEY severity(severity),
-			KEY priority_score(priority_score),
-			KEY state(state)
+			PRIMARY KEY  (id),
+			UNIQUE KEY concept_gap (concept_id,gap_type),
+			KEY severity (severity),
+			KEY priority_score (priority_score),
+			KEY state (state)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'watchlists' ) . " (
@@ -203,10 +248,10 @@ final class HE_V24_Future_Schema {
 			active tinyint(1) unsigned NOT NULL DEFAULT 1,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY user_object(user_id,object_type,object_id(96)),
-			KEY user_id(user_id),
-			KEY active(active)
+			PRIMARY KEY  (id),
+			UNIQUE KEY user_object (user_id,object_type,object_id(96)),
+			KEY user_id (user_id),
+			KEY active (active)
 		) {$c};";
 
 		$sql[] = "CREATE TABLE " . self::table( 'translations' ) . " (
@@ -224,14 +269,18 @@ final class HE_V24_Future_Schema {
 			published_at datetime NULL,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY(id),
-			UNIQUE KEY concept_locale(concept_id,locale),
-			KEY source_version(source_version),
-			KEY status(status)
+			PRIMARY KEY  (id),
+			UNIQUE KEY concept_locale (concept_id,locale),
+			KEY source_version (source_version),
+			KEY status (status)
 		) {$c};";
 
 		foreach ( $sql as $statement ) {
+			$wpdb->last_error = '';
 			dbDelta( $statement );
+			if ( '' !== (string) $wpdb->last_error ) {
+				throw new RuntimeException( 'File 06 Future schema dbDelta failed: ' . $wpdb->last_error );
+			}
 		}
 		self::verify_schema();
 		update_option( self::OPTION_VERSION, self::VERSION, false );
@@ -242,6 +291,9 @@ final class HE_V24_Future_Schema {
 		global $wpdb;
 		$required = array(
 			'claims' => array( 'version_id','confidence','review_status','reviewed_by','row_version' ),
+			'claim_evidence' => array( 'claim_id','reference_id','external_id','relation' ),
+			'concept_mappings' => array( 'concept_id','vocabulary','external_id','mapping_state' ),
+			'similarity' => array( 'concept_a','concept_b','score','state' ),
 			'provenance' => array( 'parent_hash','record_hash' ),
 			'external_records' => array( 'object_type','object_id','relation' ),
 			'researcher_ids' => array( 'user_id','provider','external_id','mapping_state' ),
