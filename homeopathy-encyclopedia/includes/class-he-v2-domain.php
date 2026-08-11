@@ -623,10 +623,16 @@ final class HE_V2_Domain {
 				return $validation;
 			}
 		}
-		if ( in_array( $to_state, array( 'approved', 'scheduled', 'published' ), true ) ) {
-			$reviews = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . HE_V2_Schema::table( 'reviews' ) . " WHERE object_type='concept' AND object_id=%d AND decision='approved' AND conflict_declared=0", $row['id'] ) );
-			if ( $reviews < 1 && ! HE_V2_Auth::is_founder( $actor_id ) ) {
-				return new WP_Error( 'he_review_required', __( 'An independent approved review is required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		if ( in_array( $to_state, array( 'approved', 'scheduled', 'published' ), true ) && ! HE_V2_Auth::is_founder( $actor_id ) ) {
+			$current_hash = HE_V22_Governance::entry_content_hash( $row );
+			$post = get_post( (int) $row['post_id'] );
+			$author_id = $post ? (int) $post->post_author : 0;
+			$review = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM " . HE_V2_Schema::table( 'reviews' ) . " WHERE object_type='concept' AND object_id=%d AND decision='approved' AND conflict_declared=0 AND content_hash=%s AND reviewer_id<>%d ORDER BY id DESC LIMIT 1",
+				$row['id'], $current_hash, $author_id
+			) );
+			if ( ! $current_hash || ! $review ) {
+				return new WP_Error( 'he_fresh_independent_review_required', __( 'A fresh independent approval review bound to the current entry content is required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
 		}
 		$scheduled_at = '';

@@ -15,5 +15,6 @@ v2410_ok(false!==strpos($v22,'$object_permission = HE_V2_Auth::rest_permission')
 $domain=v2410_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.php');
 v2410_ok(false!==strpos($domain,'INSERT INTO {$reviews}') && false!==strpos($domain,'WHERE c.id=%d AND c.row_version=%d') && false!==strpos($domain,'changed while the review decision was being stored'),'R7 entry review decision is not atomically bound to expected row version');
 v2410_ok(false!==strpos($integrity,"'file06-integrity-transition'") && false!==strpos($integrity,'HE_V2_Auth::CAP_REVIEW, $post_id') && false!==strpos($integrity,'The governed integrity subject is not available.'),'R8 integrity state transitions are authorized globally instead of against their governed subject');
+v2410_ok(false!==strpos($domain,'$current_hash = HE_V22_Governance::entry_content_hash') && false!==strpos($domain,'AND content_hash=%s AND reviewer_id<>%d') && false!==strpos($domain,'he_fresh_independent_review_required'),'R9 owner transition command accepts stale historical approval reviews when REST preflight is bypassed');
 /*__V2410_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.10 eleventh-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.10 eleventh-review regressions: PASS\n";
