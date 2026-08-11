@@ -16,5 +16,11 @@ $domain=v2410_read($root.'/homeopathy-encyclopedia/includes/class-he-v2-domain.p
 v2410_ok(false!==strpos($domain,'INSERT INTO {$reviews}') && false!==strpos($domain,'WHERE c.id=%d AND c.row_version=%d') && false!==strpos($domain,'changed while the review decision was being stored'),'R7 entry review decision is not atomically bound to expected row version');
 v2410_ok(false!==strpos($integrity,"'file06-integrity-transition'") && false!==strpos($integrity,'HE_V2_Auth::CAP_REVIEW, $post_id') && false!==strpos($integrity,'The governed integrity subject is not available.'),'R8 integrity state transitions are authorized globally instead of against their governed subject');
 v2410_ok(false!==strpos($domain,'$current_hash = HE_V22_Governance::entry_content_hash') && false!==strpos($domain,'AND content_hash=%s AND reviewer_id<>%d') && false!==strpos($domain,'he_fresh_independent_review_required'),'R9 owner transition command accepts stale historical approval reviews when REST preflight is bypassed');
+$bootstrap=v2410_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
+$readme=v2410_read($root.'/homeopathy-encyclopedia/readme.txt');
+$runall=v2410_read($root.'/tests/run-all.sh');
+v2410_ok(false!==strpos($bootstrap,' * Version: 2.4.10') && false!==strpos($bootstrap,"define( 'HE_VERSION', '2.4.10' );") && false!==strpos($bootstrap,"define( 'HE_CONTRACT_VERSION', '2.4.10' );") && false!==strpos($bootstrap,"'future_hardening_version'=>'2.4.10'"),'R10 runtime/contract/future hardening release truth is not aligned to v2.4.10');
+v2410_ok(false!==strpos($readme,'Stable tag: 2.4.10'),'R10 plugin stable tag is not v2.4.10');
+v2410_ok(false!==strpos($runall,'v2410-eleventh-ten-round-regressions.php') && false!==strpos($runall,'file06-v2.4.10-a.zip') && false!==strpos($runall,'file06-v2.4.10-b.zip'),'R10 aggregate/package truth is not aligned to v2.4.10');
 /*__V2410_MORE__*/
 if($fail){fwrite(STDERR,"File 06 v2.4.10 eleventh-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.10 eleventh-review regressions: PASS\n";

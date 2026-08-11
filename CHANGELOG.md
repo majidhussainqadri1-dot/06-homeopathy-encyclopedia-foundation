@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.10 — Eleventh fresh ten-round corrective candidate
+
+- Completed ten sequential review → immediate-fix → regression rounds.
+- Defect rounds: 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10.
+- Restricted/unconsented research permanent-ID requests now fail closed; successful-case public rendering independently requires anonymization and verified consent.
+- Research and entry human-review records are atomically bound to the expected row version.
+- Successful-case release rechecks both consent metadata and authoritative consent/anonymization flags.
+- Entry and research integrity application plus integrity state transitions enforce object-bound File 00/File 06 authorization.
+- Entry-integrity transactions fail closed when transaction start or commit certainty is unavailable.
+- The owner transition command itself requires a fresh independent approval bound to current content instead of relying only on REST preflight.
+- Runtime, contract, current invariants, aggregate QA, deterministic package labels and release documentation are aligned to 2.4.10.
+- Staging/live/operational states remain unverified.
+
 ## 2.4.9 — Tenth fresh ten-round corrective candidate
 
 - Completed ten sequential review → immediate-fix → regression rounds.
