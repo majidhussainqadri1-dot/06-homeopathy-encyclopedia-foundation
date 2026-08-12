@@ -268,11 +268,20 @@ final class HE_V24_Future_API {
 		if ( is_wp_error( $metadata ) ) { return self::mutation_finish( $reservation, $metadata ); }
 		$relation = sanitize_key( $data['relation'] ?? $data['purpose'] ?? 'literature' ); $purpose = sanitize_key( $data['purpose'] ?? 'literature' );
 		$table = HE_V24_Future_Schema::table( 'external_records' );
-		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM {$table} WHERE provider=%s AND external_id=%s AND object_type=%s AND object_id=%d", $provider, $external_id, $binding['object_type'], $binding['object_id'] ), ARRAY_A );
-		$row = array( 'provider' => $provider, 'external_id' => $external_id, 'concept_id' => $binding['concept_id'], 'object_type' => $binding['object_type'], 'object_id' => $binding['object_id'], 'relation' => $relation, 'purpose' => $purpose, 'status' => 'staged', 'metadata_json' => wp_json_encode( $metadata ), 'checked_at' => current_time( 'mysql', true ), 'review_required' => 1 );
-		if ( $existing ) { $ok = $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ); $record_id = (int) $existing['id']; } else { $ok = $wpdb->insert( $table, $row ); $record_id = (int) $wpdb->insert_id; }
-		if ( false === $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_external_stage_failed', __( 'The scholarly metadata could not be staged.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ) ); }
-		HE_V24_Future_Schema::append_provenance( 'external-record', (string) $record_id, 'metadata.staged', '', array( 'provider' => $provider, 'external_id' => $external_id, 'binding' => $binding, 'source_hash' => hash( 'sha256', wp_json_encode( $metadata ) ) ) );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_external_stage_failed', __( 'The scholarly metadata staging transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		try {
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM {$table} WHERE provider=%s AND external_id=%s AND object_type=%s AND object_id=%d FOR UPDATE", $provider, $external_id, $binding['object_type'], $binding['object_id'] ), ARRAY_A );
+			$row = array( 'provider' => $provider, 'external_id' => $external_id, 'concept_id' => $binding['concept_id'], 'object_type' => $binding['object_type'], 'object_id' => $binding['object_id'], 'relation' => $relation, 'purpose' => $purpose, 'status' => 'staged', 'metadata_json' => wp_json_encode( $metadata ), 'checked_at' => current_time( 'mysql', true ), 'review_required' => 1 );
+			if ( $existing ) { $ok = $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ); $record_id = (int) $existing['id']; } else { $ok = $wpdb->insert( $table, $row ); $record_id = (int) $wpdb->insert_id; }
+			if ( false === $ok || ! $record_id ) { throw new RuntimeException( 'external-write-failed' ); }
+			$provenance = HE_V24_Future_Schema::append_provenance( 'external-record', (string) $record_id, 'metadata.staged', '', array( 'provider' => $provider, 'external_id' => $external_id, 'binding' => $binding, 'source_hash' => hash( 'sha256', wp_json_encode( $metadata ) ) ) );
+			if ( ! $provenance ) { throw new RuntimeException( 'external-provenance-failed' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'external-commit-failed' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			HE_V2_Schema::record_runtime_failure( 'external_stage_atomic_failed', 'External scholarly staging and provenance could not be committed atomically.' );
+			return self::mutation_finish( $reservation, new WP_Error( 'he_future_external_stage_failed', __( 'The scholarly metadata and provenance could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
+		}
 		$public_binding = array( 'object_type' => $binding['object_type'], 'object_id' => $binding['public_id'] );
 		return self::mutation_finish( $reservation, array( 'id' => HE_V2_Domain::encode_public_cursor( 'external-record', $record_id ), 'provider' => $provider, 'external_id' => $external_id, 'binding' => $public_binding, 'status' => 'staged', 'review_required' => true, 'metadata' => $metadata ), $existing ? 200 : 201 );
 	}
