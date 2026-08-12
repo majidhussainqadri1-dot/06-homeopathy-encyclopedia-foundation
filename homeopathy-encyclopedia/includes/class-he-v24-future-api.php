@@ -331,41 +331,37 @@ final class HE_V24_Future_API {
 	public static function rest_mapping( WP_REST_Request $request ) {
 		$reservation = self::mutation_guard( $request, 'future-vocabulary-map', HE_V2_Auth::CAP_REVIEW );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
-		global $wpdb;
-		$data = self::request_data( $request );
-		$vocabulary = sanitize_key( $data['vocabulary'] ?? '' );
+		global $wpdb; $data = self::request_data( $request ); $vocabulary = sanitize_key( $data['vocabulary'] ?? '' );
 		if ( ! in_array( $vocabulary, array( 'mesh','datacite','pubmed','clinicaltrials' ), true ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_invalid', __( 'Unsupported concept-mapping vocabulary. ORCID is a researcher identity mapping, not a concept taxonomy.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$concept = self::concept_by_public_id( $data['concept_id'] ?? '', false );
-		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
-		$external = HE_V24_Future_Schema::validate_external_id( $vocabulary, $data['external_id'] ?? '' );
-		if ( ! $external ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_identifier_invalid', __( 'The external vocabulary identifier is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$table = HE_V24_Future_Schema::table( 'concept_mappings' );
-		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id,created_at FROM {$table} WHERE concept_id=%d AND vocabulary=%s AND external_id=%s", $concept['id'], $vocabulary, $external ), ARRAY_A );
-		$now = current_time( 'mysql', true );
-		$row = array( 'concept_id' => $concept['id'], 'vocabulary' => $vocabulary, 'external_id' => $external, 'preferred_label' => sanitize_text_field( $data['preferred_label'] ?? '' ), 'mapping_state' => 'reviewed', 'reviewed_by' => get_current_user_id(), 'created_at' => $existing ? $existing['created_at'] : $now, 'updated_at' => $now );
-		if ( $existing ) { $ok = $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ); } else { $ok = $wpdb->insert( $table, $row ); }
-		if ( false === $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_write_failed', __( 'The vocabulary mapping could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ) ); }
-		HE_V24_Future_Schema::append_provenance( 'concept', (string) $concept['id'], 'mapping.reviewed', '', array( 'vocabulary' => $vocabulary, 'external_id' => $external ) );
-		return self::mutation_finish( $reservation, array( 'saved' => true, 'concept_id' => $concept['public_id'], 'vocabulary' => $vocabulary, 'external_id' => $external ), 200 );
+		$concept = self::concept_by_public_id( $data['concept_id'] ?? '', false ); if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
+		$external = HE_V24_Future_Schema::validate_external_id( $vocabulary, $data['external_id'] ?? '' ); if ( ! $external ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_identifier_invalid', __( 'The external vocabulary identifier is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
+		$table = HE_V24_Future_Schema::table( 'concept_mappings' ); $concepts = HE_V2_Schema::table( 'concepts' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_write_failed', __( 'The vocabulary mapping transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		try {
+			$locked = $wpdb->get_row( $wpdb->prepare( "SELECT id,public_id FROM {$concepts} WHERE id=%d FOR UPDATE", (int) $concept['id'] ), ARRAY_A ); if ( ! $locked ) { throw new RuntimeException( 'not-found' ); }
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id,created_at FROM {$table} WHERE concept_id=%d AND vocabulary=%s AND external_id=%s FOR UPDATE", $locked['id'], $vocabulary, $external ), ARRAY_A ); $now = current_time( 'mysql', true );
+			$row = array( 'concept_id' => $locked['id'], 'vocabulary' => $vocabulary, 'external_id' => $external, 'preferred_label' => sanitize_text_field( $data['preferred_label'] ?? '' ), 'mapping_state' => 'reviewed', 'reviewed_by' => get_current_user_id(), 'created_at' => $existing ? $existing['created_at'] : $now, 'updated_at' => $now );
+			$ok = $existing ? $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ) : $wpdb->insert( $table, $row ); if ( false === $ok ) { throw new RuntimeException( 'write' ); }
+			$prov = HE_V24_Future_Schema::append_provenance( 'concept', (string) $locked['id'], 'mapping.reviewed', '', array( 'vocabulary' => $vocabulary, 'external_id' => $external ) ); if ( ! $prov || false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) { $wpdb->query( 'ROLLBACK' ); if ( 'not-found' === $error->getMessage() ) { $err = new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); } else { HE_V2_Schema::record_runtime_failure( 'concept_mapping_atomic_failed', 'Concept mapping and provenance could not be committed atomically.' ); $err = new WP_Error( 'he_future_mapping_write_failed', __( 'The vocabulary mapping and provenance could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); } return self::mutation_finish( $reservation, $err ); }
+		return self::mutation_finish( $reservation, array( 'saved' => true, 'concept_id' => $locked['public_id'], 'vocabulary' => $vocabulary, 'external_id' => $external ), 200 );
 	}
 
 	public static function rest_researcher_identity( WP_REST_Request $request ) {
 		$reservation = self::mutation_guard( $request, 'future-researcher-identity', HE_V2_Auth::CAP_REVIEW );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
-		global $wpdb;
-		$data = self::request_data( $request );
-		$user_id = absint( $data['user_id'] ?? 0 );
-		$orcid = HE_V24_Future_Schema::validate_external_id( 'orcid', $data['external_id'] ?? '' );
+		global $wpdb; $data = self::request_data( $request ); $user_id = absint( $data['user_id'] ?? 0 ); $orcid = HE_V24_Future_Schema::validate_external_id( 'orcid', $data['external_id'] ?? '' );
 		if ( ! $user_id || ! $orcid || ! HE_V2_Auth::provider_ready() || ! HE_V2_Auth::membership_allowed( $user_id ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_researcher_identity_invalid', __( 'A valid, active File 00 identity and ORCID iD are required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
-		$table = HE_V24_Future_Schema::table( 'researcher_ids' );
-		$owner = (int) $wpdb->get_var( $wpdb->prepare( "SELECT user_id FROM {$table} WHERE provider='orcid' AND external_id=%s", $orcid ) );
-		if ( $owner && $owner !== $user_id ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_orcid_conflict', __( 'This ORCID iD is already mapped to another governed identity.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) ); }
-		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id,created_at FROM {$table} WHERE user_id=%d AND provider='orcid'", $user_id ), ARRAY_A );
-		$now = current_time( 'mysql', true );
-		$row = array( 'user_id' => $user_id, 'provider' => 'orcid', 'external_id' => $orcid, 'preferred_label' => sanitize_text_field( $data['preferred_label'] ?? '' ), 'mapping_state' => 'reviewed', 'reviewed_by' => get_current_user_id(), 'created_at' => $existing ? $existing['created_at'] : $now, 'updated_at' => $now );
-		if ( $existing ) { $ok = $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ); } else { $ok = $wpdb->insert( $table, $row ); }
-		if ( false === $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_researcher_identity_write_failed', __( 'The researcher identity mapping could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ) ); }
-		HE_V24_Future_Schema::append_provenance( 'researcher-identity', $orcid, 'orcid.mapping.reviewed', '', array( 'mapping_only' => true ) );
+		$table = HE_V24_Future_Schema::table( 'researcher_ids' ); if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_researcher_identity_write_failed', __( 'The researcher identity transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		try {
+			$owner = (int) $wpdb->get_var( $wpdb->prepare( "SELECT user_id FROM {$table} WHERE provider='orcid' AND external_id=%s FOR UPDATE", $orcid ) ); if ( $owner && $owner !== $user_id ) { throw new RuntimeException( 'conflict' ); }
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id,created_at FROM {$table} WHERE user_id=%d AND provider='orcid' FOR UPDATE", $user_id ), ARRAY_A ); $now = current_time( 'mysql', true );
+			$row = array( 'user_id' => $user_id, 'provider' => 'orcid', 'external_id' => $orcid, 'preferred_label' => sanitize_text_field( $data['preferred_label'] ?? '' ), 'mapping_state' => 'reviewed', 'reviewed_by' => get_current_user_id(), 'created_at' => $existing ? $existing['created_at'] : $now, 'updated_at' => $now );
+			$ok = $existing ? $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ) : $wpdb->insert( $table, $row ); if ( false === $ok ) { throw new RuntimeException( 'write' ); }
+			$prov = HE_V24_Future_Schema::append_provenance( 'researcher-identity', $orcid, 'orcid.mapping.reviewed', '', array( 'mapping_only' => true, 'user_id' => $user_id ) ); if ( ! $prov || false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' ); if ( 'conflict' === $error->getMessage() ) { $err = new WP_Error( 'he_future_orcid_conflict', __( 'This ORCID iD is already mapped to another governed identity.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); } else { $race_owner = (int) $wpdb->get_var( $wpdb->prepare( "SELECT user_id FROM {$table} WHERE provider='orcid' AND external_id=%s", $orcid ) ); if ( $race_owner && $race_owner !== $user_id ) { $err = new WP_Error( 'he_future_orcid_conflict', __( 'This ORCID iD is already mapped to another governed identity.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); } else { HE_V2_Schema::record_runtime_failure( 'researcher_identity_atomic_failed', 'Researcher identity mapping and provenance could not be committed atomically.' ); $err = new WP_Error( 'he_future_researcher_identity_write_failed', __( 'The researcher identity mapping and provenance could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); } } return self::mutation_finish( $reservation, $err );
+		}
 		return self::mutation_finish( $reservation, array( 'saved' => true, 'provider' => 'orcid', 'external_id' => $orcid, 'mapping_only' => true, 'grants_platform_privilege' => false ), 200 );
 	}
 
