@@ -226,14 +226,37 @@ final class HE_V24_Future_API {
 	}
 
 	public static function rest_claim_review( WP_REST_Request $request ) {
-		$claim_public=strtolower(sanitize_text_field((string)$request['id']));$reservation=self::mutation_guard($request,'future-claim-review-'.sanitize_key($claim_public),HE_V2_Auth::CAP_REVIEW);if(is_wp_error($reservation)||!empty($reservation['replay'])){return self::mutation_finish($reservation,null,200);}
-		global $wpdb;$data=self::request_data($request);$table=HE_V24_Future_Schema::table('claims');$claim=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE public_id=%s",$claim_public),ARRAY_A);if(!$claim){return self::mutation_finish($reservation,new WP_Error('he_not_found',__('Claim not found.','homeopathy-encyclopedia'),array('status'=>404)));}
-		$reviewer=get_current_user_id();if((int)$claim['created_by']===$reviewer&&!HE_V2_Auth::is_founder($reviewer)){return self::mutation_finish($reservation,new WP_Error('he_independent_review_required',__('The claim author cannot provide the independent approval review.','homeopathy-encyclopedia'),array('status'=>422)));}
-		$decision=sanitize_key($data['decision']??'changes-required');if(!in_array($decision,array('approved','changes-required','rejected'),true)){return self::mutation_finish($reservation,new WP_Error('he_future_review_invalid',__('Invalid review decision.','homeopathy-encyclopedia'),array('status'=>400)));}
-		$expected=absint($data['row_version']??0);if(!$expected||$expected!==(int)$claim['row_version']){return self::mutation_finish($reservation,new WP_Error('he_version_conflict',__('The claim changed in another session. Reload and retry.','homeopathy-encyclopedia'),array('status'=>409)));}
-		if('approved'===$decision){$count=(int)$wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM '.HE_V24_Future_Schema::table('claim_evidence').' WHERE claim_id=%d',$claim['id']));if($count<1){return self::mutation_finish($reservation,new WP_Error('he_future_claim_evidence_required',__('A claim cannot be approved without governed evidence.','homeopathy-encyclopedia'),array('status'=>422)));}}
-		$status='changes-required'===$decision?'pending':$decision;$updated=$wpdb->query($wpdb->prepare("UPDATE {$table} SET review_status=%s,reviewed_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d",$status,$reviewer,$claim['id'],$expected));if(1!==(int)$updated){return self::mutation_finish($reservation,new WP_Error('he_version_conflict',__('The claim changed in another session. Reload and retry.','homeopathy-encyclopedia'),array('status'=>409)));}
-		HE_V24_Future_Schema::append_provenance('claim',(string)$claim['id'],'claim.reviewed','',array('decision'=>$decision));return self::mutation_finish($reservation,array('claim_id'=>$claim['public_id'],'review_status'=>$status,'row_version'=>$expected+1),200);
+		$claim_public = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$reservation = self::mutation_guard( $request, 'future-claim-review-' . sanitize_key( $claim_public ), HE_V2_Auth::CAP_REVIEW );
+		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
+		global $wpdb; $data = self::request_data( $request ); $table = HE_V24_Future_Schema::table( 'claims' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_claim_review_failed', __( 'The claim review transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		try {
+			$claim = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE public_id=%s FOR UPDATE", $claim_public ), ARRAY_A );
+			if ( ! $claim ) { throw new RuntimeException( 'not-found' ); }
+			$reviewer = get_current_user_id();
+			if ( (int) $claim['created_by'] === $reviewer && ! HE_V2_Auth::is_founder( $reviewer ) ) { throw new RuntimeException( 'self-review' ); }
+			$decision = sanitize_key( $data['decision'] ?? 'changes-required' );
+			if ( ! in_array( $decision, array( 'approved','changes-required','rejected' ), true ) ) { throw new RuntimeException( 'decision' ); }
+			$expected = absint( $data['row_version'] ?? 0 );
+			if ( ! $expected || $expected !== (int) $claim['row_version'] ) { throw new RuntimeException( 'version' ); }
+			if ( 'approved' === $decision ) { $count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V24_Future_Schema::table( 'claim_evidence' ) . ' WHERE claim_id=%d', $claim['id'] ) ); if ( $count < 1 ) { throw new RuntimeException( 'evidence' ); } }
+			$status = 'changes-required' === $decision ? 'pending' : $decision;
+			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET review_status=%s,reviewed_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $status, $reviewer, $claim['id'], $expected ) );
+			if ( 1 !== (int) $updated ) { throw new RuntimeException( 'version' ); }
+			$provenance = HE_V24_Future_Schema::append_provenance( 'claim', (string) $claim['id'], 'claim.reviewed', '', array( 'decision' => $decision ) );
+			if ( ! $provenance ) { throw new RuntimeException( 'provenance' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' ); $reason = $error->getMessage();
+			if ( 'not-found' === $reason ) { $err = new WP_Error( 'he_not_found', __( 'Claim not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+			elseif ( 'self-review' === $reason ) { $err = new WP_Error( 'he_independent_review_required', __( 'The claim author cannot provide the independent approval review.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+			elseif ( 'evidence' === $reason ) { $err = new WP_Error( 'he_future_claim_evidence_required', __( 'A claim cannot be approved without governed evidence.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+			elseif ( in_array( $reason, array( 'version','decision' ), true ) ) { $err = new WP_Error( 'he_version_conflict', __( 'The claim state/version changed or the decision is invalid. Reload and retry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); }
+			else { HE_V2_Schema::record_runtime_failure( 'claim_review_atomic_failed', 'Claim review state and provenance could not be committed atomically.' ); $err = new WP_Error( 'he_future_claim_review_failed', __( 'The claim review and provenance could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); }
+			return self::mutation_finish( $reservation, $err, 200 );
+		}
+		return self::mutation_finish( $reservation, array( 'claim_id' => $claim['public_id'], 'review_status' => $status, 'row_version' => $expected + 1 ), 200 );
 	}
 
 	public static function rest_provenance( WP_REST_Request $request ) {
