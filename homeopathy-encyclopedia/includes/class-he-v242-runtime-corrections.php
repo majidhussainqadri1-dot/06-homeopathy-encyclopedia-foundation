@@ -25,8 +25,10 @@ final class HE_V242_Runtime_Corrections {
 	}
 
 	private static function has_future_children( $row ) {
-		if ( ! class_exists( 'HE_V24_Future_Schema' ) ) {
-			return false;
+		if ( ! class_exists( 'HE_V24_Future_Schema' ) ) { return false; }
+		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Future_Schema::schema_complete() || ! HE_V24_Migration_Safety::ready() ) {
+			HE_V2_Schema::record_runtime_failure( 'composer_rollback_future_state_unverified', 'Pristine composer rollback was denied because Future-18 child state could not be verified safely.' );
+			return true;
 		}
 		$id = (int) $row['id'];
 		$public_id = (string) $row['public_id'];
