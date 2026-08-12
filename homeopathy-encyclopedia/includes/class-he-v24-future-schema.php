@@ -718,7 +718,9 @@ final class HE_V24_Future_Schema {
 
 	private static function mark_outdated_translations() {
 		global $wpdb;
-		$wpdb->query( 'UPDATE ' . self::table( 'translations' ) . ' t INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=t.concept_id SET t.status='translation-outdated',t.updated_at=UTC_TIMESTAMP() WHERE t.status IN ('approved','published') AND t.source_version<>c.current_version AND c.current_version>0" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$result=$wpdb->query('UPDATE '.self::table('translations').' t INNER JOIN '.HE_V2_Schema::table('concepts')." c ON c.id=t.concept_id SET t.status='translation-outdated',t.updated_at=UTC_TIMESTAMP() WHERE t.status IN ('approved','published') AND t.source_version<>c.current_version AND c.current_version>0"); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if(false===$result){HE_V2_Schema::record_runtime_failure('translation_outdated_maintenance_failed','Future maintenance could not persist translation-outdated state.');return false;}
+		return true;
 	}
 
 	private static function acquire_maintenance_lease() {
@@ -770,7 +772,7 @@ final class HE_V24_Future_Schema {
 			}
 			self::scan_retractions( self::BATCH );
 			self::process_impact_queue();
-			self::mark_outdated_translations();
+			if ( ! self::mark_outdated_translations() ) { return; }
 		} finally {
 			self::release_maintenance_lease();
 		}
