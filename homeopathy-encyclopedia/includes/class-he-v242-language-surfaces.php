@@ -135,7 +135,7 @@ final class HE_V242_Language_Surfaces {
 
 	private static function public_languages() {
 		global $wpdb;
-		$rows = $wpdb->get_col( 'SELECT DISTINCT language FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 ORDER BY language ASC LIMIT 100" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows = $wpdb->get_col( 'SELECT DISTINCT c.language FROM ' . HE_V2_Schema::table( 'concepts' ) . ' c INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type='" . HE_V2_Domain::ENTRY_TYPE . "' AND p.post_status='publish' WHERE c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY c.language ASC LIMIT 100" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$known = array_merge( array( 'ur','en-US','ar','zh-Hans','hi','es','fr','bn','pt' ), (array) $rows );
 		$out = array();
 		foreach ( $known as $locale ) {
