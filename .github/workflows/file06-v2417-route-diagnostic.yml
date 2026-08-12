@@ -1,4 +1,4 @@
-name: File 06 v2.4.17 R20 Final Correction
+name: File 06 v2.4.17 R20 Source Correction
 on:
   push:
     branches:
@@ -21,7 +21,7 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-      - name: Apply, retest, commit and push R20 correction
+      - name: Apply, retest and push source-only R20 correction
         run: |
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
@@ -33,7 +33,10 @@ jobs:
           a=s.find("p=ROOT/'tests'/'v2417-eighteenth-twenty-round-regressions.php'; s=read(p)")
           b=s.find("p=ROOT/'.github'/'workflows'/'file06-v2417-eighteenth-twenty-round-final.yml'; s=read(p)")
           if a < 0 or b < 0 or b <= a: raise SystemExit('test edit block missing')
-          p.write_text(s[:a]+'# Current robust R20 regression is already committed.\n\n'+s[b:],encoding='utf-8')
+          c=s.find("print('v2417-r20-final-correction-applied')",b)
+          if c < 0: raise SystemExit('correction script end marker missing')
+          s=s[:a]+'# Current robust R20 regression and final workflow are maintained separately.\n\n'+s[c:]
+          p.write_text(s,encoding='utf-8')
           PY
           python3 scripts/v2417-r20-final-correction.py
           while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
@@ -44,7 +47,11 @@ jobs:
             echo 'Unexpected warning/error in R20 correction aggregate QA' >&2
             exit 1
           fi
-          git rm .github/workflows/file06-v2417-route-diagnostic.yml
-          git add -A
+          git checkout -- scripts/v2417-r20-final-correction.py
+          git add homeopathy-encyclopedia/includes/class-he-v23-future.php \
+                  homeopathy-encyclopedia/includes/class-he-v24-future-review-guard.php \
+                  homeopathy-encyclopedia/includes/class-he-v241-governance.php \
+                  homeopathy-encyclopedia/includes/class-he-v241-before-callback-normalizer.php \
+                  docs/FILE-06-v2.4.17-EIGHTEENTH-TWENTY-ROUND-REVIEW.md
           git commit -m "fix(file-06): correct R20 residual legacy routes and object scope"
           git push origin HEAD:audit/file-06-eighteenth-twenty-round-v2.4.17
