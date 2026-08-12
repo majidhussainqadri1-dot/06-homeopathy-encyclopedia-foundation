@@ -426,12 +426,16 @@ final class HE_V2_API {
 	public function browse_research( WP_REST_Request $request ) {
 		global $wpdb;
 		$limit = min( 50, max( 1, absint( $request->get_param( 'limit' ) ?: 20 ) ) );
-		$cursor = max( 0, absint( $request->get_param( 'cursor' ) ) );
+		$cursor = HE_V2_Domain::decode_public_cursor( 'research-browse', (string) $request->get_param( 'cursor' ) );
+		if ( null === $cursor ) {
+			return new WP_Error( 'he_invalid_cursor', __( 'The research pagination cursor is invalid or has been altered.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
+		}
 		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . " WHERE status IN ('published','corrected','retracted') AND id>%d ORDER BY id ASC LIMIT %d", $cursor, $limit + 1 ), ARRAY_A );
 		$has_more = count( $rows ) > $limit;
 		$rows = array_slice( $rows, 0, $limit );
 		$items = array_values( array_filter( array_map( static function( $row ) { return HE_V2_Domain::research_dto( (int) $row['id'], false ); }, $rows ) ) );
-		return rest_ensure_response( array( 'items' => $items, 'next_cursor' => $has_more && $rows ? (int) end( $rows )['id'] : null ) );
+		$next_cursor = $has_more && $rows ? HE_V2_Domain::encode_public_cursor( 'research-browse', (int) end( $rows )['id'] ) : null;
+		return rest_ensure_response( array( 'items' => $items, 'next_cursor' => $next_cursor ) );
 	}
 
 	public function create_research( WP_REST_Request $request ) {
