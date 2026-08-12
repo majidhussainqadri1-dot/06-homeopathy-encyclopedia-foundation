@@ -15,8 +15,8 @@ final class HE_V24_Future_API {
 		$ns = HE_V2_API::NS;
 		self::route( $ns, '/future/claims', 'GET', 'rest_claims', 'read' );
 		self::route( $ns, '/future/claims', 'POST', 'rest_claims_write', HE_V2_Auth::CAP_EDIT );
-		self::route( $ns, '/future/claims/(?P<id>\\d+)/evidence', 'POST', 'rest_claim_evidence', HE_V2_Auth::CAP_REVIEW );
-		self::route( $ns, '/future/claims/(?P<id>\\d+)/review', 'POST', 'rest_claim_review', HE_V2_Auth::CAP_REVIEW );
+		self::route( $ns, '/future/claims/(?P<id>[0-9a-fA-F-]{36})/evidence', 'POST', 'rest_claim_evidence', HE_V2_Auth::CAP_REVIEW );
+		self::route( $ns, '/future/claims/(?P<id>[0-9a-fA-F-]{36})/review', 'POST', 'rest_claim_review', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/provenance/(?P<type>[a-z0-9_-]+)/(?P<id>[a-zA-Z0-9_-]+)', 'GET', 'rest_provenance', 'read' );
 		self::route( $ns, '/future/external/lookup', 'POST', 'rest_external_lookup', HE_V2_Auth::CAP_RESEARCH );
 		self::route( $ns, '/future/retraction-watch', 'POST', 'rest_retraction_watch', HE_V2_Auth::CAP_REVIEW );
@@ -113,6 +113,13 @@ final class HE_V24_Future_API {
 		return is_array( $data ) ? $data : $request->get_params();
 	}
 
+	private static function concept_by_public_id( $identifier, $public_only = false ) {
+		global $wpdb;$id=strtolower(sanitize_text_field((string)$identifier));
+		if(!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',$id)){return null;}
+		$where='public_id=%s';if($public_only){$where.=" AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0";}
+		return $wpdb->get_row($wpdb->prepare('SELECT * FROM '.HE_V2_Schema::table('concepts').' WHERE '.$where,$id),ARRAY_A); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+	}
+
 	private static function public_read_concept( WP_REST_Request $request ) {
 		global $wpdb;
 		$identifier = trim( (string) $request->get_param( 'id' ) );
@@ -140,13 +147,14 @@ final class HE_V24_Future_API {
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
 		global $wpdb;
 		$data = self::request_data( $request );
-		$concept = HE_V24_Future_Schema::concept_row( absint( $data['concept_id'] ?? 0 ), false );
+		$concept = self::concept_by_public_id( $data['concept_id'] ?? '', false );
 		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
 		$key = sanitize_key( $data['claim_key'] ?? '' );
 		$text = wp_kses_post( (string) ( $data['claim_text'] ?? '' ) );
 		if ( ! $key || '' === trim( wp_strip_all_tags( $text ) ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_claim_invalid', __( 'claim_key and claim_text are required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$version_id = absint( $data['version_id'] ?? $concept['current_version'] );
-		if ( $version_id && ! HE_V24_Future_Schema::version_belongs( $concept['id'], $version_id ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_version_invalid', __( 'The selected knowledge version does not belong to this concept.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
+		$version_number = absint( $data['version_number'] ?? 0 );
+		$version_id = $version_number ? (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'versions' ) . ' WHERE concept_id=%d AND version_number=%d', (int) $concept['id'], $version_number ) ) : (int) $concept['current_version'];
+		if ( ! $version_id || ! HE_V24_Future_Schema::version_belongs( $concept['id'], $version_id ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_version_invalid', __( 'The selected public knowledge version does not belong to this concept.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
 		$confidence = max( 0, min( 1, (float) ( $data['confidence'] ?? 0 ) ) );
 		$table = HE_V24_Future_Schema::table( 'claims' );
 		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND claim_key=%s", $concept['id'], $key ), ARRAY_A );
@@ -189,7 +197,7 @@ final class HE_V24_Future_API {
 		if(!$expected){return self::mutation_finish($reservation,new WP_Error('he_version_conflict',__('The claim version loaded for editing is required.','homeopathy-encyclopedia'),array('status'=>409)));}
 		if(false===$wpdb->query('START TRANSACTION')){return self::mutation_finish($reservation,new WP_Error('he_future_evidence_transaction_failed',__('The evidence change could not start safely.','homeopathy-encyclopedia'),array('status'=>503)));}
 		try{
-			$claim=$wpdb->get_row($wpdb->prepare('SELECT * FROM '.HE_V24_Future_Schema::table('claims').' WHERE id=%d FOR UPDATE',absint($request['id'])),ARRAY_A);
+			$claim=$wpdb->get_row($wpdb->prepare('SELECT * FROM '.HE_V24_Future_Schema::table('claims').' WHERE public_id=%s FOR UPDATE',strtolower(sanitize_text_field((string)$request['id']))),ARRAY_A);
 			if(!$claim){throw new RuntimeException('not-found');} if($expected!==(int)$claim['row_version']){throw new RuntimeException('version-conflict');}
 			$concept=HE_V24_Future_Schema::concept_row($claim['concept_id'],false); if(!$concept||!$claim['version_id']||(int)$claim['version_id']!==(int)$concept['current_version']){throw new RuntimeException('version-gate');}
 			$relation=sanitize_key($data['relation']??''); if(!in_array($relation,array('supports','contradicts','uncertain','historical'),true)){throw new RuntimeException('relation-invalid');}
@@ -205,28 +213,14 @@ final class HE_V24_Future_API {
 	}
 
 	public static function rest_claim_review( WP_REST_Request $request ) {
-		$reservation = self::mutation_guard( $request, 'future-claim-review-' . absint( $request['id'] ), HE_V2_Auth::CAP_REVIEW );
-		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
-		global $wpdb;
-		$data = self::request_data( $request );
-		$table = HE_V24_Future_Schema::table( 'claims' );
-		$claim = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", absint( $request['id'] ) ), ARRAY_A );
-		if ( ! $claim ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Claim not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
-		$reviewer = get_current_user_id();
-		if ( (int) $claim['created_by'] === $reviewer && ! HE_V2_Auth::is_founder( $reviewer ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_independent_review_required', __( 'The claim author cannot provide the independent approval review.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
-		$decision = sanitize_key( $data['decision'] ?? 'changes-required' );
-		if ( ! in_array( $decision, array( 'approved','changes-required','rejected' ), true ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_review_invalid', __( 'Invalid review decision.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$expected = absint( $data['row_version'] ?? 0 );
-		if ( ! $expected || $expected !== (int) $claim['row_version'] ) { return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The claim changed in another session. Reload and retry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) ); }
-		if ( 'approved' === $decision ) {
-			$count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . HE_V24_Future_Schema::table( 'claim_evidence' ) . ' WHERE claim_id=%d', $claim['id'] ) );
-			if ( $count < 1 ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_claim_evidence_required', __( 'A claim cannot be approved without governed evidence.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
-		}
-		$status = 'changes-required' === $decision ? 'pending' : $decision;
-		$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET review_status=%s,reviewed_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d", $status, $reviewer, $claim['id'], $expected ) );
-		if ( 1 !== (int) $updated ) { return self::mutation_finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The claim changed in another session. Reload and retry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) ); }
-		HE_V24_Future_Schema::append_provenance( 'claim', (string) $claim['id'], 'claim.reviewed', '', array( 'decision' => $decision ) );
-		return self::mutation_finish( $reservation, array( 'claim_id' => $claim['public_id'], 'review_status' => $status ), 200 );
+		$claim_public=strtolower(sanitize_text_field((string)$request['id']));$reservation=self::mutation_guard($request,'future-claim-review-'.sanitize_key($claim_public),HE_V2_Auth::CAP_REVIEW);if(is_wp_error($reservation)||!empty($reservation['replay'])){return self::mutation_finish($reservation,null,200);}
+		global $wpdb;$data=self::request_data($request);$table=HE_V24_Future_Schema::table('claims');$claim=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE public_id=%s",$claim_public),ARRAY_A);if(!$claim){return self::mutation_finish($reservation,new WP_Error('he_not_found',__('Claim not found.','homeopathy-encyclopedia'),array('status'=>404)));}
+		$reviewer=get_current_user_id();if((int)$claim['created_by']===$reviewer&&!HE_V2_Auth::is_founder($reviewer)){return self::mutation_finish($reservation,new WP_Error('he_independent_review_required',__('The claim author cannot provide the independent approval review.','homeopathy-encyclopedia'),array('status'=>422)));}
+		$decision=sanitize_key($data['decision']??'changes-required');if(!in_array($decision,array('approved','changes-required','rejected'),true)){return self::mutation_finish($reservation,new WP_Error('he_future_review_invalid',__('Invalid review decision.','homeopathy-encyclopedia'),array('status'=>400)));}
+		$expected=absint($data['row_version']??0);if(!$expected||$expected!==(int)$claim['row_version']){return self::mutation_finish($reservation,new WP_Error('he_version_conflict',__('The claim changed in another session. Reload and retry.','homeopathy-encyclopedia'),array('status'=>409)));}
+		if('approved'===$decision){$count=(int)$wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM '.HE_V24_Future_Schema::table('claim_evidence').' WHERE claim_id=%d',$claim['id']));if($count<1){return self::mutation_finish($reservation,new WP_Error('he_future_claim_evidence_required',__('A claim cannot be approved without governed evidence.','homeopathy-encyclopedia'),array('status'=>422)));}}
+		$status='changes-required'===$decision?'pending':$decision;$updated=$wpdb->query($wpdb->prepare("UPDATE {$table} SET review_status=%s,reviewed_by=%d,row_version=row_version+1,updated_at=UTC_TIMESTAMP() WHERE id=%d AND row_version=%d",$status,$reviewer,$claim['id'],$expected));if(1!==(int)$updated){return self::mutation_finish($reservation,new WP_Error('he_version_conflict',__('The claim changed in another session. Reload and retry.','homeopathy-encyclopedia'),array('status'=>409)));}
+		HE_V24_Future_Schema::append_provenance('claim',(string)$claim['id'],'claim.reviewed','',array('decision'=>$decision));return self::mutation_finish($reservation,array('claim_id'=>$claim['public_id'],'review_status'=>$status,'row_version'=>$expected+1),200);
 	}
 
 	public static function rest_provenance( WP_REST_Request $request ) {

@@ -172,9 +172,9 @@ final class HE_V241_Governance {
 	}
 
 	private static function concept_from_claim( $claim_id ) {
-		global $wpdb;
-		$concept_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT concept_id FROM ' . HE_V24_Future_Schema::table( 'claims' ) . ' WHERE id=%d', absint( $claim_id ) ) );
-		return $concept_id ? HE_V24_Future_Schema::concept_row( $concept_id, false ) : null;
+		global $wpdb;$public=strtolower(sanitize_text_field((string)$claim_id));
+		$concept_id=(int)$wpdb->get_var($wpdb->prepare('SELECT concept_id FROM '.HE_V24_Future_Schema::table('claims').' WHERE public_id=%s',$public));
+		return $concept_id?HE_V24_Future_Schema::concept_row($concept_id,false):null;
 	}
 
 	private static function concept_from_translation( $translation_id ) {
@@ -273,7 +273,7 @@ final class HE_V241_Governance {
 
 		/* Future claim creation/update must honor the parent concept's native edit scope. */
 		if ( $route === $prefix . '/future/claims' && 'POST' === $request->get_method() ) {
-			$concept = HE_V24_Future_Schema::concept_row( absint( $request->get_param( 'concept_id' ) ), false );
+			$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( (string) $request->get_param( 'concept_id' ) ) ) ), ARRAY_A );
 			if ( ! $concept ) {
 				return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 			}
@@ -283,7 +283,7 @@ final class HE_V241_Governance {
 			return self::object_permission( HE_V2_Auth::CAP_EDIT, (int) $concept['post_id'], 'file06-future-claim-edit' );
 		}
 
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/claims/(\d+)/(evidence|review)$#', $route, $match ) ) {
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/claims/([0-9a-fA-F-]{36})/(evidence|review)$#', $route, $match ) ) {
 			$concept = self::concept_from_claim( $match[1] );
 			if ( ! $concept ) {
 				return new WP_Error( 'he_not_found', __( 'Claim not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
