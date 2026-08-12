@@ -15,13 +15,13 @@ jobs:
         with: {node-version: '22'}
       - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
         with: {php-version: '8.3', coverage: none}
-      - name: Resume sequential review correction rounds 11-20
+      - name: Resume sequential review correction rounds 13-20
         run: |
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
           python3 -m py_compile scripts/v2417-eighteenth-twenty-round-fixes.py
-          for round in $(seq 11 20); do
+          for round in $(seq 13 20); do
             echo "===== File 06 eighteenth review round ${round} ====="
             python3 scripts/v2417-eighteenth-twenty-round-fixes.py "$round"
             while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
