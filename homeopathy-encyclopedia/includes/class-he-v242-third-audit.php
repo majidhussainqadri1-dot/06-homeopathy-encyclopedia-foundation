@@ -24,8 +24,6 @@ final class HE_V242_Third_Audit {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'research_concurrency_box' ), 60 );
 		add_action( 'save_post_' . HE_V2_Domain::RESEARCH_TYPE, array( __CLASS__, 'reconcile_manual_research_state' ), 160, 3 );
 		add_action( 'save_post_' . HE_V2_Domain::ENTRY_TYPE, array( __CLASS__, 'repair_canonical_alias_language' ), 160, 3 );
-		add_action( 'added_post_meta', array( __CLASS__, 'language_meta_changed' ), 20, 4 );
-		add_action( 'updated_post_meta', array( __CLASS__, 'language_meta_changed' ), 20, 4 );
 
 		add_filter( 'pre_delete_post', array( __CLASS__, 'guard_hard_delete' ), 1, 3 );
 		add_filter( 'pre_trash_post', array( __CLASS__, 'guard_trash' ), 1, 3 );
