@@ -1513,7 +1513,7 @@ final class HE_V2_Domain {
 		if ( ! $row ) {
 			return array();
 		}
-		return $wpdb->get_results( $wpdb->prepare( 'SELECT id,version_number,status,title,content_hash,change_reason,effective_at,created_at FROM ' . HE_V2_Schema::table( 'versions' ) . ' WHERE concept_id=%d ORDER BY version_number DESC LIMIT 100', $row['id'] ), ARRAY_A );
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT version_number,status,title,content_hash,change_reason,effective_at,created_at FROM ' . HE_V2_Schema::table( 'versions' ) . ' WHERE concept_id=%d ORDER BY version_number DESC LIMIT 100', $row['id'] ), ARRAY_A );
 	}
 
 	public static function version_diff( $concept_id, $from, $to ) {
