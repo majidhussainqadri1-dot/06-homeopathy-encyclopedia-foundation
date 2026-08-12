@@ -201,7 +201,7 @@ final class HE_V24_Future_API {
 			if(!$claim){throw new RuntimeException('not-found');} if($expected!==(int)$claim['row_version']){throw new RuntimeException('version-conflict');}
 			$concept=HE_V24_Future_Schema::concept_row($claim['concept_id'],false); if(!$concept||!$claim['version_id']||(int)$claim['version_id']!==(int)$concept['current_version']){throw new RuntimeException('version-gate');}
 			$relation=sanitize_key($data['relation']??''); if(!in_array($relation,array('supports','contradicts','uncertain','historical'),true)){throw new RuntimeException('relation-invalid');}
-			$reference_id=absint($data['reference_id']??0);$external_id=sanitize_text_field($data['external_id']??'');$external_token=''; if(!$reference_id&&!$external_id){throw new RuntimeException('evidence-required');}
+			$reference_token=sanitize_text_field((string)($data['reference_id']??''));$reference_id=$reference_token?HE_V2_Domain::decode_public_cursor('reference',$reference_token):0;$external_id=sanitize_text_field($data['external_id']??'');$external_token=''; if((null===$reference_id||!$reference_id)&&!$external_id){throw new RuntimeException('evidence-required');}
 			if($reference_id){$valid=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.HE_V2_Schema::table('references').' WHERE id=%d AND concept_id=%d AND version_id=%d',$reference_id,$claim['concept_id'],$claim['version_id']));if(!$valid){throw new RuntimeException('reference-invalid');}}
 			$provider=sanitize_key($data['external_provider']??''); if($external_id){$canonical_external=HE_V24_Future_Schema::validate_external_id($provider,$external_id);if(!$provider||!$canonical_external){throw new RuntimeException('provider-invalid');}$valid=(int)$wpdb->get_var($wpdb->prepare('SELECT id FROM '.HE_V24_Future_Schema::table('external_records')." WHERE provider=%s AND external_id=%s AND concept_id=%d AND ((object_type='claim' AND object_id=%d) OR object_type='concept') ORDER BY id DESC LIMIT 1",$provider,$canonical_external,$claim['concept_id'],$claim['id']));if(!$valid){throw new RuntimeException('external-invalid');}$external_token=self::external_evidence_token($provider,$canonical_external);}
 			$weight=max(-1,min(1,(float)($data['weight']??0)));$ok=$wpdb->replace(HE_V24_Future_Schema::table('claim_evidence'),array('claim_id'=>(int)$claim['id'],'reference_id'=>$reference_id,'external_id'=>$external_token,'relation'=>$relation,'weight'=>$weight,'note'=>sanitize_textarea_field($data['note']??''),'created_by'=>get_current_user_id(),'created_at'=>current_time('mysql',true)));if(false===$ok){throw new RuntimeException('evidence-write');}
@@ -230,24 +230,13 @@ final class HE_V24_Future_API {
 	}
 
 	private static function resolve_external_binding( $data ) {
-		global $wpdb;
-		$type = sanitize_key( $data['object_type'] ?? ( ! empty( $data['concept_id'] ) ? 'concept' : '' ) );
-		$object_id = absint( $data['object_id'] ?? $data['concept_id'] ?? 0 );
-		if ( ! in_array( $type, array( 'concept','claim','research' ), true ) || ! $object_id ) { return new WP_Error( 'he_future_binding_required', __( 'A governed concept, claim or research binding is required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
-		$concept_id = 0;
-		if ( 'concept' === $type ) {
-			$concept = HE_V24_Future_Schema::concept_row( $object_id, false );
-			if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
-			$concept_id = (int) $concept['id'];
-		} elseif ( 'claim' === $type ) {
-			$claim = $wpdb->get_row( $wpdb->prepare( 'SELECT id,concept_id FROM ' . HE_V24_Future_Schema::table( 'claims' ) . ' WHERE id=%d', $object_id ), ARRAY_A );
-			if ( ! $claim ) { return new WP_Error( 'he_not_found', __( 'Claim not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
-			$concept_id = (int) $claim['concept_id'];
-		} else {
-			$research = $wpdb->get_row( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', $object_id ), ARRAY_A );
-			if ( ! $research ) { return new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
-		}
-		return array( 'object_type' => $type, 'object_id' => $object_id, 'concept_id' => $concept_id );
+		global $wpdb;$type=sanitize_key($data['object_type']??'');$public=strtolower(sanitize_text_field((string)($data['object_id']??'')));
+		if(!in_array($type,array('concept','claim','research'),true)||!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',$public)){return new WP_Error('he_future_binding_required',__('A canonical governed concept, claim or research public identifier is required.','homeopathy-encyclopedia'),array('status'=>422));}
+		$concept_id=0;$object_id=0;
+		if('concept'===$type){$row=self::concept_by_public_id($public,false);if(!$row){return new WP_Error('he_not_found',__('Concept not found.','homeopathy-encyclopedia'),array('status'=>404));}$object_id=(int)$row['id'];$concept_id=$object_id;}
+		elseif('claim'===$type){$row=$wpdb->get_row($wpdb->prepare('SELECT id,concept_id FROM '.HE_V24_Future_Schema::table('claims').' WHERE public_id=%s',$public),ARRAY_A);if(!$row){return new WP_Error('he_not_found',__('Claim not found.','homeopathy-encyclopedia'),array('status'=>404));}$object_id=(int)$row['id'];$concept_id=(int)$row['concept_id'];}
+		else{$row=$wpdb->get_row($wpdb->prepare('SELECT id FROM '.HE_V2_Schema::table('research').' WHERE public_id=%s',$public),ARRAY_A);if(!$row){return new WP_Error('he_not_found',__('Research record not found.','homeopathy-encyclopedia'),array('status'=>404));}$object_id=(int)$row['id'];}
+		return array('object_type'=>$type,'object_id'=>$object_id,'concept_id'=>$concept_id,'public_id'=>$public);
 	}
 
 	private static function external_binding_permission( $binding ) {
@@ -284,7 +273,8 @@ final class HE_V24_Future_API {
 		if ( $existing ) { $ok = $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ); $record_id = (int) $existing['id']; } else { $ok = $wpdb->insert( $table, $row ); $record_id = (int) $wpdb->insert_id; }
 		if ( false === $ok ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_external_stage_failed', __( 'The scholarly metadata could not be staged.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ) ); }
 		HE_V24_Future_Schema::append_provenance( 'external-record', (string) $record_id, 'metadata.staged', '', array( 'provider' => $provider, 'external_id' => $external_id, 'binding' => $binding, 'source_hash' => hash( 'sha256', wp_json_encode( $metadata ) ) ) );
-		return self::mutation_finish( $reservation, array( 'id' => $record_id, 'provider' => $provider, 'external_id' => $external_id, 'binding' => $binding, 'status' => 'staged', 'review_required' => true, 'metadata' => $metadata ), $existing ? 200 : 201 );
+		$public_binding = array( 'object_type' => $binding['object_type'], 'object_id' => $binding['public_id'] );
+		return self::mutation_finish( $reservation, array( 'id' => HE_V2_Domain::encode_public_cursor( 'external-record', $record_id ), 'provider' => $provider, 'external_id' => $external_id, 'binding' => $public_binding, 'status' => 'staged', 'review_required' => true, 'metadata' => $metadata ), $existing ? 200 : 201 );
 	}
 
 	public static function rest_retraction_watch( WP_REST_Request $request ) {
