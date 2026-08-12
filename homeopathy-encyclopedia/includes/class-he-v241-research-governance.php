@@ -65,7 +65,8 @@ final class HE_V241_Research_Governance {
 		$assignments=get_post_meta((int)$row['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,true);$assignments=is_array($assignments)?$assignments:array();$old=is_array($assignments[$scope]??null)?$assignments[$scope]:array();
 		$expiry=0;if($request->get_param('expires_at')){$expiry=strtotime((string)$request->get_param('expires_at'));if(!$expiry||$expiry<=time()||$expiry>time()+YEAR_IN_SECONDS)return self::finish($res,new WP_Error('he_reviewer_assignment_expiry_invalid',__('Reviewer assignment expiry is invalid.','homeopathy-encyclopedia'),array('status'=>422)));}
 		$assignments[$scope]=array('reviewer_id'=>$reviewer,'assigned_by'=>get_current_user_id(),'assigned_at'=>gmdate('c'),'expires_at'=>$expiry?gmdate('c',$expiry):'','assignment_version'=>1+absint($old['assignment_version']??0));
-		update_post_meta((int)$row['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,$assignments);
+		$written=update_post_meta((int)$row['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,$assignments);
+		if(false===$written)return self::finish($res,new WP_Error('he_research_reviewer_assignment_write_failed',__('The research reviewer assignment could not be saved safely.','homeopathy-encyclopedia'),array('status'=>503)));
 		HE_V2_Domain::emit_event('File06ResearchReviewerAssigned.v1','research',(int)$row['id'],array('scope'=>$scope,'reviewer_user_id'=>$reviewer,'assignment_version'=>$assignments[$scope]['assignment_version']));
 		return self::finish($res,array('research_id'=>$row['public_id'],'scope'=>$scope,'reviewer_id'=>$reviewer,'assignment_version'=>$assignments[$scope]['assignment_version']));
 	}
