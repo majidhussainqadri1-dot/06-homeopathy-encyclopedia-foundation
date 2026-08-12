@@ -292,7 +292,7 @@ final class HE_V241_Governance {
 			if ( true !== $permission ) {
 				return $permission;
 			}
-			if ( 'review' === $match[2] && ! self::reviewer_assigned( (int) $concept['post_id'], $user_id ) ) {
+			if ( 'review' === $match[3] && ! self::reviewer_assigned( (int) $concept['post_id'], $user_id ) ) {
 				return new WP_Error( 'he_reviewer_assignment_required', __( 'An active reviewer assignment is required for this claim decision.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
 			}
 			return $response;
@@ -308,8 +308,8 @@ final class HE_V241_Governance {
 			return $concept ? self::object_permission( HE_V2_Auth::CAP_REVIEW, (int) $concept['post_id'], 'file06-future-impact' ) : new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/translations/(\d+)$#', $route, $match ) && 'POST' === $request->get_method() ) {
-			$concept = HE_V24_Future_Schema::concept_row( absint( $match[1] ), false );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/translations/([0-9a-fA-F-]{36})$#', $route, $match ) && 'POST' === $request->get_method() ) {
+			$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( $match[1] ) ) ), ARRAY_A );
 			if ( ! $concept ) {
 				return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 			}
@@ -319,13 +319,13 @@ final class HE_V241_Governance {
 			return self::object_permission( HE_V2_Auth::CAP_EDIT, (int) $concept['post_id'], 'file06-future-translation-edit' );
 		}
 
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/translations/(\d+)/(review|publish)$#', $route, $match ) ) {
-			$concept = self::concept_from_translation( $match[1] );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/translations/([0-9a-fA-F-]{36})/([A-Za-z0-9-]+)/(review|publish)$#', $route, $match ) ) {
+			$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( $match[1] ) ) ), ARRAY_A );
 			if ( ! $concept ) {
 				return new WP_Error( 'he_not_found', __( 'Translation not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 			}
-			$cap = 'publish' === $match[2] ? HE_V2_Auth::CAP_PUBLISH : HE_V2_Auth::CAP_REVIEW;
-			$permission = self::object_permission( $cap, (int) $concept['post_id'], 'file06-future-translation-' . $match[2] );
+			$cap = 'publish' === $match[3] ? HE_V2_Auth::CAP_PUBLISH : HE_V2_Auth::CAP_REVIEW;
+			$permission = self::object_permission( $cap, (int) $concept['post_id'], 'file06-future-translation-' . $match[3] );
 			if ( true !== $permission ) {
 				return $permission;
 			}

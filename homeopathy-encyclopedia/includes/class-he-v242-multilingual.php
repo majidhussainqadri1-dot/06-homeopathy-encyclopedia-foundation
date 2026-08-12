@@ -63,7 +63,7 @@ final class HE_V242_Multilingual {
 
 	public static function override_translation_route() {
 		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready() ) { return; }
-		register_rest_route( HE_V2_API::NS, '/future/translations/(?P<id>\\d+)', array(
+		register_rest_route( HE_V2_API::NS, '/future/translations/(?P<id>[0-9a-fA-F-]{36})', array(
 			array(
 				'methods' => 'GET',
 				'callback' => array( 'HE_V24_Future_API', 'rest_translations' ),
@@ -78,7 +78,8 @@ final class HE_V242_Multilingual {
 	}
 
 	public static function translation_write_permission( $request ) {
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), false );
+		global $wpdb;
+		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( (string) $request['id'] ) ) ), ARRAY_A );
 		if ( ! $concept ) {
 			return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
@@ -147,9 +148,10 @@ final class HE_V242_Multilingual {
 	}
 
 	public static function rest_translation_write( WP_REST_Request $request ) {
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), false );
+		global $wpdb;
+		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( (string) $request['id'] ) ) ), ARRAY_A );
 		if ( ! $concept ) { return new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
-		$reservation = self::mutation_guard( $request, 'future-translation-save-' . absint( $request['id'] ) );
+		$reservation = self::mutation_guard( $request, 'future-translation-save-' . sanitize_key( $request['id'] ) );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::finish( $reservation, null, 200 ); }
 		$data = $request->get_json_params(); $data = is_array( $data ) ? $data : $request->get_params();
 		$source_locale = self::canonical_locale( $concept['language'] );
