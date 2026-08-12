@@ -26,6 +26,17 @@ jobs:
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/v2417-r20-final-correction.py')
+          s=p.read_text(encoding='utf-8')
+          a=s.find('# 6) Strengthen the v2.4.17 regression gate for the late R20 defect.')
+          b=s.find('# 7) Final exact-head workflow recognizes R20 as a defect and checks external opaque route.')
+          if a < 0 or b < 0 or b <= a:
+              raise SystemExit('R20 correction script regression section markers missing')
+          s=s[:a]+'# 6) The robust R20 regression is already committed on this branch.\n\n'+s[b:]
+          p.write_text(s,encoding='utf-8')
+          PY
           python3 scripts/v2417-r20-final-correction.py
           while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
