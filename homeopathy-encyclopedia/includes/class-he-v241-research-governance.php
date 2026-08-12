@@ -78,7 +78,8 @@ final class HE_V241_Research_Governance {
 
 	public static function before_callbacks( $response, $handler, $request ) {
 		if(null!==$response||!$request instanceof WP_REST_Request||'GET'===$request->get_method())return $response;$route=$request->get_route();$prefix='/'.HE_V2_API::NS;
-		if(preg_match('#^'.preg_quote($prefix,'#').'/research/(\d+)/review$#',$route,$m)){
+		$uuid='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+		if(preg_match('#^'.preg_quote($prefix,'#').'/research/('.$uuid.')/review$#',$route,$m)){
 			$row=self::research($m[1]);if(!$row)return new WP_Error('he_not_found',__('Research record not found.','homeopathy-encyclopedia'),array('status'=>404));$scope=sanitize_key($request->get_param('scope')?:'scientific');
 			if(!self::assigned((int)$row['post_id'],get_current_user_id(),$scope))return new WP_Error('he_reviewer_assignment_required',__('An active reviewer assignment for this research scope is required.','homeopathy-encyclopedia'),array('status'=>403));
 		}
