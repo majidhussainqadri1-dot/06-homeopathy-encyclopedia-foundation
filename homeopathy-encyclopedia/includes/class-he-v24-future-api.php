@@ -23,19 +23,15 @@ final class HE_V24_Future_API {
 		self::route( $ns, '/future/mappings', 'POST', 'rest_mapping', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/researcher-identities', 'POST', 'rest_researcher_identity', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/duplicates/scan', 'POST', 'rest_duplicate_scan', HE_V2_Auth::CAP_REVIEW );
-		self::route( $ns, '/future/graph/(?P<id>\\d+)', 'GET', 'rest_graph', 'read' );
-		self::route( $ns, '/future/time-machine/(?P<id>\\d+)', 'GET', 'rest_time_machine', 'read' );
 		self::route( $ns, '/future/impact/(?P<id>[0-9a-fA-F-]{36})', 'POST', 'rest_impact', HE_V2_Auth::CAP_REVIEW );
-		self::route( $ns, '/future/freshness/(?P<id>\\d+)', 'GET', 'rest_freshness', 'read' );
 		self::route( $ns, '/future/gaps', 'GET', 'rest_gaps', HE_V2_Auth::CAP_RESEARCH );
-		self::route( $ns, '/future/citations/(?P<id>\\d+)/(?P<format>[a-z0-9_-]+)', 'GET', 'rest_citations', 'read' );
 		self::route( $ns, '/future/watchlist', 'GET', 'rest_watchlist', 'member' );
 		self::route( $ns, '/future/watchlist', 'POST', 'rest_watchlist_write', 'member' );
 		self::route( $ns, '/future/translations/(?P<id>[0-9a-fA-F-]{36})', 'GET', 'rest_translations', 'read' );
 		self::route( $ns, '/future/translations/(?P<id>[0-9a-fA-F-]{36})', 'POST', 'rest_translation_write', HE_V2_Auth::CAP_EDIT );
 		self::route( $ns, '/future/translations/(?P<id>[0-9a-fA-F-]{36})/(?P<locale>[A-Za-z0-9-]+)/review', 'POST', 'rest_translation_review', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/translations/(?P<id>[0-9a-fA-F-]{36})/(?P<locale>[A-Za-z0-9-]+)/publish', 'POST', 'rest_translation_publish', HE_V2_Auth::CAP_PUBLISH );
-		/* Canonical public-ID surfaces for public Future intelligence reads. Legacy numeric reads remain blocked by HE_V24_Public_Provenance. */
+		/* Canonical public-ID surfaces are the only registered public Future intelligence reads. */
 		self::route( $ns, '/future/public/claims/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_claims', 'read' );
 		self::route( $ns, '/future/public/graph/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_graph', 'read' );
 		self::route( $ns, '/future/public/time-machine/(?P<id>[a-fA-F0-9-]{36})', 'GET', 'rest_time_machine', 'read' );
@@ -125,7 +121,6 @@ final class HE_V24_Future_API {
 		$identifier = trim( (string) $request->get_param( 'id' ) );
 		if ( '' === $identifier ) { $identifier = trim( (string) $request->get_param( 'concept_id' ) ); }
 		if ( '' === $identifier ) { return null; }
-		if ( ctype_digit( $identifier ) ) { return HE_V24_Future_Schema::concept_row( absint( $identifier ), true ); }
 		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $identifier ) ) { return null; }
 		$public_id = strtolower( $identifier );
 		return $wpdb->get_row( $wpdb->prepare(
