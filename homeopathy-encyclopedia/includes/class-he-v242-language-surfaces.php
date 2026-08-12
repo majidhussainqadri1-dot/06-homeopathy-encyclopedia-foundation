@@ -113,9 +113,9 @@ final class HE_V242_Language_Surfaces {
 			self::$normalizing = false;
 		}
 		global $wpdb;
-		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT id,language,public_id FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $object_id ) ), ARRAY_A );
+		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT id,language,public_id,row_version FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $object_id ) ), ARRAY_A );
 		if ( ! $concept || $canonical === (string) $concept['language'] ) { return; }
-		$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . ' SET language=%s,updated_at=UTC_TIMESTAMP() WHERE id=%d AND language=%s', $canonical, (int) $concept['id'], (string) $concept['language'] ) );
+		$updated = $wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'concepts' ) . " SET language=%s,row_version=row_version+1,review_status='unreviewed',safety_status='unreviewed',updated_at=UTC_TIMESTAMP() WHERE id=%d AND language=%s AND row_version=%d", $canonical, (int) $concept['id'], (string) $concept['language'], (int) $concept['row_version'] ) );
 		if ( 1 !== (int) $updated ) {
 			self::$normalizing = true;
 			update_post_meta( $object_id, '_he_language', (string) $concept['language'] );
@@ -128,6 +128,8 @@ final class HE_V242_Language_Surfaces {
 			$wpdb->query( $wpdb->prepare( "UPDATE " . HE_V24_Future_Schema::table( 'translations' ) . " SET status='translation-outdated',updated_at=UTC_TIMESTAMP() WHERE concept_id=%d AND source_locale<>%s AND status IN ('draft','approved','published')", (int) $concept['id'], $canonical ) );
 			HE_V24_Future_Schema::queue_impact( 'concept', $concept['public_id'], 'KnowledgeTranslationOutdated.v1', array( 'concept_id' => $concept['public_id'], 'reason' => 'source-language-changed' ) );
 		}
+		HE_V2_Domain::reindex_concept_by_post( $object_id );
+		HE_V2_Domain::emit_event( 'KnowledgeSourceLanguageChanged.v1', 'concept', (int) $concept['id'], array( 'concept_id' => $concept['public_id'], 'from' => $concept['language'], 'to' => $canonical ) );
 		HE_V242_Third_Audit::repair_canonical_alias_language( $object_id, get_post( $object_id ), true );
 	}
 
