@@ -72,9 +72,13 @@ final class HE_V24_Future_Schema {
 	}
 
 	private static function ensure_schedule() {
-		if ( ! wp_next_scheduled( self::CRON ) ) {
-			wp_schedule_event( time() + 2 * HOUR_IN_SECONDS, 'twicedaily', self::CRON );
+		if ( wp_next_scheduled( self::CRON ) ) { return true; }
+		$result = wp_schedule_event( time() + 2 * HOUR_IN_SECONDS, 'twicedaily', self::CRON, array(), true );
+		if ( is_wp_error( $result ) || ! $result ) {
+			HE_V2_Schema::record_runtime_failure( 'future_maintenance_schedule_failed', 'File 06 could not register the Future-18 maintenance schedule.' );
+			return false;
 		}
+		return true;
 	}
 
 	public static function maybe_upgrade() {
