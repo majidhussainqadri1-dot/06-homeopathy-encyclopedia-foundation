@@ -75,12 +75,21 @@ final class HE_V241_Runtime_Guard {
 
 	private static function research_row( $id ) {
 		global $wpdb;
-		return $wpdb->get_row( $wpdb->prepare( 'SELECT id,post_id,status,created_by FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $id ) ), ARRAY_A );
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT id,public_id,post_id,status,created_by FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $id ) ), ARRAY_A );
 	}
 
-	private static function concept_from_claim( $id ) {
+	private static function research_row_by_public_id( $public_id ) {
 		global $wpdb;
-		$concept_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT concept_id FROM ' . HE_V24_Future_Schema::table( 'claims' ) . ' WHERE id=%d', absint( $id ) ) );
+		$public_id = strtolower( sanitize_text_field( (string) $public_id ) );
+		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $public_id ) ) { return null; }
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT id,public_id,post_id,status,created_by FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
+	}
+
+	private static function concept_from_claim_public_id( $public_id ) {
+		global $wpdb;
+		$public_id = strtolower( sanitize_text_field( (string) $public_id ) );
+		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $public_id ) ) { return null; }
+		$concept_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT concept_id FROM ' . HE_V24_Future_Schema::table( 'claims' ) . ' WHERE public_id=%s', $public_id ) );
 		return $concept_id ? HE_V24_Future_Schema::concept_row( $concept_id, false ) : null;
 	}
 
@@ -92,19 +101,22 @@ final class HE_V241_Runtime_Guard {
 		$route = $request->get_route();
 		global $wpdb;
 
-		/* External scholarly staging must be scoped to the object it is being attached to. */
+		/* External scholarly staging must be scoped to the canonical object it is being attached to. */
 		if ( $route === $prefix . '/future/external/lookup' ) {
-			$type = sanitize_key( $request->get_param( 'object_type' ) ?: ( $request->get_param( 'concept_id' ) ? 'concept' : '' ) );
-			$id = absint( $request->get_param( 'object_id' ) ?: $request->get_param( 'concept_id' ) );
+			$type = sanitize_key( $request->get_param( 'object_type' ) );
+			$public_id = strtolower( sanitize_text_field( (string) $request->get_param( 'object_id' ) ) );
 			$post_id = 0;
+			if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $public_id ) ) {
+				return new WP_Error( 'he_canonical_public_id_required', __( 'A canonical governed object identifier is required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			}
 			if ( 'concept' === $type ) {
-				$concept = HE_V24_Future_Schema::concept_row( $id, false );
+				$concept = HE_V2_Domain::concept_by_id( $public_id, true );
 				$post_id = $concept ? (int) $concept['post_id'] : 0;
 			} elseif ( 'claim' === $type ) {
-				$concept = self::concept_from_claim( $id );
+				$concept = self::concept_from_claim_public_id( $public_id );
 				$post_id = $concept ? (int) $concept['post_id'] : 0;
 			} elseif ( 'research' === $type ) {
-				$research = self::research_row( $id );
+				$research = self::research_row_by_public_id( $public_id );
 				$post_id = $research ? (int) $research['post_id'] : 0;
 			}
 			if ( ! $post_id ) {
@@ -113,9 +125,13 @@ final class HE_V241_Runtime_Guard {
 			return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_RESEARCH, $post_id, 'file06-external-stage-object' );
 		}
 
-		/* Research-bound external records need object scope too; concept-bound records are checked by HE_V241_Governance. */
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/external/(\d+)/review$#', $route, $match ) ) {
-			$record = $wpdb->get_row( $wpdb->prepare( 'SELECT object_type,object_id,concept_id FROM ' . HE_V24_Future_Schema::table( 'external_records' ) . ' WHERE id=%d', absint( $match[1] ) ), ARRAY_A );
+		/* Research-bound external records need object scope and assignment on the canonical opaque route. */
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/external/([A-Za-z0-9_-]+\.[a-f0-9]{64})/review$#', $route, $match ) ) {
+			$record_id = HE_V2_Domain::decode_public_cursor( 'external-record', $match[1] );
+			if ( null === $record_id || ! $record_id ) {
+				return new WP_Error( 'he_not_found', __( 'External scholarly record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
+			}
+			$record = $wpdb->get_row( $wpdb->prepare( 'SELECT object_type,object_id,concept_id FROM ' . HE_V24_Future_Schema::table( 'external_records' ) . ' WHERE id=%d', $record_id ), ARRAY_A );
 			if ( ! $record ) {
 				return new WP_Error( 'he_not_found', __( 'External scholarly record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 			}
