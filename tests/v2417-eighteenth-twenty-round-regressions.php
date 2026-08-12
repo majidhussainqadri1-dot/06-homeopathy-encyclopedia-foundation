@@ -7,7 +7,7 @@ function ok17($ok,$m){global $fail;if(!$ok)$fail[]=$m;}
 function has17($s,$n){return false!==strpos($s,$n);}
 $ledger_path=$root.'/docs/FILE-06-v2.4.17-EIGHTEENTH-TWENTY-ROUND-REVIEW.md';$ledger=file_exists($ledger_path)?r17($ledger_path):'';
 $env=getenv('FILE06_REVIEW_ROUND');if(false!==$env&&''!==$env){$round=(int)$env;}else{preg_match_all('/^([0-9]+)\. \*\*(?:DEFECT|CLEAN)\*\*/m',$ledger,$m);$round=!empty($m[1])?max(array_map('intval',$m[1])):0;}
-$ref=r17($inc.'/class-he-v242-reference-graph.php');$lang=r17($inc.'/class-he-v242-language-surfaces.php');$third=r17($inc.'/class-he-v242-third-audit.php');$fs=r17($inc.'/class-he-v24-future-schema.php');$mig=r17($inc.'/class-he-v24-migration-safety.php');$api=r17($inc.'/class-he-v24-future-api.php');$gov=r17($inc.'/class-he-v241-governance.php');$norm=r17($inc.'/class-he-v241-before-callback-normalizer.php');$multi=r17($inc.'/class-he-v242-multilingual.php');$runtime=r17($inc.'/class-he-v242-runtime-corrections.php');$boot=r17($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');$readme=r17($root.'/homeopathy-encyclopedia/readme.txt');$runall=r17($root.'/tests/run-all.sh');
+$ref=r17($inc.'/class-he-v242-reference-graph.php');$lang=r17($inc.'/class-he-v242-language-surfaces.php');$third=r17($inc.'/class-he-v242-third-audit.php');$fs=r17($inc.'/class-he-v24-future-schema.php');$mig=r17($inc.'/class-he-v24-migration-safety.php');$api=r17($inc.'/class-he-v24-future-api.php');$gov=r17($inc.'/class-he-v241-governance.php');$norm=r17($inc.'/class-he-v241-before-callback-normalizer.php');$multi=r17($inc.'/class-he-v242-multilingual.php');$runtime=r17($inc.'/class-he-v242-runtime-corrections.php');$v23=r17($inc.'/class-he-v23-future.php');$reviewguard=r17($inc.'/class-he-v24-future-review-guard.php');$boot=r17($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');$readme=r17($root.'/homeopathy-encyclopedia/readme.txt');$runall=r17($root.'/tests/run-all.sh');
 if($round>=1){ok17(has17($ref,"decode_public_cursor( 'reference'")&&!has17($ref,'$reference_id = absint( $request->get_param'),'R1 graph guard does not consume opaque reference token');}
 if($round>=2){ok17(has17($lang,"status='published' AND review_status='approved' AND safety_status='approved'")&&has17($lang,'HE_V2_Domain::ENTRY_TYPE !== $post->post_type')&&has17($lang,"'publish' !== $post->post_status"),'R2 public translations lack governed/WP public parity');}
 if($round>=3){ok17(!has17($third,"add_action( 'added_post_meta', array( __CLASS__, 'language_meta_changed' )")&&!has17($third,"add_action( 'updated_post_meta', array( __CLASS__, 'language_meta_changed' )"),'R3 stale language meta hook still pre-empts canonical owner');}
@@ -27,6 +27,20 @@ if($round>=16){ok17(has17($runtime,'composer_rollback_future_state_unverified')&
 if($round>=17){ok17(has17($lang,"INNER JOIN ' . $wpdb->posts")&&has17($lang,"p.post_status='publish'")&&has17($lang,'c.current_version>0'),'R17 public language discovery lacks WP/current-version parity');}
 if($round>=18){ok17(has17($ledger,'18. **CLEAN**'),'R18 clean audit record missing');}
 if($round>=19){ok17(has17($boot,' * Version: 2.4.17')&&has17($boot,"define( 'HE_VERSION', '2.4.17' )")&&has17($boot,"define( 'HE_CONTRACT_VERSION', '2.4.17' )")&&has17($boot,"'future_hardening_version'=>'2.4.17'")&&has17($readme,'Stable tag: 2.4.17')&&has17($runall,'v2417-eighteenth-twenty-round-regressions.php')&&has17($runall,'All File 06 v2.4.17 automated checks'),'R19 release truth not aligned to v2.4.17');}
-if($round>=20){ok17(has17($ledger,'20. **CLEAN**'),'R20 final clean audit record missing');}
+if($round>=20){
+    $r20 = has17($ledger,'20. **DEFECT**')
+        && has17($v23,'retire legacy v2.3 runtime surfaces')
+        && !has17($v23,"add_action( 'rest_api_init', array( __CLASS__, 'register_routes' )")
+        && !has17($v23,"add_action( self::CRON, array( __CLASS__, 'maintenance' )")
+        && has17($reviewguard,"decode_public_cursor( 'external-record'")
+        && !has17($reviewguard,"'/future/translations/(?P<id>\\\\d+)/review'")
+        && !has17($reviewguard,"'/future/translations/(?P<id>\\\\d+)/publish'")
+        && has17($gov,"/integrity/([0-9a-fA-F-]{36})/apply")
+        && has17($gov,"/research/([0-9a-fA-F-]{36})/transition")
+        && has17($gov,"/dataset-access/([A-Za-z0-9_-]+\\.[a-f0-9]{64})/approve")
+        && has17($gov,"if ( 'review' === $match[2] && ! self::reviewer_assigned")
+        && has17($gov,"if ( 'review' === $match[3] && ! self::reviewer_assigned");
+    ok17($r20,'R20 residual numeric routes/object-scope reviewer gates remain');
+}
 for($i=1;$i<=$round;$i++){ok17(has17($ledger,$i.'. **'),'Review ledger missing round '.$i);}
 if($fail){fwrite(STDERR,"File 06 v2.4.17 eighteenth-review regressions FAILED through R{$round}:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.17 eighteenth-review regressions through R{$round}: PASS\n";
