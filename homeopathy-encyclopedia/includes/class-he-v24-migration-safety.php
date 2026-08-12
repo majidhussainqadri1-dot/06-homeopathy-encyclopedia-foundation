@@ -198,7 +198,8 @@ final class HE_V24_Migration_Safety {
 	}
 
 	public static function ready() {
-		return (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) >= HE_V24_Future_Schema::VERSION
+		return HE_V24_Future_Schema::schema_complete()
+			&& (int) get_option( HE_V24_Future_Schema::OPTION_VERSION, 0 ) >= HE_V24_Future_Schema::VERSION
 			&& (bool) get_option( self::OPTION_PROVENANCE_DONE, false )
 			&& (bool) get_option( self::OPTION_IMPACT_DONE, false )
 			&& (bool) get_option( self::OPTION_ORCID_DONE, false )

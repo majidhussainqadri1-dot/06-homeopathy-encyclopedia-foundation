@@ -22,6 +22,34 @@ final class HE_V24_Future_Schema {
 		return $wpdb->prefix . 'he_' . sanitize_key( $name );
 	}
 
+	public static function required_shape() {
+		return array(
+			'claims'=>array('id','concept_id','version_id','public_id','claim_key','claim_text','claim_state','evidence_state','review_status','row_version'),
+			'claim_evidence'=>array('id','claim_id','reference_id','external_id','relation','weight'),
+			'concept_mappings'=>array('id','concept_id','vocabulary','external_id','mapping_state'),
+			'similarity'=>array('id','concept_a','concept_b','score','state'),
+			'provenance'=>array('id','object_type','object_id','metadata_json','parent_hash','record_hash'),
+			'external_records'=>array('id','provider','external_id','concept_id','object_type','object_id','status','review_required'),
+			'researcher_ids'=>array('id','user_id','provider','external_id','mapping_state'),
+			'freshness'=>array('concept_id','freshness_state','priority_score','updated_at'),
+			'impact_queue'=>array('id','source_type','source_id','consumer_file','dedupe_key','impact_state','attempts','last_error','acknowledged_at'),
+			'research_gaps'=>array('id','concept_id','gap_type','state','priority_score','resolved_at'),
+			'watchlists'=>array('id','user_id','object_type','object_id','event_mask','active'),
+			'translations'=>array('id','concept_id','locale','source_locale','source_version','translation_version','status','content_hash','published_at'),
+		);
+	}
+
+	public static function schema_complete() {
+		global $wpdb;
+		foreach ( self::required_shape() as $key => $columns ) {
+			$table=self::table($key);
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) { return false; }
+			$actual=(array)$wpdb->get_col( "SHOW COLUMNS FROM `{$table}`",0 ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach($columns as $column){ if(!in_array($column,$actual,true)){ return false; } }
+		}
+		return true;
+	}
+
 	public static function hooks() {
 		remove_action( HE_V23_Future::CRON, array( 'HE_V23_Future', 'maintenance' ) );
 		if ( wp_next_scheduled( HE_V23_Future::CRON ) ) {
@@ -50,7 +78,7 @@ final class HE_V24_Future_Schema {
 	}
 
 	public static function maybe_upgrade() {
-		if ( (int) get_option( self::OPTION_VERSION, 0 ) < self::VERSION ) {
+		if ( (int) get_option( self::OPTION_VERSION, 0 ) < self::VERSION || ! self::schema_complete() ) {
 			self::install();
 		}
 	}
@@ -291,34 +319,7 @@ final class HE_V24_Future_Schema {
 	}
 
 	private static function verify_schema() {
-		global $wpdb;
-		$required = array(
-			'claims' => array( 'version_id','confidence','review_status','reviewed_by','row_version' ),
-			'claim_evidence' => array( 'claim_id','reference_id','external_id','relation' ),
-			'concept_mappings' => array( 'concept_id','vocabulary','external_id','mapping_state' ),
-			'similarity' => array( 'concept_a','concept_b','score','state' ),
-			'provenance' => array( 'parent_hash','record_hash' ),
-			'external_records' => array( 'object_type','object_id','relation' ),
-			'researcher_ids' => array( 'user_id','provider','external_id','mapping_state' ),
-			'freshness' => array( 'priority_score' ),
-			'impact_queue' => array( 'dedupe_key','last_error','acknowledged_at' ),
-			'research_gaps' => array( 'priority_score','resolved_at' ),
-			'watchlists' => array( 'event_mask' ),
-			'translations' => array( 'source_locale','published_at' ),
-		);
-		$missing = array();
-		foreach ( $required as $table_key => $columns ) {
-			$table = self::table( $table_key );
-			$existing = $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`", 0 ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			foreach ( $columns as $column ) {
-				if ( ! in_array( $column, $existing, true ) ) {
-					$missing[] = $table_key . '.' . $column;
-				}
-			}
-		}
-		if ( $missing ) {
-			throw new RuntimeException( 'File 06 v2.4 schema verification failed: ' . implode( ', ', $missing ) );
-		}
+		if ( ! self::schema_complete() ) { throw new RuntimeException( 'File 06 v2.4 Future schema verification failed: required table/column shape is incomplete.' ); }
 	}
 
 	public static function concept_row( $concept_id, $public_only = false ) {
