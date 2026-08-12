@@ -11,9 +11,10 @@ final class HE_V242_Reference_Graph {
 		if ( null !== $response || ! $request instanceof WP_REST_Request || 'POST' !== $request->get_method() ) { return $response; }
 		$route = $request->get_route(); $prefix = '/' . HE_V2_API::NS;
 		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/graph/([^/]+)$#', $route, $match ) ) {
-			$reference_id = absint( $request->get_param( 'reference_id' ) );
-			if ( ! $reference_id ) {
-				return new WP_Error( 'he_relation_provenance_required', __( 'Every knowledge-graph relationship requires a source reference belonging to the source concept.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			$reference_token = sanitize_text_field( (string) $request->get_param( 'reference_id' ) );
+			$reference_id = HE_V2_Domain::decode_public_cursor( 'reference', $reference_token );
+			if ( null === $reference_id || ! $reference_id ) {
+				return new WP_Error( 'he_relation_provenance_required', __( 'Every knowledge-graph relationship requires the opaque reference identifier returned by the governed reference command.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
 			$source = HE_V2_Domain::concept_by_id( $match[1], true );
 			if ( ! $source ) { return new WP_Error( 'he_not_found', __( 'Source concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
