@@ -1,0 +1,29 @@
+name: File 06 v2.4.18 Continuous Correction Gate
+on:
+  push:
+    branches: [audit/file-06-nineteenth-twenty-round-v2.4.18]
+    paths:
+      - 'homeopathy-encyclopedia/**'
+      - 'tests/**'
+      - 'docs/FILE-06-v2.4.18-*'
+permissions:
+  contents: read
+jobs:
+  correction-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', coverage: none}
+      - name: Lint and inherited regression gate
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+          bash tests/run-all.sh 2>&1 | tee /tmp/file06-v2418-continuous.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/file06-v2418-continuous.log; then
+            echo 'Unexpected warning/error in inherited QA' >&2
+            exit 1
+          fi
