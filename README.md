@@ -1,10 +1,10 @@
-# File 06 — Homeopathy Encyclopedia 2.4.16
+# File 06 — Homeopathy Encyclopedia 2.4.17
 
 Sixteenth fresh twenty-round review/fix repository candidate for the File 06 governing plan. Repository evidence is not staging or live evidence.
 
 ## Candidate truth
-- Branch: `audit/file-06-sixteenth-twenty-round-v2.4.16`
-- Plugin / contract: `2.4.16`
+- Branch: `audit/file-06-sixteenth-twenty-round-v2.4.17`
+- Plugin / contract: `2.4.17`
 - Global schema: `10`
 - V24 Future schema: `2`
 - REST namespace: `sabri/v2/file-06`
