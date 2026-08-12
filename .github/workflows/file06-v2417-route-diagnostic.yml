@@ -1,0 +1,34 @@
+name: File 06 v2.4.17 Future Route Diagnostic
+on:
+  push:
+    branches: [audit/file-06-eighteenth-twenty-round-v2.4.17]
+    paths: [.github/workflows/file06-v2417-route-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  routes:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env: {MYSQL_DATABASE: wordpress, MYSQL_USER: wordpress, MYSQL_PASSWORD: wordpress, MYSQL_ROOT_PASSWORD: root}
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', extensions: 'mysqli,mbstring', coverage: none}
+      - run: |
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar && sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+          mkdir -p /tmp/wp && cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 Route CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          wp plugin activate homeopathy-encyclopedia
+          wp eval 'wp_set_current_user(1);do_action("rest_api_init");foreach(array_keys(rest_get_server()->get_routes()) as $route){if(strpos($route,"/future/claims")!==false||strpos($route,"/future/translations")!==false||strpos($route,"/future/impact")!==false){echo $route,"\n";}}'
