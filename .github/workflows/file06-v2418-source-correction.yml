@@ -1,4 +1,4 @@
-name: File 06 v2.4.18 R7 Source Correction
+name: File 06 v2.4.18 R9 Source Correction
 on:
   push:
     branches: [audit/file-06-nineteenth-twenty-round-v2.4.18]
@@ -15,24 +15,25 @@ jobs:
         with: {node-version: '22'}
       - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
         with: {php-version: '8.3', coverage: none}
-      - name: Remove internal version row IDs and retest
+      - name: Make external staging and provenance atomic
         run: |
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('homeopathy-encyclopedia/includes/class-he-v2-domain.php')
+          p=Path('homeopathy-encyclopedia/includes/class-he-v24-future-api.php')
           s=p.read_text(encoding='utf-8')
-          old="SELECT id,version_number,status,title,content_hash,change_reason,effective_at,created_at FROM "
-          new="SELECT version_number,status,title,content_hash,change_reason,effective_at,created_at FROM "
-          if s.count(old)!=1: raise SystemExit('R7 public versions SELECT baseline mismatch')
-          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          a=s.find('\tpublic static function rest_external_lookup( WP_REST_Request $request ) {')
+          b=s.find('\n\tpublic static function rest_retraction_watch(',a)
+          if a<0 or b<0: raise SystemExit('R9 external lookup method markers missing')
+          new="\tpublic static function rest_external_lookup( WP_REST_Request $request ) {\n\t\t$reservation = self::mutation_guard( $request, 'future-external-stage', HE_V2_Auth::CAP_RESEARCH );\n\t\tif ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 201 ); }\n\t\tglobal $wpdb; $data = self::request_data( $request );\n\t\t$provider = sanitize_key( $data['provider'] ?? '' );\n\t\t$external_id = HE_V24_Future_Schema::validate_external_id( $provider, $data['external_id'] ?? '' );\n\t\tif ( ! $external_id ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_external_id_invalid', __( 'The scholarly identifier is invalid for this provider.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }\n\t\t$binding = self::resolve_external_binding( $data );\n\t\tif ( is_wp_error( $binding ) ) { return self::mutation_finish( $reservation, $binding ); }\n\t\t$permission = self::external_binding_permission( $binding );\n\t\tif ( is_wp_error( $permission ) ) { return self::mutation_finish( $reservation, $permission ); }\n\t\tif ( 'clinicaltrials' === $provider && ! in_array( $binding['object_type'], array( 'claim','research' ), true ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_trial_binding_invalid', __( 'Clinical-trial evidence must be bound to a claim or research record.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }\n\t\t$metadata = HE_V24_Future_Schema::lookup_external( $provider, $external_id );\n\t\tif ( is_wp_error( $metadata ) ) { return self::mutation_finish( $reservation, $metadata ); }\n\t\t$relation = sanitize_key( $data['relation'] ?? $data['purpose'] ?? 'literature' ); $purpose = sanitize_key( $data['purpose'] ?? 'literature' );\n\t\t$table = HE_V24_Future_Schema::table( 'external_records' );\n\t\tif ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_external_stage_failed', __( 'The scholarly metadata staging transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }\n\t\ttry {\n\t\t\t$existing = $wpdb->get_row( $wpdb->prepare( \"SELECT id FROM {$table} WHERE provider=%s AND external_id=%s AND object_type=%s AND object_id=%d FOR UPDATE\", $provider, $external_id, $binding['object_type'], $binding['object_id'] ), ARRAY_A );\n\t\t\t$row = array( 'provider' => $provider, 'external_id' => $external_id, 'concept_id' => $binding['concept_id'], 'object_type' => $binding['object_type'], 'object_id' => $binding['object_id'], 'relation' => $relation, 'purpose' => $purpose, 'status' => 'staged', 'metadata_json' => wp_json_encode( $metadata ), 'checked_at' => current_time( 'mysql', true ), 'review_required' => 1 );\n\t\t\tif ( $existing ) { $ok = $wpdb->update( $table, $row, array( 'id' => (int) $existing['id'] ) ); $record_id = (int) $existing['id']; } else { $ok = $wpdb->insert( $table, $row ); $record_id = (int) $wpdb->insert_id; }\n\t\t\tif ( false === $ok || ! $record_id ) { throw new RuntimeException( 'external-write-failed' ); }\n\t\t\t$provenance = HE_V24_Future_Schema::append_provenance( 'external-record', (string) $record_id, 'metadata.staged', '', array( 'provider' => $provider, 'external_id' => $external_id, 'binding' => $binding, 'source_hash' => hash( 'sha256', wp_json_encode( $metadata ) ) ) );\n\t\t\tif ( ! $provenance ) { throw new RuntimeException( 'external-provenance-failed' ); }\n\t\t\tif ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'external-commit-failed' ); }\n\t\t} catch ( Throwable $error ) {\n\t\t\t$wpdb->query( 'ROLLBACK' );\n\t\t\tHE_V2_Schema::record_runtime_failure( 'external_stage_atomic_failed', 'External scholarly staging and provenance could not be committed atomically.' );\n\t\t\treturn self::mutation_finish( $reservation, new WP_Error( 'he_future_external_stage_failed', __( 'The scholarly metadata and provenance could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );\n\t\t}\n\t\t$public_binding = array( 'object_type' => $binding['object_type'], 'object_id' => $binding['public_id'] );\n\t\treturn self::mutation_finish( $reservation, array( 'id' => HE_V2_Domain::encode_public_cursor( 'external-record', $record_id ), 'provider' => $provider, 'external_id' => $external_id, 'binding' => $public_binding, 'status' => 'staged', 'review_required' => true, 'metadata' => $metadata ), $existing ? 200 : 201 );\n\t}\n"
+          p.write_text(s[:a]+new+s[b:],encoding='utf-8')
           PY
           while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
-          bash tests/run-all.sh 2>&1 | tee /tmp/r7.log
-          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/r7.log; then exit 1; fi
-          git add homeopathy-encyclopedia/includes/class-he-v2-domain.php
-          git commit -m "fix(file-06): R7 hide internal version row identifiers"
+          bash tests/run-all.sh 2>&1 | tee /tmp/r9.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/r9.log; then exit 1; fi
+          git add homeopathy-encyclopedia/includes/class-he-v24-future-api.php
+          git commit -m "fix(file-06): R9 make external staging provenance atomic"
           git push origin HEAD:audit/file-06-nineteenth-twenty-round-v2.4.18
