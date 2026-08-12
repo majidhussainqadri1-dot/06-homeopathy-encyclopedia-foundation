@@ -38,8 +38,8 @@ if($round>=20){
         && has17($gov,"/integrity/([0-9a-fA-F-]{36})/apply")
         && has17($gov,"/research/([0-9a-fA-F-]{36})/transition")
         && has17($gov,"/dataset-access/([A-Za-z0-9_-]+\\.[a-f0-9]{64})/approve")
-        && has17($gov,"if ( 'review' === $match[2] && ! self::reviewer_assigned")
-        && has17($gov,"if ( 'review' === $match[3] && ! self::reviewer_assigned");
+        && has17($gov,"if ( 'review' === \$match[2] && ! self::reviewer_assigned")
+        && has17($gov,"if ( 'review' === \$match[3] && ! self::reviewer_assigned");
     ok17($r20,'R20 residual numeric routes/object-scope reviewer gates remain');
 }
 for($i=1;$i<=$round;$i++){ok17(has17($ledger,$i.'. **'),'Review ledger missing round '.$i);}
