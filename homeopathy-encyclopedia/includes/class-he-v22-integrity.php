@@ -9,7 +9,8 @@ final class HE_V22_Integrity {
 	}
 
 	public static function routes() {
-		register_rest_route( HE_V2_API::NS, '/integrity/(?P<id>\\d+)/transition', array(
+		$uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+		register_rest_route( HE_V2_API::NS, '/integrity/(?P<id>' . $uuid . ')/transition', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( __CLASS__, 'transition' ),
 			'permission_callback' => function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REVIEW ); },
@@ -53,13 +54,14 @@ final class HE_V22_Integrity {
 	}
 
 	public static function transition( WP_REST_Request $request ) {
-		$reservation = self::mutation_guard( $request, 'transition-' . absint( $request['id'] ) );
+		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
+		$reservation = self::mutation_guard( $request, 'transition-' . sanitize_key( $public_id ) );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
 			return self::finish( $reservation, null );
 		}
 		global $wpdb;
 		$table = HE_V2_Schema::table( 'integrity_actions' );
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", absint( $request['id'] ) ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE public_id=%s", $public_id ), ARRAY_A );
 		if ( ! $row ) {
 			return self::finish( $reservation, new WP_Error( 'he_not_found', __( 'The integrity record is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) );
 		}
@@ -101,15 +103,15 @@ final class HE_V22_Integrity {
 			return self::finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The integrity record changed in another session.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) );
 		}
 		HE_V2_Domain::emit_event( 'File06IntegrityStateChanged.v1', $row['object_type'], (int) $row['object_id'], array( 'action_id' => $row['public_id'], 'from' => $row['status'], 'to' => $to, 'note' => sanitize_textarea_field( $data['note'] ?? '' ) ) );
-		return self::finish( $reservation, array( 'id' => (int) $row['id'], 'status' => $to, 'row_version' => $expected + 1 ) );
+		return self::finish( $reservation, array( 'id' => $row['public_id'], 'status' => $to, 'row_version' => $expected + 1 ) );
 	}
 
-	private static function apply_entry_atomic( WP_REST_Request $request, $action_id ) {
+	private static function apply_entry_atomic( WP_REST_Request $request, $action_id, $public_id ) {
 		$allowed = HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH );
 		if ( is_wp_error( $allowed ) ) {
 			return $allowed;
 		}
-		$reservation = self::mutation_guard( $request, 'secure-apply-entry-' . absint( $action_id ) );
+		$reservation = self::mutation_guard( $request, 'secure-apply-entry-' . sanitize_key( $public_id ) );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
 			return self::finish( $reservation, null );
 		}
@@ -124,7 +126,7 @@ final class HE_V22_Integrity {
 		}
 		try {
 			$action = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$actions} WHERE id=%d FOR UPDATE", absint( $action_id ) ), ARRAY_A );
-			if ( ! $action || 'concept' !== $action['object_type'] || 'accepted' !== $action['status'] || (int) $action['row_version'] !== $expected ) {
+			if ( ! $action || 'concept' !== $action['object_type'] || 'accepted' !== $action['status'] || (int) $action['row_version'] !== $expected || ! hash_equals( strtolower( (string) $action['public_id'] ), strtolower( (string) $public_id ) ) ) {
 				throw new RuntimeException( 'integrity-version-conflict' );
 			}
 			if ( ! in_array( $action['action_type'], array( 'correction', 'retraction' ), true ) ) {
@@ -183,14 +185,19 @@ final class HE_V22_Integrity {
 		}
 		$prefix = '/' . HE_V2_API::NS;
 		$route = $request->get_route();
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/integrity/(\\d+)/apply$#', $route, $m ) ) {
-			return self::apply_entry_atomic( $request, absint( $m[1] ) );
+		$uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/integrity/(' . $uuid . ')/apply$#', $route, $m ) ) {
+			global $wpdb;
+			$public_id = strtolower( sanitize_text_field( (string) $m[1] ) );
+			$action_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . ' WHERE public_id=%s AND object_type=%s', $public_id, 'concept' ) );
+			if ( ! $action_id ) { return new WP_Error( 'he_not_found', __( 'The integrity action is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+			return self::apply_entry_atomic( $request, $action_id, $public_id );
 		}
-		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research-integrity/(\\d+)/apply$#', $route, $m ) ) {
+		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research-integrity/(' . $uuid . ')/apply$#', $route, $m ) ) {
 			return $response;
 		}
 		global $wpdb;
-		$status = $wpdb->get_var( $wpdb->prepare( 'SELECT status FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . ' WHERE id=%d', absint( $m[1] ) ) );
+		$status = $wpdb->get_var( $wpdb->prepare( 'SELECT status FROM ' . HE_V2_Schema::table( 'integrity_actions' ) . ' WHERE public_id=%s AND object_type=%s', strtolower( sanitize_text_field( (string) $m[1] ) ), 'research' ) );
 		if ( 'accepted' !== $status ) {
 			return new WP_Error( 'he_integrity_acceptance_required', __( 'The integrity action must complete independent review and be accepted before it can be applied.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
