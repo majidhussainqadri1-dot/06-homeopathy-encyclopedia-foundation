@@ -31,8 +31,9 @@ $watch = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class
 f06_v245_assert(strpos($watch, 'rest_sanitize_boolean') !== false, 'Round 7 explicit watchlist false normalization missing');
 f06_v245_assert(strpos($watch, '! empty( $data') === false, 'Round 7 truthy-string watchlist activation bug remains');
 $schema = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/includes/class-he-v24-future-schema.php');
-f06_v245_assert(strpos($schema, '$last_completed_id = $cursor') !== false, 'Round 9 retry-safe retraction cursor missing');
-f06_v245_assert(strpos($schema, 'if ( is_wp_error( $data ) ) { break; }') !== false, 'Round 9 provider failure still skips ahead');
+$schema_compact = preg_replace('/\s+/', '', $schema);
+f06_v245_assert(strpos($schema_compact, '$last_completed_id=$cursor') !== false, 'Round 9 retry-safe retraction cursor missing');
+f06_v245_assert(strpos($schema_compact, 'if(is_wp_error($data)){break;}') !== false, 'Round 9 provider failure still skips ahead');
 f06_v245_assert(strpos($schema, "update_option( 'he_v24_retraction_cursor', (int) end( \$rows )['id'], false )") === false, 'Round 9 retraction cursor still advances to batch end');
 $bootstrap = file_get_contents(__DIR__ . '/../homeopathy-encyclopedia/homeopathy-encyclopedia.php');
 f06_v245_assert(strpos($bootstrap, ' * Version:') !== false, 'Historical Round 10 plugin header declaration missing');
