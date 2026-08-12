@@ -66,6 +66,7 @@ require_once HE_DIR . 'includes/class-he-v242-research-immutability.php';
 require_once HE_DIR . 'includes/class-he-v242-public-translation-guard.php';
 require_once HE_DIR . 'includes/class-he-v242-language-migration.php';
 require_once HE_DIR . 'includes/class-he-v242-translation-compat.php';
+require_once HE_DIR . 'includes/class-he-v2418-corrections.php';
 
 function he_activate_future_runtime() {
 	wp_clear_scheduled_hook( HE_V23_Future::CRON );
@@ -113,7 +114,7 @@ function he_start_v2() {
 	if ( $future_v24_ready ) { HE_V23_Future::hooks(); HE_V24_Future_Schema::hooks(); HE_V24_Future_API::hooks(); HE_V24_Future_Privacy::hooks(); HE_V24_Future_Review_Guard::hooks(); HE_V24_Public_Provenance::hooks(); }
 	else { wp_clear_scheduled_hook( HE_V23_Future::CRON ); wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON ); }
 	HE_V241_Governance::hooks(); HE_V241_Governance_Privacy::hooks(); HE_V241_Research_Governance::hooks(); HE_V241_Runtime_Guard::hooks(); HE_V241_Before_Callback_Normalizer::hooks(); HE_V241_Public_DTO_Guard::hooks();
-	HE_V242_Third_Audit::hooks(); HE_V242_Runtime_Corrections::hooks(); HE_V242_Multilingual::hooks(); HE_V242_Research_Browse::hooks(); HE_V242_Research_Authoring::hooks(); HE_V242_Language_Surfaces::hooks(); HE_V242_Translation_Compat::hooks(); HE_V242_Watchlist::hooks(); HE_V242_Reference_Graph::hooks(); HE_V242_Research_Immutability::hooks(); HE_V242_Public_Translation_Guard::hooks(); HE_V242_Language_Migration::hooks();
+	HE_V242_Third_Audit::hooks(); HE_V242_Runtime_Corrections::hooks(); HE_V242_Multilingual::hooks(); HE_V242_Research_Browse::hooks(); HE_V242_Research_Authoring::hooks(); HE_V242_Language_Surfaces::hooks(); HE_V242_Translation_Compat::hooks(); HE_V242_Watchlist::hooks(); HE_V242_Reference_Graph::hooks(); HE_V242_Research_Immutability::hooks(); HE_V242_Public_Translation_Guard::hooks(); HE_V242_Language_Migration::hooks(); HE_V2418_Corrections::hooks();
 	add_filter( 'sabri_platform_contracts', static function( $contracts ) use ( $future_v24_ready ) { $contracts=is_array($contracts)?$contracts:array(); $contracts['file-06']=he_contract_descriptor(); $contracts['file-06']['future_v24_ready']=(bool)$future_v24_ready; return $contracts; } );
 }
 add_action( 'plugins_loaded', 'he_start_v2', 35 );
