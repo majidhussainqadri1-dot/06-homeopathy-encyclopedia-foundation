@@ -696,30 +696,24 @@ final class HE_V24_Future_Schema {
 
 	public static function scan_retractions( $limit = self::BATCH ) {
 		global $wpdb;
-		$cursor = absint( get_option( 'he_v24_retraction_cursor', 0 ) );
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'external_records' ) . " WHERE provider='crossref' AND id>%d ORDER BY id ASC LIMIT %d", $cursor, absint( $limit ) ), ARRAY_A );
-		if ( ! $rows && $cursor ) {
-			$cursor = 0;
-			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'external_records' ) . " WHERE provider='crossref' AND id>%d ORDER BY id ASC LIMIT %d", 0, absint( $limit ) ), ARRAY_A );
-		}
-		$flagged = 0;
-		$last_completed_id = $cursor;
-		foreach ( $rows as $row ) {
-			$data = self::lookup_external( 'crossref', $row['external_id'] );
-			/* Do not advance the cursor past a transient provider failure; retry this exact row on the next bounded maintenance run. */
-			if ( is_wp_error( $data ) ) { break; }
-			$signals = self::crossref_signal( $data );
-			$urgent = ! empty( $signals );
-			$wpdb->update( self::table( 'external_records' ), array( 'metadata_json' => wp_json_encode( $data ), 'checked_at' => current_time( 'mysql', true ), 'review_required' => $urgent ? 1 : (int) $row['review_required'], 'status' => $urgent ? 'urgent-review' : $row['status'] ), array( 'id' => (int) $row['id'] ) );
-			if ( $urgent ) {
-				$flagged++;
-				self::append_provenance( 'external-record', (string) $row['id'], 'integrity.signal.detected', '', array( 'signals' => $signals, 'source_hash' => hash( 'sha256', wp_json_encode( $data ) ) ) );
-				self::queue_impact( 'external-record', (string) $row['id'], 'KnowledgeEvidenceChanged.v1', array( 'provider' => 'crossref', 'external_id' => $row['external_id'], 'signals' => $signals ) );
+		$cursor=absint(get_option('he_v24_retraction_cursor',0));
+		$rows=$wpdb->get_results($wpdb->prepare('SELECT * FROM '.self::table('external_records')." WHERE provider='crossref' AND id>%d ORDER BY id ASC LIMIT %d",$cursor,absint($limit)),ARRAY_A);
+		if(!$rows&&$cursor){$cursor=0;$rows=$wpdb->get_results($wpdb->prepare('SELECT * FROM '.self::table('external_records')." WHERE provider='crossref' AND id>%d ORDER BY id ASC LIMIT %d",0,absint($limit)),ARRAY_A);}
+		$flagged=0;$processed=0;$last_completed_id=$cursor;
+		foreach($rows as $row){
+			$data=self::lookup_external('crossref',$row['external_id']); if(is_wp_error($data)){break;}
+			$signals=self::crossref_signal($data);$urgent=!empty($signals);
+			$written=$wpdb->update(self::table('external_records'),array('metadata_json'=>wp_json_encode($data),'checked_at'=>current_time('mysql',true),'review_required'=>$urgent?1:(int)$row['review_required'],'status'=>$urgent?'urgent-review':$row['status']),array('id'=>(int)$row['id']));
+			if(false===$written){HE_V2_Schema::record_runtime_failure('retraction_watch_state_write_failed','A retraction-watch provider result could not be persisted; the cursor was not advanced past the failed row.');break;}
+			if($urgent){
+				$hash=self::append_provenance('external-record',(string)$row['id'],'integrity.signal.detected','',array('signals'=>$signals,'source_hash'=>hash('sha256',wp_json_encode($data))));
+				if(!$hash){HE_V2_Schema::record_runtime_failure('retraction_watch_provenance_failed','A retraction signal could not be written to the provenance chain; the cursor was not advanced.');break;}
+				self::queue_impact('external-record',(string)$row['id'],'KnowledgeEvidenceChanged.v1',array('provider'=>'crossref','external_id'=>$row['external_id'],'signals'=>$signals));$flagged++;
 			}
-			$last_completed_id = (int) $row['id'];
+			$processed++;$last_completed_id=(int)$row['id'];
 		}
-		if ( $last_completed_id !== $cursor ) { update_option( 'he_v24_retraction_cursor', $last_completed_id, false ); }
-		return array( 'checked' => count( $rows ), 'flagged' => $flagged );
+		if($last_completed_id!==$cursor){update_option('he_v24_retraction_cursor',$last_completed_id,false);}
+		return array('checked'=>$processed,'flagged'=>$flagged);
 	}
 
 	private static function mark_outdated_translations() {
