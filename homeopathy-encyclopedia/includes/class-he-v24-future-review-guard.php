@@ -11,21 +11,13 @@ final class HE_V24_Future_Review_Guard {
 
 	public static function register_routes() {
 		$ns = HE_V2_API::NS;
-		register_rest_route( $ns, '/future/external/(?P<id>\\d+)/review', array(
+		register_rest_route( $ns, '/future/external/(?P<id>[A-Za-z0-9_-]+\\.[a-f0-9]{64})/review', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( __CLASS__, 'rest_external_review' ),
 			'permission_callback' => static function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REVIEW ); },
 		), true );
-		register_rest_route( $ns, '/future/translations/(?P<id>\\d+)/review', array(
-			'methods' => WP_REST_Server::CREATABLE,
-			'callback' => array( __CLASS__, 'rest_translation_review' ),
-			'permission_callback' => static function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_REVIEW ); },
-		), true );
-		register_rest_route( $ns, '/future/translations/(?P<id>\\d+)/publish', array(
-			'methods' => WP_REST_Server::CREATABLE,
-			'callback' => array( __CLASS__, 'rest_translation_publish' ),
-			'permission_callback' => static function() { return HE_V2_Auth::rest_permission( HE_V2_Auth::CAP_PUBLISH ); },
-		), true );
+
+
 
 		foreach ( array(
 			'/future/public/claims/(?P<id>[a-fA-F0-9-]{36})' => array( 'rest_public_claims', 'GET' ),
@@ -55,15 +47,16 @@ final class HE_V24_Future_Review_Guard {
 		if ( $prefix . '/future/external/lookup' === $route && 'POST' === $request->get_method() && 'orcid' === sanitize_key( $request->get_param( 'provider' ) ) ) {
 			return new WP_Error( 'he_future_orcid_scope', __( 'ORCID belongs to researcher identity mapping and cannot be attached to a knowledge concept as scholarly evidence.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/claims/(\\d+)/review$#', $route, $match ) && 'POST' === $request->get_method() && 'approved' === sanitize_key( $request->get_param( 'decision' ) ) ) {
-			return self::claim_approval_gate( absint( $match[1] ), $response );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/claims/([0-9a-fA-F-]{36})/review$#', $route, $match ) && 'POST' === $request->get_method() && 'approved' === sanitize_key( $request->get_param( 'decision' ) ) ) {
+			return self::claim_approval_gate( strtolower( sanitize_text_field( $match[1] ) ), $response );
 		}
 		return $response;
 	}
 
-	private static function claim_approval_gate( $claim_id, $response ) {
+	private static function claim_approval_gate( $claim_public_id, $response ) {
 		global $wpdb;
-		$claim = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V24_Future_Schema::table( 'claims' ) . ' WHERE id=%d', $claim_id ), ARRAY_A );
+		$claim = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V24_Future_Schema::table( 'claims' ) . ' WHERE public_id=%s', $claim_public_id ), ARRAY_A );
+		$claim_id = $claim ? (int) $claim['id'] : 0;
 		if ( ! $claim ) { return new WP_Error( 'he_not_found', __( 'Claim not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$concept = HE_V24_Future_Schema::concept_row( $claim['concept_id'], false );
 		if ( ! $concept || ! $claim['version_id'] || (int) $claim['version_id'] !== (int) $concept['current_version'] || ! HE_V24_Future_Schema::version_belongs( $claim['concept_id'], $claim['version_id'] ) ) {
@@ -114,18 +107,31 @@ final class HE_V24_Future_Review_Guard {
 	}
 
 	public static function rest_external_review( WP_REST_Request $request ) {
-		$reservation = self::guard( $request, 'external-review-' . absint( $request['id'] ), HE_V2_Auth::CAP_REVIEW );
+		$token = sanitize_text_field( (string) $request['id'] );
+		$record_id = HE_V2_Domain::decode_public_cursor( 'external-record', $token );
+		if ( null === $record_id || ! $record_id ) { return new WP_Error( 'he_not_found', __( 'External scholarly record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+		$reservation = self::guard( $request, 'external-review-' . substr( hash( 'sha256', $token ), 0, 24 ), HE_V2_Auth::CAP_REVIEW );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::finish( $reservation, null ); }
 		global $wpdb; $table = HE_V24_Future_Schema::table( 'external_records' );
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", absint( $request['id'] ) ), ARRAY_A );
-		if ( ! $row ) { return self::finish( $reservation, new WP_Error( 'he_not_found', __( 'External scholarly record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
-		$decision = sanitize_key( $request->get_param( 'decision' ) );
-		if ( ! in_array( $decision, array( 'approved','rejected' ), true ) ) { return self::finish( $reservation, new WP_Error( 'he_future_external_review_invalid', __( 'External scholarly review decision must be approved or rejected.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$status = 'approved' === $decision ? 'reviewed' : 'rejected';
-		$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,review_required=0,checked_at=checked_at WHERE id=%d AND review_required=1", $status, $row['id'] ) );
-		if ( 1 !== (int) $updated ) { return self::finish( $reservation, new WP_Error( 'he_version_conflict', __( 'This external scholarly record was already reviewed or changed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) ); }
-		HE_V24_Future_Schema::append_provenance( 'external-record', (string) $row['id'], 'metadata.reviewed', '', array( 'decision' => $decision, 'provider' => $row['provider'], 'external_id' => $row['external_id'] ) );
-		return self::finish( $reservation, array( 'id' => (int) $row['id'], 'status' => $status, 'review_required' => false ), 200 );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::finish( $reservation, new WP_Error( 'he_future_external_review_failed', __( 'The external review could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		try {
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d FOR UPDATE", $record_id ), ARRAY_A );
+			if ( ! $row || 1 !== (int) $row['review_required'] ) { throw new RuntimeException( 'version-conflict' ); }
+			$decision = sanitize_key( $request->get_param( 'decision' ) );
+			if ( ! in_array( $decision, array( 'approved','rejected' ), true ) ) { throw new RuntimeException( 'invalid-decision' ); }
+			$status = 'approved' === $decision ? 'reviewed' : 'rejected';
+			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,review_required=0 WHERE id=%d AND review_required=1", $status, $record_id ) );
+			if ( 1 !== (int) $updated ) { throw new RuntimeException( 'version-conflict' ); }
+			if ( ! HE_V24_Future_Schema::append_provenance( 'external-record', (string) $record_id, 'metadata.reviewed', '', array( 'decision'=>$decision, 'provider'=>$row['provider'], 'external_id'=>$row['external_id'] ) ) ) { throw new RuntimeException( 'provenance-failed' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit-failed' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			if ( 'invalid-decision' === $error->getMessage() ) { return self::finish( $reservation, new WP_Error( 'he_future_external_review_invalid', __( 'External scholarly review decision must be approved or rejected.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
+			if ( 'version-conflict' === $error->getMessage() ) { return self::finish( $reservation, new WP_Error( 'he_version_conflict', __( 'This external scholarly record was already reviewed or changed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) ); }
+			HE_V2_Schema::record_runtime_failure( 'external_review_atomic_failed', 'External scholarly review state and provenance could not be committed atomically.' );
+			return self::finish( $reservation, new WP_Error( 'he_future_external_review_failed', __( 'The external scholarly review could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
+		}
+		return self::finish( $reservation, array( 'id'=>$token, 'status'=>$status, 'review_required'=>false ), 200 );
 	}
 
 	private static function translation_row( $id ) {

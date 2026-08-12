@@ -252,21 +252,22 @@ final class HE_V241_Governance {
 		}
 
 		/* Core integrity application is a content-object decision, not a global capability-only write. */
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/integrity/(\d+)/apply$#', $route, $match ) ) {
-			$concept_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT object_id FROM " . HE_V2_Schema::table( 'integrity_actions' ) . " WHERE id=%d AND object_type='concept'", absint( $match[1] ) ) );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/integrity/([0-9a-fA-F-]{36})/apply$#', $route, $match ) ) {
+			$concept_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT object_id FROM " . HE_V2_Schema::table( 'integrity_actions' ) . " WHERE public_id=%s AND object_type='concept'", strtolower( sanitize_text_field( $match[1] ) ) ) );
 			$concept = $concept_id ? HE_V2_Domain::concept_by_id( $concept_id, true ) : null;
 			return $concept ? self::object_permission( HE_V2_Auth::CAP_PUBLISH, (int) $concept['post_id'], 'file06-integrity-apply' ) : new WP_Error( 'he_not_found', __( 'Integrity action not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 
 		/* Core research transitions are bound to the actual research post. */
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research/(\d+)/transition$#', $route, $match ) ) {
-			$research = self::research_row( $match[1] );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research/([0-9a-fA-F-]{36})/transition$#', $route, $match ) ) {
+			$research = $wpdb->get_row( $wpdb->prepare( 'SELECT id,post_id,created_by,status,record_type FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( $match[1] ) ) ), ARRAY_A );
 			return $research ? self::object_permission( HE_V2_Auth::CAP_RESEARCH, (int) $research['post_id'], 'file06-research-transition' ) : new WP_Error( 'he_not_found', __( 'Research record not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 
 		/* Dataset approval must resolve to the governed research object. */
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/dataset-access/(\d+)/approve$#', $route, $match ) ) {
-			$research_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT research_id FROM ' . HE_V2_Schema::table( 'dataset_access' ) . ' WHERE id=%d', absint( $match[1] ) ) );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/dataset-access/([A-Za-z0-9_-]+\.[a-f0-9]{64})/approve$#', $route, $match ) ) {
+			$access_id = HE_V2_Domain::decode_public_cursor( 'dataset-access', $match[1] );
+			$research_id = $access_id ? (int) $wpdb->get_var( $wpdb->prepare( 'SELECT research_id FROM ' . HE_V2_Schema::table( 'dataset_access' ) . ' WHERE id=%d', $access_id ) ) : 0;
 			$research = $research_id ? self::research_row( $research_id ) : null;
 			return $research ? self::object_permission( HE_V2_Auth::CAP_DATASET, (int) $research['post_id'], 'file06-dataset-approval' ) : new WP_Error( 'he_not_found', __( 'Dataset access request not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
@@ -292,7 +293,7 @@ final class HE_V241_Governance {
 			if ( true !== $permission ) {
 				return $permission;
 			}
-			if ( 'review' === $match[3] && ! self::reviewer_assigned( (int) $concept['post_id'], $user_id ) ) {
+			if ( 'review' === $match[2] && ! self::reviewer_assigned( (int) $concept['post_id'], $user_id ) ) {
 				return new WP_Error( 'he_reviewer_assignment_required', __( 'An active reviewer assignment is required for this claim decision.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
 			}
 			return $response;
@@ -329,14 +330,15 @@ final class HE_V241_Governance {
 			if ( true !== $permission ) {
 				return $permission;
 			}
-			if ( 'review' === $match[2] && ! self::reviewer_assigned( (int) $concept['post_id'], $user_id, 'language' ) ) {
+			if ( 'review' === $match[3] && ! self::reviewer_assigned( (int) $concept['post_id'], $user_id, 'language' ) ) {
 				return new WP_Error( 'he_reviewer_assignment_required', __( 'An active language-review assignment is required.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) );
 			}
 			return $response;
 		}
 
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/external/(\d+)/review$#', $route, $match ) ) {
-			$concept = self::concept_for_external_record( $match[1] );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/external/([A-Za-z0-9_-]+\.[a-f0-9]{64})/review$#', $route, $match ) ) {
+			$record_id = HE_V2_Domain::decode_public_cursor( 'external-record', $match[1] );
+			$concept = $record_id ? self::concept_for_external_record( $record_id ) : null;
 			if ( $concept ) {
 				$permission = self::object_permission( HE_V2_Auth::CAP_REVIEW, (int) $concept['post_id'], 'file06-future-external-review' );
 				if ( true !== $permission ) {

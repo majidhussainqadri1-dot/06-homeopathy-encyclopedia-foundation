@@ -15,15 +15,15 @@ final class HE_V241_Before_Callback_Normalizer {
 		$route = $request->get_route();
 		$prefix = '/' . HE_V2_API::NS;
 		$direct_permission_routes = array(
-			'#^' . preg_quote( $prefix, '#' ) . '/integrity/\d+/apply$#',
-			'#^' . preg_quote( $prefix, '#' ) . '/research/\d+/transition$#',
-			'#^' . preg_quote( $prefix, '#' ) . '/dataset-access/\d+/approve$#',
+			'#^' . preg_quote( $prefix, '#' ) . '/integrity/[0-9a-fA-F-]{36}/apply$#',
+			'#^' . preg_quote( $prefix, '#' ) . '/research/[0-9a-fA-F-]{36}/transition$#',
+			'#^' . preg_quote( $prefix, '#' ) . '/dataset-access/[A-Za-z0-9_-]+\\.[a-f0-9]{64}/approve$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/claims$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/(?:mappings|duplicates/scan)$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/impact/[0-9a-fA-F-]{36}$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/translations/[0-9a-fA-F-]{36}$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/external/lookup$#',
-			'#^' . preg_quote( $prefix, '#' ) . '/future/external/\d+/review$#',
+			'#^' . preg_quote( $prefix, '#' ) . '/future/external/[A-Za-z0-9_-]+\\.[a-f0-9]{64}/review$#',
 		);
 		foreach ( $direct_permission_routes as $pattern ) {
 			if ( preg_match( $pattern, $route ) ) {

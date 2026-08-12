@@ -16,19 +16,17 @@ final class HE_V23_Future {
 	const BATCH = 40;
 
 	public static function hooks() {
-		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ), 120 );
-		add_action( self::CRON, array( __CLASS__, 'maintenance' ) );
-		add_action( 'admin_init', array( __CLASS__, 'maybe_upgrade' ), 120 );
+		/* v2.4+ owns Future REST and maintenance; retire legacy v2.3 runtime surfaces. */
+		wp_clear_scheduled_hook( self::CRON );
 		add_filter( 'sabri_platform_contracts', array( __CLASS__, 'extend_contract' ), 120 );
 		add_filter( 'sabri_notification_event_catalog', array( __CLASS__, 'notification_events' ), 120 );
 		add_filter( 'sabri_security_assurance_providers', array( __CLASS__, 'assurance' ), 160 );
 	}
 
 	public static function activate() {
+		if ( class_exists( 'HE_V24_Migration_Safety' ) ) { wp_clear_scheduled_hook( self::CRON ); return; }
 		self::install();
-		if ( ! wp_next_scheduled( self::CRON ) ) {
-			wp_schedule_event( time() + 2 * HOUR_IN_SECONDS, 'twicedaily', self::CRON );
-		}
+		if ( ! wp_next_scheduled( self::CRON ) ) { wp_schedule_event( time() + 2 * HOUR_IN_SECONDS, 'twicedaily', self::CRON ); }
 	}
 
 	public static function maybe_upgrade() {
@@ -123,7 +121,6 @@ final class HE_V23_Future {
 			dbDelta( $sql );
 		}
 		update_option( self::OPTION_VERSION, self::VERSION, false );
-		update_option( HE_V2_Schema::OPTION_SCHEMA, HE_SCHEMA_VERSION, false );
 	}
 
 	public static function register_routes() {
