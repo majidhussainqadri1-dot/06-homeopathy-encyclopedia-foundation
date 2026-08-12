@@ -1,0 +1,62 @@
+name: File 06 v2.4.18 R6 Source Correction
+on:
+  push:
+    branches: [audit/file-06-nineteenth-twenty-round-v2.4.18]
+    paths: [.github/workflows/file06-v2418-source-correction.yml]
+permissions:
+  contents: write
+jobs:
+  correct:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', coverage: none}
+      - name: Correct public research pagination and retest
+        run: |
+          set -euo pipefail
+          git config user.name "majidhussainqadri1-dot"
+          git config user.email "majidhussainqadri1@gmail.com"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia/includes/class-he-v2-api.php')
+          s=p.read_text(encoding='utf-8')
+          old='''\tpublic function browse_research( WP_REST_Request $request ) {
+\t\tglobal $wpdb;
+\t\t$limit = min( 50, max( 1, absint( $request->get_param( 'limit' ) ?: 20 ) ) );
+\t\t$cursor = max( 0, absint( $request->get_param( 'cursor' ) ) );
+\t\t$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . " WHERE status IN ('published','corrected','retracted') AND id>%d ORDER BY id ASC LIMIT %d", $cursor, $limit + 1 ), ARRAY_A );
+\t\t$has_more = count( $rows ) > $limit;
+\t\t$rows = array_slice( $rows, 0, $limit );
+\t\t$items = array_values( array_filter( array_map( static function( $row ) { return HE_V2_Domain::research_dto( (int) $row['id'], false ); }, $rows ) ) );
+\t\treturn rest_ensure_response( array( 'items' => $items, 'next_cursor' => $has_more && $rows ? (int) end( $rows )['id'] : null ) );
+\t}
+'''
+          new='''\tpublic function browse_research( WP_REST_Request $request ) {
+\t\tglobal $wpdb;
+\t\t$limit = min( 50, max( 1, absint( $request->get_param( 'limit' ) ?: 20 ) ) );
+\t\t$cursor = HE_V2_Domain::decode_public_cursor( 'research-browse', (string) $request->get_param( 'cursor' ) );
+\t\tif ( null === $cursor ) {
+\t\t\treturn new WP_Error( 'he_invalid_cursor', __( 'The research pagination cursor is invalid or has been altered.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
+\t\t}
+\t\t$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . HE_V2_Schema::table( 'research' ) . " WHERE status IN ('published','corrected','retracted') AND id>%d ORDER BY id ASC LIMIT %d", $cursor, $limit + 1 ), ARRAY_A );
+\t\t$has_more = count( $rows ) > $limit;
+\t\t$rows = array_slice( $rows, 0, $limit );
+\t\t$items = array_values( array_filter( array_map( static function( $row ) { return HE_V2_Domain::research_dto( (int) $row['id'], false ); }, $rows ) ) );
+\t\t$next_cursor = $has_more && $rows ? HE_V2_Domain::encode_public_cursor( 'research-browse', (int) end( $rows )['id'] ) : null;
+\t\treturn rest_ensure_response( array( 'items' => $items, 'next_cursor' => $next_cursor ) );
+\t}
+'''
+          if s.count(old)!=1: raise SystemExit('R6 browse_research baseline mismatch')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+          bash tests/run-all.sh 2>&1 | tee /tmp/r6.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/r6.log; then exit 1; fi
+          git add homeopathy-encyclopedia/includes/class-he-v2-api.php
+          git commit -m "fix(file-06): R6 make research pagination cursor opaque"
+          git push origin HEAD:audit/file-06-nineteenth-twenty-round-v2.4.18
