@@ -1,0 +1,44 @@
+name: File 06 v2.4.18 Diagnostic Surface Audit
+on:
+  push:
+    branches: [audit/file-06-nineteenth-twenty-round-v2.4.18]
+    paths: [.github/workflows/file06-v2418-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Surface suspicious patterns
+        run: |
+          set -euo pipefail
+          echo '=== REST ROUTES ==='
+          grep -Rno "register_rest_route" homeopathy-encyclopedia/includes | sort || true
+          echo '=== NUMERIC ROUTE REGEX ==='
+          grep -RnoE "\\(\\?P<[^>]+>\\\\d\+\\)|/\\(\\\\d\+\\)|/\\d\+" homeopathy-encyclopedia/includes || true
+          echo '=== REQUEST ID ABSINT ==='
+          grep -RnoE "absint\([^\n]*(request|\$request)[^\n]*\)" homeopathy-encyclopedia/includes || true
+          echo '=== WPDB MUTATION CALLS ==='
+          grep -RnoE '\$wpdb->(insert|update|delete|query)\(' homeopathy-encyclopedia/includes | sort || true
+          echo '=== WP UPDATE POST CALLS ==='
+          grep -Rno "wp_update_post(" homeopathy-encyclopedia/includes | sort || true
+          echo '=== SCHEDULE CALLS ==='
+          grep -RnoE "wp_schedule_(event|single_event)\(" homeopathy-encyclopedia/includes | sort || true
+          echo '=== REMOTE CALLS ==='
+          grep -RnoE "wp_remote_(get|post|request)\(" homeopathy-encyclopedia/includes | sort || true
+          echo '=== OPTION WRITES ==='
+          grep -RnoE "(update|add|delete)_option\(" homeopathy-encyclopedia/includes | sort || true
+          echo '=== SELECT STAR ==='
+          grep -Rno "SELECT \*" homeopathy-encyclopedia/includes | sort || true
+          echo '=== RAW RESPONSE ID KEYS ==='
+          grep -RnoE "['\"](id|[a-z_]+_id)['\"]\s*=>" homeopathy-encyclopedia/includes | sort || true
+          echo '=== DIRECT CAPABILITY CHECKS ==='
+          grep -Rno "current_user_can(" homeopathy-encyclopedia/includes | sort || true
+          echo '=== NONCE / ADMIN POST HANDLERS ==='
+          grep -RnoE "admin_post_|check_admin_referer|wp_verify_nonce" homeopathy-encyclopedia/includes | sort || true
+          echo '=== SQL ORDER LIMIT CONSTRUCTION ==='
+          grep -RnoE "ORDER BY|LIMIT %d|LIMIT [0-9]+" homeopathy-encyclopedia/includes | sort || true
+          echo '=== LEGACY V23 HOOKS ==='
+          grep -nE "add_action|add_filter|wp_schedule|register_rest_route" homeopathy-encyclopedia/includes/class-he-v23-future.php || true
+          echo '=== DONE ==='
