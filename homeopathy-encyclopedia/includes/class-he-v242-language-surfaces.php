@@ -28,53 +28,27 @@ final class HE_V242_Language_Surfaces {
 
 	public static function public_translations( WP_REST_Request $request ) {
 		$public_id = strtolower( sanitize_text_field( (string) $request['id'] ) );
-		$concept = HE_V2_Domain::concept_by_id( $public_id, false );
-		if ( ! $concept || strtolower( (string) $concept['public_id'] ) !== $public_id || ! $concept['current_version'] ) {
+		global $wpdb;
+		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE public_id=%s AND status='published' AND review_status='approved' AND safety_status='approved' AND merged_into_id=0 AND current_version>0", $public_id ), ARRAY_A );
+		$post = $concept ? get_post( (int) $concept['post_id'] ) : null;
+		if ( ! $concept || ! $post || HE_V2_Domain::ENTRY_TYPE !== $post->post_type || 'publish' !== $post->post_status ) {
 			return new WP_Error( 'he_not_found', __( 'Public translations are not available for this canonical concept.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 		$locale = HE_V242_Multilingual::canonical_locale( $request->get_param( 'locale' ) );
-		global $wpdb;
 		$public_source_version = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT version_number FROM ' . HE_V2_Schema::table( 'versions' ) . ' WHERE id=%d AND concept_id=%d', (int) $concept['current_version'], (int) $concept['id'] ) );
-		if ( ! $public_source_version ) {
-			return new WP_Error( 'he_not_found', __( 'The public source version is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
-		}
+		if ( ! $public_source_version ) { return new WP_Error( 'he_not_found', __( 'The public source version is not available.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
 		$table = HE_V24_Future_Schema::table( 'translations' );
 		$params = array( (int) $concept['id'], (int) $concept['current_version'] );
 		$where = "concept_id=%d AND source_version=%d AND status='published'";
-		if ( $locale ) {
-			$where .= ' AND locale=%s';
-			$params[] = $locale;
-		}
+		if ( $locale ) { $where .= ' AND locale=%s'; $params[] = $locale; }
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT locale,source_locale,source_version,translation_version,content_json,content_hash,published_at,updated_at FROM {$table} WHERE {$where} ORDER BY locale ASC", $params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$items = array();
 		foreach ( $rows as $row ) {
-			$content = json_decode( (string) $row['content_json'], true );
-			$content = is_array( $content ) ? $content : array();
-			$meta = isset( $content['_translation_meta'] ) && is_array( $content['_translation_meta'] ) ? $content['_translation_meta'] : array();
-			unset( $content['_translation_meta'] );
-			$items[] = array(
-				'locale' => HE_V242_Multilingual::canonical_locale( $row['locale'] ) ?: $row['locale'],
-				'source_locale' => HE_V242_Multilingual::canonical_locale( $row['source_locale'] ?: $concept['language'] ),
-				'source_version' => $public_source_version,
-				'translation_version' => (int) $row['translation_version'],
-				'content' => $content,
-				'content_hash' => $row['content_hash'],
-				'published_at' => $row['published_at'],
-				'updated_at' => $row['updated_at'],
-				'human_reviewed' => true,
-				'machine_assisted' => ! empty( $meta['machine_assisted'] ),
-				'policy_version' => $meta['policy_version'] ?? HE_V242_Multilingual::POLICY_VERSION,
-			);
+			$content = json_decode( (string) $row['content_json'], true ); $content = is_array( $content ) ? $content : array();
+			$meta = isset( $content['_translation_meta'] ) && is_array( $content['_translation_meta'] ) ? $content['_translation_meta'] : array(); unset( $content['_translation_meta'] );
+			$items[] = array( 'locale'=>HE_V242_Multilingual::canonical_locale($row['locale'])?:$row['locale'], 'source_locale'=>HE_V242_Multilingual::canonical_locale($row['source_locale']?:$concept['language']), 'source_version'=>$public_source_version, 'translation_version'=>(int)$row['translation_version'], 'content'=>$content, 'content_hash'=>$row['content_hash'], 'published_at'=>$row['published_at'], 'updated_at'=>$row['updated_at'], 'human_reviewed'=>true, 'machine_assisted'=>!empty($meta['machine_assisted']), 'policy_version'=>$meta['policy_version']??HE_V242_Multilingual::POLICY_VERSION );
 		}
-		return rest_ensure_response( array(
-			'concept_id' => $concept['public_id'],
-			'source_locale' => HE_V242_Multilingual::canonical_locale( $concept['language'] ),
-			'source_version' => $public_source_version,
-			'targets' => HE_V242_Multilingual::targets_for_source( $concept['language'] ),
-			'items' => $items,
-			'localized_url_owner' => 'cross-file-multilingual-publishing-search',
-			'policy_version' => HE_V242_Multilingual::POLICY_VERSION,
-		) );
+		return rest_ensure_response( array( 'concept_id'=>$concept['public_id'], 'source_locale'=>HE_V242_Multilingual::canonical_locale($concept['language']), 'source_version'=>$public_source_version, 'targets'=>HE_V242_Multilingual::targets_for_source($concept['language']), 'items'=>$items, 'localized_url_owner'=>'cross-file-multilingual-publishing-search', 'policy_version'=>HE_V242_Multilingual::POLICY_VERSION ) );
 	}
 
 	public static function add_source_box() {

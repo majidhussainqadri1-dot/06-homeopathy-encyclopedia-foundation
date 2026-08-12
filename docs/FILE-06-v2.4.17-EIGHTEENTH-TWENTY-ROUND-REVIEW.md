@@ -3,3 +3,4 @@
 Repository-only corrective record. Staging/live/operational status is not established by this review.
 
 1. **DEFECT** — The v2.4.16 relation command had moved to opaque reference tokens, but the earlier graph guard still absint-cast the token and rejected every valid request. The guard now decodes only the scope-bound reference token and rejects raw numeric identifiers.
+2. **DEFECT** — The canonical public-translation route accepted a known concept UUID without enforcing approved/safe/published domain state or authoritative WordPress publish state. Public translations now require both governed eligibility and a published File 06 WordPress object.
