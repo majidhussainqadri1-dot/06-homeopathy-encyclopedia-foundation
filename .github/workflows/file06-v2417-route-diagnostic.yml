@@ -26,6 +26,27 @@ jobs:
           set -euo pipefail
           git config user.name "majidhussainqadri1-dot"
           git config user.email "majidhussainqadri1@gmail.com"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/v2417-r20-final-correction.py')
+          s=p.read_text(encoding='utf-8')
+          old="""    if n!=1: raise SystemExit(f'{label}: expected one replacement, found {n}')
+    return out
+"""
+          new="""    if n!=1:
+        if label in ('remove numeric translation review','remove numeric translation publish'):
+            suffix='review' if label.endswith('review') else 'publish'
+            marker="\\n\\t\\tregister_rest_route( $ns, '/future/translations/(?P<id>\\\\\\\\d+)/"+suffix+"'"
+            a=s.find(marker)
+            b=s.find("\\n\\t\\t), true );",a) if a>=0 else -1
+            if a>=0 and b>=0:
+                return s[:a]+s[b+len("\\n\\t\\t), true );"):]
+        raise SystemExit(f'{label}: expected one replacement, found {n}')
+    return out
+"""
+          if old not in s: raise SystemExit('sub1 helper marker missing')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
           python3 scripts/v2417-r20-final-correction.py
           while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
           node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
