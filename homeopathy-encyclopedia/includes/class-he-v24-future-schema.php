@@ -780,16 +780,15 @@ final class HE_V24_Future_Schema {
 
 	public static function health() {
 		global $wpdb;
-		return array(
-			'version' => HE_VERSION,
-			'schema' => HE_SCHEMA_VERSION,
-			'future_hardening_schema' => (int) get_option( self::OPTION_VERSION, 0 ),
-			'pending_impacts' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . self::table( 'impact_queue' ) . " WHERE impact_state IN ('pending','retry')" ),
-			'dead_letter_impacts' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . self::table( 'impact_queue' ) . " WHERE impact_state='dead-letter'" ),
-			'urgent_external_reviews' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . self::table( 'external_records' ) . " WHERE status='urgent-review'" ),
-			'open_research_gaps' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . self::table( 'research_gaps' ) . " WHERE state='open'" ),
-			'identity_authority' => 'file-00',
-			'assurance_owner' => 'file-24',
-		);
+		$complete=self::schema_complete();
+		$base=array('version'=>HE_VERSION,'schema'=>HE_SCHEMA_VERSION,'future_hardening_schema'=>(int)get_option(self::OPTION_VERSION,0),'future_schema_complete'=>$complete,'maintenance_scheduled'=>(bool)wp_next_scheduled(self::CRON),'identity_authority'=>'file-00','assurance_owner'=>'file-24');
+		if(!$complete){$base['status']='degraded';$base['pending_impacts']=null;$base['dead_letter_impacts']=null;$base['urgent_external_reviews']=null;$base['open_research_gaps']=null;return $base;}
+		$base['status']=HE_V24_Migration_Safety::ready()?'active':'degraded';
+		$base['pending_impacts']=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".self::table('impact_queue')." WHERE impact_state IN ('pending','retry')");
+		$base['dead_letter_impacts']=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".self::table('impact_queue')." WHERE impact_state='dead-letter'");
+		$base['urgent_external_reviews']=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".self::table('external_records')." WHERE status='urgent-review'");
+		$base['open_research_gaps']=(int)$wpdb->get_var("SELECT COUNT(*) FROM ".self::table('research_gaps')." WHERE state='open'");
+		return $base;
 	}
+
 }
