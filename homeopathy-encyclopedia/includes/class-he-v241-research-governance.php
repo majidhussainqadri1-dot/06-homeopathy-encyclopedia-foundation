@@ -56,19 +56,21 @@ final class HE_V241_Research_Governance {
 	}
 
 	public static function assign( WP_REST_Request $request ) {
-		$public_id=strtolower(sanitize_text_field((string)$request['id']));
-		$res=self::guard_mutation($request,'research-reviewer-assignment-'.sanitize_key($public_id));if(is_wp_error($res)||!empty($res['replay']))return self::finish($res,null);
-		$row=self::research($public_id);if(!$row)return self::finish($res,new WP_Error('he_not_found',__('Research record not found.','homeopathy-encyclopedia'),array('status'=>404)));
-		$reviewer=absint($request->get_param('reviewer_id'));$scope=sanitize_key($request->get_param('scope')?:'scientific');$allowed=array('scientific','clinical','source','language','shariah','privacy','ethics','methodology');
+		$public_id=strtolower(sanitize_text_field((string)$request['id'])); $res=self::guard_mutation($request,'research-reviewer-assignment-'.sanitize_key($public_id)); if(is_wp_error($res)||!empty($res['replay']))return self::finish($res,null);
+		$row=self::research($public_id); if(!$row)return self::finish($res,new WP_Error('he_not_found',__('Research record not found.','homeopathy-encyclopedia'),array('status'=>404)));
+		$reviewer=absint($request->get_param('reviewer_id')); $scope=sanitize_key($request->get_param('scope')?:'scientific'); $allowed=array('scientific','clinical','source','language','shariah','privacy','ethics','methodology');
 		if(!in_array($scope,$allowed,true)||!$reviewer||!HE_V2_Auth::can(HE_V2_Auth::CAP_REVIEW,(int)$row['post_id'],'file06-research-review-target',$reviewer))return self::finish($res,new WP_Error('he_research_reviewer_assignment_invalid',__('The reviewer or review scope is invalid.','homeopathy-encyclopedia'),array('status'=>422)));
-		$post=get_post((int)$row['post_id']);if($post&&(int)$post->post_author===$reviewer&&!HE_V2_Auth::is_founder($reviewer))return self::finish($res,new WP_Error('he_self_review_forbidden',__('A research author cannot be assigned as the independent reviewer.','homeopathy-encyclopedia'),array('status'=>422)));
-		$assignments=get_post_meta((int)$row['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,true);$assignments=is_array($assignments)?$assignments:array();$old=is_array($assignments[$scope]??null)?$assignments[$scope]:array();
-		$expiry=0;if($request->get_param('expires_at')){$expiry=strtotime((string)$request->get_param('expires_at'));if(!$expiry||$expiry<=time()||$expiry>time()+YEAR_IN_SECONDS)return self::finish($res,new WP_Error('he_reviewer_assignment_expiry_invalid',__('Reviewer assignment expiry is invalid.','homeopathy-encyclopedia'),array('status'=>422)));}
-		$assignments[$scope]=array('reviewer_id'=>$reviewer,'assigned_by'=>get_current_user_id(),'assigned_at'=>gmdate('c'),'expires_at'=>$expiry?gmdate('c',$expiry):'','assignment_version'=>1+absint($old['assignment_version']??0));
-		$written=update_post_meta((int)$row['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,$assignments);
-		if(false===$written)return self::finish($res,new WP_Error('he_research_reviewer_assignment_write_failed',__('The research reviewer assignment could not be saved safely.','homeopathy-encyclopedia'),array('status'=>503)));
-		HE_V2_Domain::emit_event('File06ResearchReviewerAssigned.v1','research',(int)$row['id'],array('scope'=>$scope,'reviewer_user_id'=>$reviewer,'assignment_version'=>$assignments[$scope]['assignment_version']));
-		return self::finish($res,array('research_id'=>$row['public_id'],'scope'=>$scope,'reviewer_id'=>$reviewer,'assignment_version'=>$assignments[$scope]['assignment_version']));
+		$post=get_post((int)$row['post_id']); if($post&&(int)$post->post_author===$reviewer&&!HE_V2_Auth::is_founder($reviewer))return self::finish($res,new WP_Error('he_self_review_forbidden',__('A research author cannot be assigned as the independent reviewer.','homeopathy-encyclopedia'),array('status'=>422)));
+		$expiry=0; if($request->get_param('expires_at')){$expiry=strtotime((string)$request->get_param('expires_at'));if(!$expiry||$expiry<=time()||$expiry>time()+YEAR_IN_SECONDS)return self::finish($res,new WP_Error('he_reviewer_assignment_expiry_invalid',__('Reviewer assignment expiry is invalid.','homeopathy-encyclopedia'),array('status'=>422)));}
+		global $wpdb; $table=HE_V2_Schema::table('research'); if(false===$wpdb->query('START TRANSACTION'))return self::finish($res,new WP_Error('he_research_reviewer_assignment_write_failed',__('The research reviewer-assignment transaction could not start safely.','homeopathy-encyclopedia'),array('status'=>503)));
+		try{
+			$locked=$wpdb->get_row($wpdb->prepare("SELECT id,public_id,post_id FROM {$table} WHERE public_id=%s FOR UPDATE",$public_id),ARRAY_A); if(!$locked)throw new RuntimeException('not-found');
+			clean_post_cache((int)$locked['post_id']); $assignments=get_post_meta((int)$locked['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,true); $assignments=is_array($assignments)?$assignments:array(); $old=is_array($assignments[$scope]??null)?$assignments[$scope]:array();
+			$assignments[$scope]=array('reviewer_id'=>$reviewer,'assigned_by'=>get_current_user_id(),'assigned_at'=>gmdate('c'),'expires_at'=>$expiry?gmdate('c',$expiry):'','assignment_version'=>1+absint($old['assignment_version']??0));
+			if(false===update_post_meta((int)$locked['post_id'],HE_V241_Governance::META_REVIEW_ASSIGNMENTS,$assignments))throw new RuntimeException('write'); if(false===$wpdb->query('COMMIT'))throw new RuntimeException('commit');
+		}catch(Throwable $error){$wpdb->query('ROLLBACK');clean_post_cache((int)$row['post_id']);$notfound='not-found'===$error->getMessage();return self::finish($res,new WP_Error($notfound?'he_not_found':'he_research_reviewer_assignment_write_failed',__('The research reviewer assignment could not be saved safely.','homeopathy-encyclopedia'),array('status'=>$notfound?404:503)));}
+		HE_V2_Domain::emit_event('File06ResearchReviewerAssigned.v1','research',(int)$locked['id'],array('scope'=>$scope,'reviewer_user_id'=>$reviewer,'assignment_version'=>$assignments[$scope]['assignment_version']));
+		return self::finish($res,array('research_id'=>$locked['public_id'],'scope'=>$scope,'reviewer_id'=>$reviewer,'assignment_version'=>$assignments[$scope]['assignment_version']));
 	}
 
 	private static function assigned( $post_id, $user_id, $scope ) {

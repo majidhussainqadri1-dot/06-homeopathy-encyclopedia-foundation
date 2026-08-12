@@ -78,70 +78,41 @@ final class HE_V241_Governance {
 
 	public static function save_editor_scope( WP_REST_Request $request ) {
 		$reservation = self::guard_mutation( $request, 'editor-scope-' . absint( $request['user_id'] ) );
-		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
-			return self::finish_mutation( $reservation, null );
-		}
+		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::finish_mutation( $reservation, null ); }
 		$user_id = absint( $request['user_id'] );
-		if ( ! $user_id || ! get_user_by( 'id', $user_id ) || ! HE_V2_Auth::provider_ready() || ! HE_V2_Auth::membership_allowed( $user_id ) || ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT, 0, '', $user_id ) ) {
-			return self::finish_mutation( $reservation, new WP_Error( 'he_editor_scope_identity_invalid', __( 'The target user is not an active File 00-authorized knowledge editor.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
-		}
-		$requested = array_values( array_unique( array_map( 'sanitize_key', (array) $request->get_param( 'types' ) ) ) );
-		$allowed = array_keys( HE_V2_Domain::types() );
-		$types = array_values( array_intersect( $requested, $allowed ) );
-		if ( ! $types || count( $types ) !== count( $requested ) ) {
-			return self::finish_mutation( $reservation, new WP_Error( 'he_editor_scope_invalid', __( 'One or more knowledge-type assignments are invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
-		}
-		$previous_types = get_user_meta( $user_id, self::META_EDITOR_TYPES, true );
-		$previous_types = is_array( $previous_types ) ? array_values( array_unique( array_map( 'sanitize_key', $previous_types ) ) ) : array();
-		$compare_previous = $previous_types; $compare_new = $types; sort( $compare_previous ); sort( $compare_new );
-		if ( $compare_previous !== $compare_new ) {
-			$written = update_user_meta( $user_id, self::META_EDITOR_TYPES, $types );
-			if ( false === $written ) { return self::finish_mutation( $reservation, new WP_Error( 'he_editor_scope_write_failed', __( 'The editor scope assignment could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
-			HE_V2_Domain::emit_event( 'File06EditorScopeChanged.v1', 'user', $user_id, array( 'types' => $types, 'assigned_by' => get_current_user_id() ) );
-		}
-		return self::finish_mutation( $reservation, array( 'user_id' => $user_id, 'types' => $types, 'changed' => $compare_previous !== $compare_new, 'identity_authority' => 'file-00', 'content_scope_owner' => 'file-06' ) );
+		if ( ! $user_id || ! get_user_by( 'id', $user_id ) || ! HE_V2_Auth::provider_ready() || ! HE_V2_Auth::membership_allowed( $user_id ) || ! HE_V2_Auth::can( HE_V2_Auth::CAP_EDIT, 0, '', $user_id ) ) { return self::finish_mutation( $reservation, new WP_Error( 'he_editor_scope_identity_invalid', __( 'The target user is not an active File 00-authorized knowledge editor.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
+		$requested = array_values( array_unique( array_map( 'sanitize_key', (array) $request->get_param( 'types' ) ) ) ); $allowed = array_keys( HE_V2_Domain::types() ); $types = array_values( array_intersect( $requested, $allowed ) );
+		if ( ! $types || count( $types ) !== count( $requested ) ) { return self::finish_mutation( $reservation, new WP_Error( 'he_editor_scope_invalid', __( 'One or more knowledge-type assignments are invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
+		global $wpdb; if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::finish_mutation( $reservation, new WP_Error( 'he_editor_scope_write_failed', __( 'The editor-scope transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		$changed = false;
+		try {
+			$locked = (int) $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->users} WHERE ID=%d FOR UPDATE", $user_id ) ); if ( $locked !== $user_id ) { throw new RuntimeException( 'identity' ); }
+			clean_user_cache( $user_id ); $previous_types = get_user_meta( $user_id, self::META_EDITOR_TYPES, true ); $previous_types = is_array( $previous_types ) ? array_values( array_unique( array_map( 'sanitize_key', $previous_types ) ) ) : array();
+			$old_compare = $previous_types; $new_compare = $types; sort( $old_compare ); sort( $new_compare ); $changed = $old_compare !== $new_compare;
+			if ( $changed && false === update_user_meta( $user_id, self::META_EDITOR_TYPES, $types ) ) { throw new RuntimeException( 'write' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) { $wpdb->query( 'ROLLBACK' ); clean_user_cache( $user_id ); $code = 'identity' === $error->getMessage() ? 'he_editor_scope_identity_invalid' : 'he_editor_scope_write_failed'; $status = 'identity' === $error->getMessage() ? 422 : 503; return self::finish_mutation( $reservation, new WP_Error( $code, __( 'The editor scope assignment could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) ) ); }
+		if ( $changed ) { HE_V2_Domain::emit_event( 'File06EditorScopeChanged.v1', 'user', $user_id, array( 'types' => $types, 'assigned_by' => get_current_user_id() ) ); }
+		return self::finish_mutation( $reservation, array( 'user_id' => $user_id, 'types' => $types, 'changed' => $changed, 'identity_authority' => 'file-00', 'content_scope_owner' => 'file-06' ) );
 	}
 
 	public static function save_reviewer_assignment( WP_REST_Request $request ) {
-		$reservation = self::guard_mutation( $request, 'reviewer-assignment-' . sanitize_key( $request['id'] ) );
-		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) {
-			return self::finish_mutation( $reservation, null );
-		}
-		$concept = HE_V2_Domain::concept_by_id( $request['id'], true );
-		if ( ! $concept ) {
-			return self::finish_mutation( $reservation, new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) );
-		}
-		$reviewer_id = absint( $request->get_param( 'reviewer_id' ) );
-		$scope = sanitize_key( $request->get_param( 'scope' ) ?: 'scientific' );
-		$valid_scopes = array( 'scientific', 'clinical', 'source', 'language', 'shariah', 'privacy' );
-		if ( ! in_array( $scope, $valid_scopes, true ) || ! $reviewer_id || ! HE_V2_Auth::can( HE_V2_Auth::CAP_REVIEW, (int) $concept['post_id'], 'file06-review-assignment-target', $reviewer_id ) ) {
-			return self::finish_mutation( $reservation, new WP_Error( 'he_reviewer_assignment_invalid', __( 'The reviewer, scope or current File 00 authorization is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
-		}
-		$post = get_post( (int) $concept['post_id'] );
-		if ( $post && (int) $post->post_author === $reviewer_id ) {
-			return self::finish_mutation( $reservation, new WP_Error( 'he_self_review_forbidden', __( 'An entry author cannot be assigned as its independent reviewer.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
-		}
-		$expiry = 0;
-		if ( $request->get_param( 'expires_at' ) ) {
-			$expiry = strtotime( (string) $request->get_param( 'expires_at' ) );
-			if ( ! $expiry || $expiry <= time() || $expiry > time() + YEAR_IN_SECONDS ) {
-				return self::finish_mutation( $reservation, new WP_Error( 'he_reviewer_assignment_expiry_invalid', __( 'Reviewer assignment expiry must be in the future and within one year.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
-			}
-		}
-		$assignments = get_post_meta( (int) $concept['post_id'], self::META_REVIEW_ASSIGNMENTS, true );
-		$assignments = is_array( $assignments ) ? $assignments : array();
-		$previous = isset( $assignments[ $scope ] ) && is_array( $assignments[ $scope ] ) ? $assignments[ $scope ] : array();
-		$assignments[ $scope ] = array(
-			'reviewer_id' => $reviewer_id,
-			'assigned_by' => get_current_user_id(),
-			'assigned_at' => gmdate( 'c' ),
-			'expires_at' => $expiry ? gmdate( 'c', $expiry ) : '',
-			'assignment_version' => 1 + absint( $previous['assignment_version'] ?? 0 ),
-		);
-		$written = update_post_meta( (int) $concept['post_id'], self::META_REVIEW_ASSIGNMENTS, $assignments );
-		if ( false === $written ) { return self::finish_mutation( $reservation, new WP_Error( 'he_reviewer_assignment_write_failed', __( 'The reviewer assignment could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
-		HE_V2_Domain::emit_event( 'File06ReviewerAssigned.v1', 'concept', (int) $concept['id'], array( 'scope' => $scope, 'reviewer_user_id' => $reviewer_id, 'assignment_version' => $assignments[ $scope ]['assignment_version'] ) );
-		return self::finish_mutation( $reservation, array( 'concept_id' => $concept['public_id'], 'scope' => $scope, 'reviewer_id' => $reviewer_id, 'assignment_version' => $assignments[ $scope ]['assignment_version'], 'expires_at' => $assignments[ $scope ]['expires_at'] ) );
+		$reservation = self::guard_mutation( $request, 'reviewer-assignment-' . sanitize_key( $request['id'] ) ); if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::finish_mutation( $reservation, null ); }
+		$concept = HE_V2_Domain::concept_by_id( $request['id'], true ); if ( ! $concept ) { return self::finish_mutation( $reservation, new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
+		$reviewer_id = absint( $request->get_param( 'reviewer_id' ) ); $scope = sanitize_key( $request->get_param( 'scope' ) ?: 'scientific' ); $valid_scopes = array( 'scientific', 'clinical', 'source', 'language', 'shariah', 'privacy' );
+		if ( ! in_array( $scope, $valid_scopes, true ) || ! $reviewer_id || ! HE_V2_Auth::can( HE_V2_Auth::CAP_REVIEW, (int) $concept['post_id'], 'file06-review-assignment-target', $reviewer_id ) ) { return self::finish_mutation( $reservation, new WP_Error( 'he_reviewer_assignment_invalid', __( 'The reviewer, scope or current File 00 authorization is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
+		$post = get_post( (int) $concept['post_id'] ); if ( $post && (int) $post->post_author === $reviewer_id ) { return self::finish_mutation( $reservation, new WP_Error( 'he_self_review_forbidden', __( 'An entry author cannot be assigned as its independent reviewer.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); }
+		$expiry = 0; if ( $request->get_param( 'expires_at' ) ) { $expiry = strtotime( (string) $request->get_param( 'expires_at' ) ); if ( ! $expiry || $expiry <= time() || $expiry > time() + YEAR_IN_SECONDS ) { return self::finish_mutation( $reservation, new WP_Error( 'he_reviewer_assignment_expiry_invalid', __( 'Reviewer assignment expiry must be in the future and within one year.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) ); } }
+		global $wpdb; $concepts = HE_V2_Schema::table( 'concepts' ); if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::finish_mutation( $reservation, new WP_Error( 'he_reviewer_assignment_write_failed', __( 'The reviewer-assignment transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
+		try {
+			$locked = $wpdb->get_row( $wpdb->prepare( "SELECT id,public_id,post_id FROM {$concepts} WHERE id=%d FOR UPDATE", (int) $concept['id'] ), ARRAY_A ); if ( ! $locked ) { throw new RuntimeException( 'not-found' ); }
+			clean_post_cache( (int) $locked['post_id'] ); $assignments = get_post_meta( (int) $locked['post_id'], self::META_REVIEW_ASSIGNMENTS, true ); $assignments = is_array( $assignments ) ? $assignments : array(); $previous = isset( $assignments[ $scope ] ) && is_array( $assignments[ $scope ] ) ? $assignments[ $scope ] : array();
+			$assignments[ $scope ] = array( 'reviewer_id' => $reviewer_id, 'assigned_by' => get_current_user_id(), 'assigned_at' => gmdate( 'c' ), 'expires_at' => $expiry ? gmdate( 'c', $expiry ) : '', 'assignment_version' => 1 + absint( $previous['assignment_version'] ?? 0 ) );
+			if ( false === update_post_meta( (int) $locked['post_id'], self::META_REVIEW_ASSIGNMENTS, $assignments ) ) { throw new RuntimeException( 'write' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) { $wpdb->query( 'ROLLBACK' ); clean_post_cache( (int) $concept['post_id'] ); $status = 'not-found' === $error->getMessage() ? 404 : 503; $code = 'not-found' === $error->getMessage() ? 'he_not_found' : 'he_reviewer_assignment_write_failed'; return self::finish_mutation( $reservation, new WP_Error( $code, __( 'The reviewer assignment could not be saved safely.', 'homeopathy-encyclopedia' ), array( 'status' => $status ) ) ); }
+		HE_V2_Domain::emit_event( 'File06ReviewerAssigned.v1', 'concept', (int) $locked['id'], array( 'scope' => $scope, 'reviewer_user_id' => $reviewer_id, 'assignment_version' => $assignments[ $scope ]['assignment_version'] ) );
+		return self::finish_mutation( $reservation, array( 'concept_id' => $locked['public_id'], 'scope' => $scope, 'reviewer_id' => $reviewer_id, 'assignment_version' => $assignments[ $scope ]['assignment_version'], 'expires_at' => $assignments[ $scope ]['expires_at'] ) );
 	}
 
 	public static function editor_type_allowed( $user_id, $type ) {
