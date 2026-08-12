@@ -1,0 +1,168 @@
+name: File 06 v2.4.17 Eighteenth Twenty-Round Final QA
+on:
+  push:
+    branches: [audit/file-06-eighteenth-twenty-round-v2.4.17]
+    paths: [.github/workflows/file06-v2417-eighteenth-twenty-round-final.yml]
+permissions:
+  contents: read
+jobs:
+  php-syntax:
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4','8.3']
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '${{ matrix.php }}', coverage: none}
+      - name: Lint PHP
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+
+  aggregate-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', coverage: none}
+      - name: Complete inherited and eighteenth-cycle aggregate gate
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Eq '(^|/)(__pycache__/|.*\.pyc$)'; then echo 'Tracked Python cache artifact found' >&2; exit 1; fi
+          bash tests/run-all.sh 2>&1 | tee /tmp/file06-v2417-aggregate.log
+          if grep -Eiq 'PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' /tmp/file06-v2417-aggregate.log; then echo 'Unexpected warning/error emitted by File 06 aggregate QA' >&2; exit 1; fi
+          grep -q 'File 06 v2.4.17 eighteenth-review regressions through R20: PASS' /tmp/file06-v2417-aggregate.log
+          grep -q 'All File 06 v2.4.17 automated checks' /tmp/file06-v2417-aggregate.log
+          ! grep -R -F '@@session.in_transaction' homeopathy-encyclopedia
+
+  eighteenth-cycle-source-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Confirm corrected twenty-round contracts
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homeopathy-encyclopedia'); i=p/'includes'
+          boot=(p/'homeopathy-encyclopedia.php').read_text(); readme=(p/'readme.txt').read_text(); api=(i/'class-he-v24-future-api.php').read_text(); fs=(i/'class-he-v24-future-schema.php').read_text(); mig=(i/'class-he-v24-migration-safety.php').read_text(); lang=(i/'class-he-v242-language-surfaces.php').read_text(); third=(i/'class-he-v242-third-audit.php').read_text(); ref=(i/'class-he-v242-reference-graph.php').read_text(); multi=(i/'class-he-v242-multilingual.php').read_text(); runtime=(i/'class-he-v242-runtime-corrections.php').read_text(); gov=(i/'class-he-v241-governance.php').read_text(); review=Path('docs/FILE-06-v2.4.17-EIGHTEENTH-TWENTY-ROUND-REVIEW.md').read_text(); runall=Path('tests/run-all.sh').read_text()
+          checks=[
+            ('runtime','Version: 2.4.17',boot),('version',"HE_VERSION', '2.4.17",boot),('contract',"HE_CONTRACT_VERSION', '2.4.17",boot),('hardening',"'future_hardening_version'=>'2.4.17'",boot),('stable','Stable tag: 2.4.17',readme),
+            ('R1 opaque graph reference',"decode_public_cursor( 'reference'",ref),
+            ('R2 public translation governed state',"status='published' AND review_status='approved' AND safety_status='approved'",lang),('R2 WP public state',"'publish' !== $post->post_status",lang),
+            ('R3 sole language owner','KnowledgeSourceLanguageChanged.v1',lang),('R4 language CAS','row_version=row_version+1',lang),('R4 review invalidation',"review_status='unreviewed',safety_status='unreviewed'",lang),
+            ('R5 Future shape','public static function schema_complete()',fs),('R5 migration shape gate','HE_V24_Future_Schema::schema_complete()',mig),
+            ('R7 scheduler failure','future_maintenance_schedule_failed',fs),('R8 retraction persistence','retraction_watch_state_write_failed',fs),('R8 provenance','retraction_watch_provenance_failed',fs),
+            ('R9 translation maintenance failure','translation_outdated_maintenance_failed',fs),('R10 health shape',"'future_schema_complete'=>",fs),
+            ('R11 evidence atomic','claim_evidence_atomic_failed',api),('R11 transaction','START TRANSACTION',api),
+            ('R12 claim UUID route','/future/claims/(?P<id>[0-9a-fA-F-]{36})/evidence',api),('R12 concept UUID resolver','private static function concept_by_public_id',api),
+            ('R13 opaque claim reference',"decode_public_cursor('reference'",api),('R13 external token',"encode_public_cursor( 'external-record'",api),('R13 canonical external binding','private static function resolve_external_binding',api),
+            ('R14 translation locale review','/(?P<locale>[A-Za-z0-9-]+)/review',api),('R14 translation UUID write','/future/translations/(?P<id>[0-9a-fA-F-]{36})',multi),('R14 translation exact publish',"AND status='approved'",api),
+            ('R15 impact UUID','/future/impact/(?P<id>[0-9a-fA-F-]{36})',api),
+            ('R16 rollback future failclosed','composer_rollback_future_state_unverified',runtime),
+            ('R17 public language WP parity',"INNER JOIN ' . $wpdb->posts",lang),('R17 current version','c.current_version>0',lang),
+            ('R19 aggregate current suite','v2417-eighteenth-twenty-round-regressions.php',runall),('R20 ledger','20. **CLEAN**',review),
+          ]
+          for label,needle,text in checks:
+              if needle not in text: raise SystemExit(f'{label} missing: {needle}')
+          for n in range(1,21):
+              if f'{n}. **' not in review: raise SystemExit(f'review ledger missing round {n}')
+          if "update_option( HE_V2_Schema::OPTION_SCHEMA" in fs: raise SystemExit('Future installer still writes core schema option')
+          if "add_action( 'added_post_meta', array( __CLASS__, 'language_meta_changed' )" in third or "add_action( 'updated_post_meta', array( __CLASS__, 'language_meta_changed' )" in third: raise SystemExit('stale Third-Audit language hook remains')
+          print('v2417-eighteenth-cycle-source-contract-ok')
+          PY
+
+  transaction-callsite-audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Confirm event emission is after owning commit markers
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in Path('homeopathy-encyclopedia').rglob('*.php'):
+              s=p.read_text(); pos=0
+              while True:
+                  a=s.find('START TRANSACTION',pos)
+                  if a<0: break
+                  c=s.find('COMMIT',a)
+                  if c<0: raise SystemExit(f'{p}: transaction has no later COMMIT marker')
+                  if 'emit_event(' in s[a:c]: raise SystemExit(f'{p}: emit_event appears before owning COMMIT')
+                  pos=c+6
+          print('transaction-callsite-audit-ok')
+          PY
+
+  reproducible-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build candidate twice and report exact digests
+        run: |
+          set -euo pipefail
+          a=/tmp/06-homeopathy-encyclopedia-foundation-2.4.17-a.zip
+          b=/tmp/06-homeopathy-encyclopedia-foundation-2.4.17-b.zip
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$a"
+          python3 scripts/build-release.py --source homeopathy-encyclopedia --output "$b"
+          cmp -s "$a" "$b"
+          echo "PACKAGE_SHA256=$(sha256sum "$a" | awk '{print $1}')"
+          echo "PACKAGE_BYTES=$(stat -c '%s' "$a")"
+          echo "SOURCE_TREE_SHA256=$(python3 scripts/source-tree-hash.py homeopathy-encyclopedia | tail -n1 | tr -d '[:space:]')"
+          python3 - <<'PY'
+          import zipfile
+          p='/tmp/06-homeopathy-encyclopedia-foundation-2.4.17-a.zip'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist(); assert names and all(n.startswith('06-homeopathy-encyclopedia-foundation/') for n in names)
+              b=z.read('06-homeopathy-encyclopedia-foundation/homeopathy-encyclopedia.php').decode(); r=z.read('06-homeopathy-encyclopedia-foundation/readme.txt').decode()
+              assert ' * Version: 2.4.17' in b and "define( 'HE_VERSION', '2.4.17' )" in b
+              assert "define( 'HE_SCHEMA_VERSION', 10 )" in b and "define( 'HE_CONTRACT_VERSION', '2.4.17' )" in b
+              assert "'future_hardening_version'=>'2.4.17'" in b and 'Stable tag: 2.4.17' in r
+          PY
+
+  wordpress-smoke:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env: {MYSQL_DATABASE: wordpress, MYSQL_USER: wordpress, MYSQL_PASSWORD: wordpress, MYSQL_ROOT_PASSWORD: root}
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with: {php-version: '8.3', extensions: 'mysqli,mbstring', coverage: none}
+      - name: Install WP-CLI
+        run: |
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar && sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+      - name: WordPress 7.0.1 lifecycle smoke with strict plugin-command gate
+        run: |
+          set -euo pipefail
+          fail_noise(){ if grep -Eiq 'WordPress database error|PHP (Warning|Fatal error|Parse error)|(^|[[:space:]])Warning:|Fatal error:|Parse error:' "$1"; then cat "$1" >&2; return 1; fi; }
+          run_clean(){ local log rc=0; log="$(mktemp)"; "$@" >"$log" 2>&1 || rc=$?; cat "$log"; fail_noise "$log" || { rm -f "$log"; return 1; }; rm -f "$log"; return "$rc"; }
+          mkdir -p /tmp/wp && cd /tmp/wp
+          wp core download --version=7.0.1 --force
+          wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --url=http://file06.test --title='File 06 CI' --admin_user=admin --admin_password='ci-password-123!' --admin_email=ci@example.test --skip-email
+          cp -R "$GITHUB_WORKSPACE/homeopathy-encyclopedia" wp-content/plugins/homeopathy-encyclopedia
+          run_clean wp plugin activate homeopathy-encyclopedia
+          run_clean wp eval 'if(HE_VERSION!=="2.4.17"||HE_SCHEMA_VERSION!==10||HE_CONTRACT_VERSION!=="2.4.17"){throw new Exception("runtime contract mismatch");}$c=he_contract_descriptor();if(($c["future_hardening_version"]??"")!=="2.4.17"){throw new Exception("hardening mismatch");}echo "runtime-contract-ok\n";'
+          run_clean wp eval 'if(HE_V24_Future_Schema::VERSION!==2||(int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2||!HE_V24_Future_Schema::schema_complete()||!HE_V24_Migration_Safety::ready()){throw new Exception("future migration/schema mismatch");}echo "future-schema-ready-ok\n";'
+          run_clean wp eval '$h=HE_V2_Schema::health();if(empty($h["schema_complete"])||!HE_V2_Schema::schema_complete()){throw new Exception("core schema incomplete");}$fh=HE_V24_Future_Schema::health();if(empty($fh["future_schema_complete"])||($fh["status"]??"")!=="active"){throw new Exception("future health not active");}echo "v2417-schema-health-ok\n";'
+          run_clean wp eval 'wp_set_current_user(1);do_action("rest_api_init");$routes=implode("\n",array_keys(rest_get_server()->get_routes()));foreach(array("/future/claims/(?P<id>[0-9a-fA-F-]{36})/evidence","/future/translations/(?P<id>[0-9a-fA-F-]{36})","/future/impact/(?P<id>[0-9a-fA-F-]{36})") as $needle){if(strpos($routes,$needle)===false){throw new Exception("canonical future route missing: ".$needle);}}if(strpos($routes,"/future/claims/(?P<id>\\d+)/evidence")!==false||strpos($routes,"/future/translations/(?P<id>\\d+)")!==false||strpos($routes,"/future/impact/(?P<id>\\d+)")!==false){throw new Exception("legacy numeric future route remains");}echo "v2417-canonical-future-routes-ok\n";'
+          run_clean wp eval '$t=HE_V2_Domain::encode_public_cursor("reference",123);if(!$t||HE_V2_Domain::decode_public_cursor("reference",$t)!==123){throw new Exception("opaque reference token mismatch");}echo "v2417-reference-token-ok\n";'
+          run_clean wp eval 'wp_set_current_user(1);do_action("rest_api_init");$r=rest_do_request(new WP_REST_Request("GET","/sabri/v2/file-06/health"));if($r->get_status()!==503){throw new Exception("health did not fail closed without File00");}echo "health-file00-failclosed-ok\n";'
+          run_clean wp eval 'update_option(HE_V2_Schema::OPTION_SAFE_MODE,1,false);HE_V2_Schema::record_runtime_failure("ci-v2417-repair","CI recovery");$r=HE_V2_Schema::repair(false);if(is_wp_error($r)||get_option(HE_V2_Schema::OPTION_SAFE_MODE)||!HE_V2_Schema::schema_complete()){throw new Exception("safe repair failed");}echo "v2417-safe-mode-repair-ok\n";'
+          run_clean wp eval '$a=HE_V2_Domain::idempotent_begin(1,"ci-v2417","ci-key-12345678",array("x"=>1));if(is_wp_error($a)||!empty($a["replay"])){throw new Exception("reserve failed");}if(!HE_V2_Domain::idempotent_finish($a["id"],200,array("ok"=>1))){throw new Exception("finish failed");}$b=HE_V2_Domain::idempotent_begin(1,"ci-v2417","ci-key-12345678",array("x"=>1));if(is_wp_error($b)||empty($b["replay"])){throw new Exception("replay failed");}echo "v2417-idempotency-ok\n";'
+          run_clean wp eval '$e=HE_V2_Domain::emit_event("File06V2417CISmoke.v1","concept",0,array("email"=>"private@example.test","phone"=>"+923001234567"));global $wpdb;$payload=$wpdb->get_var($wpdb->prepare("SELECT payload_json FROM ".HE_V2_Schema::table("events")." WHERE event_id=%s",$e["event_id"]));if(strpos($payload,"private@example.test")!==false||strpos($payload,"+923001234567")!==false){throw new Exception("event minimization failed");}HE_V2_Integrations::process_outbox(20);echo "v2417-event-outbox-ok\n";'
+          run_clean wp plugin deactivate homeopathy-encyclopedia
+          run_clean wp plugin activate homeopathy-encyclopedia
+          run_clean wp eval 'if((int)get_option(HE_V2_Schema::OPTION_SCHEMA,0)!==10||(int)get_option(HE_V24_Future_Schema::OPTION_VERSION,0)!==2||!HE_V24_Future_Schema::schema_complete()||!HE_V24_Migration_Safety::ready()){throw new Exception("reactivation mismatch");}echo "reactivation-ok\n";'
