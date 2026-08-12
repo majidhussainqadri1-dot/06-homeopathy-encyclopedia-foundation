@@ -513,7 +513,7 @@ final class HE_V24_Future_Schema {
 		return $data;
 	}
 
-	public static function queue_impact( $type, $id, $event, $payload = array(), $consumers = array() ) {
+	public static function queue_impact( $type, $id, $event, $payload = array(), $consumers = array(), $notify = true ) {
 		global $wpdb;
 		$consumers = $consumers ?: array( 'file-05','file-12','file-15','file-16','file-21','file-26' );
 		$now = current_time( 'mysql', true );
@@ -540,7 +540,7 @@ final class HE_V24_Future_Schema {
 			) );
 			$queued += $ok ? 1 : 0;
 		}
-		if ( $queued ) {
+		if ( $queued && $notify ) {
 			do_action( 'he_v24_knowledge_impact_queued', $type, $id, $event, $payload );
 		}
 		return $queued;
