@@ -315,7 +315,6 @@ final class HE_V24_Future_Schema {
 		}
 		self::verify_schema();
 		update_option( self::OPTION_VERSION, self::VERSION, false );
-		update_option( HE_V2_Schema::OPTION_SCHEMA, HE_SCHEMA_VERSION, false );
 	}
 
 	private static function verify_schema() {
