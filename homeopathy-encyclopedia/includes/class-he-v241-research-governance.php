@@ -9,7 +9,8 @@ final class HE_V241_Research_Governance {
 	}
 
 	public static function register_routes() {
-		register_rest_route( HE_V2_API::NS, '/governance/research-reviewer-assignment/(?P<id>\d+)', array(
+		$uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+		register_rest_route( HE_V2_API::NS, '/governance/research-reviewer-assignment/(?P<id>' . $uuid . ')', array(
 			'methods' => WP_REST_Server::CREATABLE,
 			'callback' => array( __CLASS__, 'assign' ),
 			'permission_callback' => static function( WP_REST_Request $request ) {
@@ -19,9 +20,11 @@ final class HE_V241_Research_Governance {
 		) );
 	}
 
-	private static function research( $id ) {
+	private static function research( $public_id ) {
 		global $wpdb;
-		return $wpdb->get_row( $wpdb->prepare( 'SELECT id,public_id,post_id,status,row_version FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $id ) ), ARRAY_A );
+		$public_id = strtolower( sanitize_text_field( (string) $public_id ) );
+		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $public_id ) ) { return null; }
+		return $wpdb->get_row( $wpdb->prepare( 'SELECT id,public_id,post_id,status,row_version FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', $public_id ), ARRAY_A );
 	}
 
 	private static function guard_mutation( WP_REST_Request $request, $operation ) {
@@ -53,8 +56,9 @@ final class HE_V241_Research_Governance {
 	}
 
 	public static function assign( WP_REST_Request $request ) {
-		$res=self::guard_mutation($request,'research-reviewer-assignment-'.absint($request['id']));if(is_wp_error($res)||!empty($res['replay']))return self::finish($res,null);
-		$row=self::research($request['id']);if(!$row)return self::finish($res,new WP_Error('he_not_found',__('Research record not found.','homeopathy-encyclopedia'),array('status'=>404)));
+		$public_id=strtolower(sanitize_text_field((string)$request['id']));
+		$res=self::guard_mutation($request,'research-reviewer-assignment-'.sanitize_key($public_id));if(is_wp_error($res)||!empty($res['replay']))return self::finish($res,null);
+		$row=self::research($public_id);if(!$row)return self::finish($res,new WP_Error('he_not_found',__('Research record not found.','homeopathy-encyclopedia'),array('status'=>404)));
 		$reviewer=absint($request->get_param('reviewer_id'));$scope=sanitize_key($request->get_param('scope')?:'scientific');$allowed=array('scientific','clinical','source','language','shariah','privacy','ethics','methodology');
 		if(!in_array($scope,$allowed,true)||!$reviewer||!HE_V2_Auth::can(HE_V2_Auth::CAP_REVIEW,(int)$row['post_id'],'file06-research-review-target',$reviewer))return self::finish($res,new WP_Error('he_research_reviewer_assignment_invalid',__('The reviewer or review scope is invalid.','homeopathy-encyclopedia'),array('status'=>422)));
 		$post=get_post((int)$row['post_id']);if($post&&(int)$post->post_author===$reviewer&&!HE_V2_Auth::is_founder($reviewer))return self::finish($res,new WP_Error('he_self_review_forbidden',__('A research author cannot be assigned as the independent reviewer.','homeopathy-encyclopedia'),array('status'=>422)));
