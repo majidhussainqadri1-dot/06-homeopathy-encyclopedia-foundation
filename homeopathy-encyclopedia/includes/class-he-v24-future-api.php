@@ -25,7 +25,7 @@ final class HE_V24_Future_API {
 		self::route( $ns, '/future/duplicates/scan', 'POST', 'rest_duplicate_scan', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/graph/(?P<id>\\d+)', 'GET', 'rest_graph', 'read' );
 		self::route( $ns, '/future/time-machine/(?P<id>\\d+)', 'GET', 'rest_time_machine', 'read' );
-		self::route( $ns, '/future/impact/(?P<id>\\d+)', 'POST', 'rest_impact', HE_V2_Auth::CAP_REVIEW );
+		self::route( $ns, '/future/impact/(?P<id>[0-9a-fA-F-]{36})', 'POST', 'rest_impact', HE_V2_Auth::CAP_REVIEW );
 		self::route( $ns, '/future/freshness/(?P<id>\\d+)', 'GET', 'rest_freshness', 'read' );
 		self::route( $ns, '/future/gaps', 'GET', 'rest_gaps', HE_V2_Auth::CAP_RESEARCH );
 		self::route( $ns, '/future/citations/(?P<id>\\d+)/(?P<format>[a-z0-9_-]+)', 'GET', 'rest_citations', 'read' );
@@ -290,7 +290,7 @@ final class HE_V24_Future_API {
 		$data = self::request_data( $request );
 		$vocabulary = sanitize_key( $data['vocabulary'] ?? '' );
 		if ( ! in_array( $vocabulary, array( 'mesh','datacite','pubmed','clinicaltrials' ), true ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_invalid', __( 'Unsupported concept-mapping vocabulary. ORCID is a researcher identity mapping, not a concept taxonomy.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$concept = HE_V24_Future_Schema::concept_row( absint( $data['concept_id'] ?? 0 ), false );
+		$concept = self::concept_by_public_id( $data['concept_id'] ?? '', false );
 		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
 		$external = HE_V24_Future_Schema::validate_external_id( $vocabulary, $data['external_id'] ?? '' );
 		if ( ! $external ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_mapping_identifier_invalid', __( 'The external vocabulary identifier is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
@@ -359,7 +359,7 @@ final class HE_V24_Future_API {
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
 		global $wpdb;
 		$data = self::request_data( $request );
-		$concept = HE_V24_Future_Schema::concept_row( absint( $data['concept_id'] ?? 0 ), false );
+		$concept = self::concept_by_public_id( $data['concept_id'] ?? '', false );
 		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
 		$source = self::concept_fingerprint( $concept );
 		$others = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id<>%d AND merged_into_id=0 AND type_slug=%s ORDER BY updated_at DESC LIMIT %d", $concept['id'], $concept['type_slug'], self::MAX_DUPLICATE_CANDIDATES ), ARRAY_A );
@@ -424,7 +424,7 @@ final class HE_V24_Future_API {
 	}
 
 	public static function rest_impact( WP_REST_Request $request ) {
-		$reservation = self::mutation_guard( $request, 'future-impact-' . absint( $request['id'] ), HE_V2_Auth::CAP_REVIEW );
+		$reservation = self::mutation_guard( $request, 'future-impact-' . sanitize_key( $request['id'] ), HE_V2_Auth::CAP_REVIEW );
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 202 ); }
 		$concept = self::concept_by_public_id( $request['id'], false );
 		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
@@ -534,7 +534,7 @@ final class HE_V24_Future_API {
 		if ( is_wp_error( $reservation ) || ! empty( $reservation['replay'] ) ) { return self::mutation_finish( $reservation, null, 200 ); }
 		global $wpdb;
 		$data = self::request_data( $request );
-		$concept = HE_V24_Future_Schema::concept_row( absint( $request['id'] ), false );
+		$concept = self::concept_by_public_id( $request['id'], false );
 		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
 		$locale = sanitize_text_field( $data['locale'] ?? '' );
 		if ( ! in_array( $locale, array( 'ur-PK','ar','en-US' ), true ) || $locale === $concept['language'] ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_locale_invalid', __( 'The target locale is invalid or identical to the source locale.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }

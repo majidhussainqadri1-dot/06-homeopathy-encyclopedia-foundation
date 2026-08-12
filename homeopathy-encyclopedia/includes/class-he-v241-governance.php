@@ -299,12 +299,12 @@ final class HE_V241_Governance {
 		}
 
 		if ( $route === $prefix . '/future/mappings' || $route === $prefix . '/future/duplicates/scan' ) {
-			$concept = HE_V24_Future_Schema::concept_row( absint( $request->get_param( 'concept_id' ) ), false );
+			$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( (string) $request->get_param( 'concept_id' ) ) ) ), ARRAY_A );
 			return $concept ? self::object_permission( HE_V2_Auth::CAP_REVIEW, (int) $concept['post_id'], 'file06-future-concept-review' ) : new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 
-		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/impact/(\d+)$#', $route, $match ) ) {
-			$concept = HE_V24_Future_Schema::concept_row( absint( $match[1] ), false );
+		if ( preg_match( '#^' . preg_quote( $prefix, '#' ) . '/future/impact/([0-9a-fA-F-]{36})$#', $route, $match ) ) {
+			$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( $match[1] ) ) ), ARRAY_A );
 			return $concept ? self::object_permission( HE_V2_Auth::CAP_REVIEW, (int) $concept['post_id'], 'file06-future-impact' ) : new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 

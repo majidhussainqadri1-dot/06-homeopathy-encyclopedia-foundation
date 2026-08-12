@@ -20,7 +20,7 @@ final class HE_V241_Before_Callback_Normalizer {
 			'#^' . preg_quote( $prefix, '#' ) . '/dataset-access/\d+/approve$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/claims$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/(?:mappings|duplicates/scan)$#',
-			'#^' . preg_quote( $prefix, '#' ) . '/future/impact/\d+$#',
+			'#^' . preg_quote( $prefix, '#' ) . '/future/impact/[0-9a-fA-F-]{36}$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/translations/[0-9a-fA-F-]{36}$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/external/lookup$#',
 			'#^' . preg_quote( $prefix, '#' ) . '/future/external/\d+/review$#',
