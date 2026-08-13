@@ -31,3 +31,4 @@ jobs:
           git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt README.md STATUS.md CHANGELOG.md SBOM.json docs/FILE-06-v2.4.18-NINETEENTH-TWENTY-ROUND-REVIEW.md tests/v2417-eighteenth-twenty-round-regressions.php tests/v2418-nineteenth-twenty-round-regressions.php tests/run-all.sh
           git commit -m "fix(file-06): R19 align v2.4.18 candidate truth"
           git push origin HEAD:audit/file-06-nineteenth-twenty-round-v2.4.18
+# retriggered after current-candidate invariant widening
