@@ -1,5 +1,5 @@
 <?php
-/** Stable core architecture invariants for the current File 06 candidate (through 2.4.18). */
+/** Stable core architecture invariants for the current File 06 candidate (through 2.4.18; historical regression compatibility included). */
 $root=dirname(__DIR__);$p=$root.'/homeopathy-encyclopedia';$fail=array();
 function a($ok,$m){global $fail;if(!$ok)$fail[]=$m;} function rd($f){$v=file_get_contents($f);if(false===$v)throw new RuntimeException($f);return $v;}
 $b=rd($p.'/homeopathy-encyclopedia.php');$s=rd($p.'/includes/class-he-v2-schema.php');$d=rd($p.'/includes/class-he-v2-domain.php');$api=rd($p.'/includes/class-he-v2-api.php');$auth=rd($p.'/includes/class-he-v2-auth.php');$g=rd($p.'/includes/class-he-v22-governance.php');$i=rd($p.'/includes/class-he-v22-integrity.php');$sch=rd($p.'/includes/class-he-v22-schedule.php');$search=rd($p.'/includes/class-he-v22-search.php');$types=rd($p.'/includes/class-he-v22-type-schemas.php');$rg=rd($p.'/includes/class-he-v22-research-guard.php');$c=rd($p.'/includes/class-he-v22-consumers.php');$op=rd($p.'/includes/class-he-v22-operations.php');$privacy=rd($p.'/includes/class-he-v2-privacy.php');$pub=rd($p.'/includes/class-he-v22-public-guard.php');
