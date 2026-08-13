@@ -18,9 +18,9 @@ for file in \
   test -f "$plugin/includes/$file"
 done
 ! grep -R --line-number --include='*.php' --include='*.js' --include='*.css' -E '(AKIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)' "$plugin"
-grep -Eq "Version: 2\.4\.(15|16|17)" "$plugin/homeopathy-encyclopedia.php"
+grep -Eq "Version: 2\.4\.(15|16|17|18)" "$plugin/homeopathy-encyclopedia.php"
 grep -q "HE_SCHEMA_VERSION', 10" "$plugin/homeopathy-encyclopedia.php"
-grep -Eq "HE_CONTRACT_VERSION', '2\.4\.(15|16|17)" "$plugin/homeopathy-encyclopedia.php"
+grep -Eq "HE_CONTRACT_VERSION', '2\.4\.(15|16|17|18)" "$plugin/homeopathy-encyclopedia.php"
 grep -q "future_requirement_count" "$plugin/homeopathy-encyclopedia.php"
 grep -q "research_reviewer_assignment_required" "$plugin/homeopathy-encyclopedia.php"
 grep -q "research_apply_requires_accepted_state" "$plugin/homeopathy-encyclopedia.php"
