@@ -1,0 +1,41 @@
+name: File 06 v2.4.19 Review Snapshot
+on:
+  push:
+    branches: [audit/file-06-twentieth-twenty-round-v2.4.19-finalwork]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Non-mutating baseline diagnostics
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          echo "HEAD=$(git rev-parse HEAD)"
+          echo "PHP_COUNT=$(find homeopathy-encyclopedia tests -type f -name '*.php' | wc -l)"
+          echo "JS_COUNT=$(find homeopathy-encyclopedia -type f -name '*.js' | wc -l)"
+          while IFS= read -r -d '' file; do php -l "$file" || true; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+          find homeopathy-encyclopedia -type f -name '*.js' -print0 | sort -z | while IFS= read -r -d '' file; do node --check "$file" || true; done
+          bash tests/run-all.sh || true
+          git status --short
+      - name: Create repository snapshot
+        run: |
+          tar --exclude='.git' -czf file06-review-snapshot.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: file06-review-snapshot
+          path: file06-review-snapshot.tgz
+          if-no-files-found: error
+          retention-days: 1
