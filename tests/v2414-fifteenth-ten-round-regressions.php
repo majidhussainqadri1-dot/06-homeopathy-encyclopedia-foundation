@@ -9,7 +9,7 @@ $browse=v2414_read($root.'/homeopathy-encyclopedia/includes/class-he-v242-resear
 $bootstrap=v2414_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
 $readme=v2414_read($root.'/homeopathy-encyclopedia/readme.txt');
 $runall=v2414_read($root.'/tests/run-all.sh');
-$env=getenv('V2414_ROUND');$upto=(false!==$env&&''!==$env)?(int)$env:(preg_match('/ \* Version: 2\.4\.(?:14|15|16|17)/',$bootstrap)?10:0);
+$env=getenv('V2414_ROUND');$upto=(false!==$env&&''!==$env)?(int)$env:(preg_match('/ \* Version: 2\.4\.(?:14|15|16|17|18)/',$bootstrap)?10:0);
 function v2414_ok($round,$ok,$m){global $fail,$upto;if($round<=$upto&&!$ok)$fail[]="R{$round} {$m}";}
 
 $r1_legacy=false!==strpos($domain,'entry_delete_lifecycle_failed')&&false!==strpos($domain,'research_delete_lifecycle_failed')&&false!==strpos($domain,"status='archived',row_version=row_version+1")&&false!==strpos($domain,"status='retracted',row_version=row_version+1");
@@ -29,7 +29,7 @@ $r9_legacy=false!==strpos($domain,"'retracted' !== \$row['status'] ? json_decode
 $r9_stronger=false!==strpos($domain,'$public_metadata = array_intersect_key')&&false!==strpos($domain,"'publish' !== \$post->post_status")&&false!==strpos($domain,"( \$private || 'public' === \$row['data_class'] )");
 v2414_ok(9,($r9_legacy||$r9_stronger)&&false!==strpos($browse,"'public' === \$row['data_class'] && 'retracted' !== \$row['status']"),'retracted research REST/browse payloads or stale deleted posts can remain publicly detailed');
 v2414_ok(10,false!==strpos($public,'private function structured_html')&&false!==strpos($public,'$this->structured_html( $value )')&&false===strpos($public,'is_array( $value ) ? implode( "\\n", $value ) : $value'),'nested structured public rendering can still emit array-to-string warnings');
-v2414_ok(10,preg_match('/ \* Version: 2\.4\.(?:14|15|16|17)/',$bootstrap)&&preg_match("/HE_VERSION', '2\\.4\\.(?:14|15|16|17)/",$bootstrap)&&preg_match("/HE_CONTRACT_VERSION', '2\\.4\\.(?:14|15|16|17)/",$bootstrap)&&false!==strpos($bootstrap,"'future_hardening_version'=>"),'historical v2.4.14 release controls do not tolerate the later current v2.4.x candidate');
-v2414_ok(10,preg_match('/Stable tag: 2\.4\.(?:14|15|16|17)/',$readme)&&false!==strpos($runall,'v2414-fifteenth-ten-round-regressions.php')&&preg_match('/file06-v2\.4\.(?:14|15|16|17)-a\.zip/',$runall)&&preg_match('/All File 06 v2\.4\.(?:14|15|16|17) automated checks/',$runall),'historical aggregate/package controls no longer tolerate the current v2.4.x candidate');
+v2414_ok(10,preg_match('/ \* Version: 2\.4\.(?:14|15|16|17|18)/',$bootstrap)&&preg_match("/HE_VERSION', '2\\.4\\.(?:14|15|16|17|18)/",$bootstrap)&&preg_match("/HE_CONTRACT_VERSION', '2\\.4\\.(?:14|15|16|17|18)/",$bootstrap)&&false!==strpos($bootstrap,"'future_hardening_version'=>"),'historical v2.4.14 release controls do not tolerate the later current v2.4.x candidate');
+v2414_ok(10,preg_match('/Stable tag: 2\.4\.(?:14|15|16|17|18)/',$readme)&&false!==strpos($runall,'v2414-fifteenth-ten-round-regressions.php')&&preg_match('/file06-v2\.4\.(?:14|15|16|17|18)-a\.zip/',$runall)&&preg_match('/All File 06 v2\.4\.(?:14|15|16|17|18) automated checks/',$runall),'historical aggregate/package controls no longer tolerate the current v2.4.x candidate');
 
 if($fail){fwrite(STDERR,"File 06 v2.4.14 fifteenth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 v2.4.14 fifteenth-review regressions through R{$upto}: PASS\n";
