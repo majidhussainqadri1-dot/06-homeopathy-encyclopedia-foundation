@@ -32,10 +32,10 @@ jobs:
           git status --short
       - name: Create repository snapshot
         run: |
-          tar --exclude='.git' -czf file06-review-snapshot.tgz .
+          tar --exclude='.git' -czf /tmp/file06-review-snapshot.tgz .
       - uses: actions/upload-artifact@v4
         with:
           name: file06-review-snapshot
-          path: file06-review-snapshot.tgz
+          path: /tmp/file06-review-snapshot.tgz
           if-no-files-found: error
           retention-days: 1
