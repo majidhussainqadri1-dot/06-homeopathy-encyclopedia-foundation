@@ -1,14 +1,12 @@
-# File 06 Status — 2.4.19 Twentieth Fresh Twenty-Round Candidate
+# File 06 Status — 2.4.20 Repository Candidate
 
 | Status | Evidence |
 |---|---|
-| Specified | File 06 governing plan + applicable later platform governance |
-| Coded | `audit/file-06-twentieth-twenty-round-v2.4.19-finalwork` |
-| Reviewed | 20 sequential full-review → consolidated-fix → retest rounds |
-| Defect rounds | `1, 2, 3, 6, 7, 8, 10, 12, 15, 16, 17, 18, 19, 20` |
-| Clean rounds | `4, 5, 9, 11, 13, 14` |
-| Runtime | `2.4.19 / schema 10 / contract 2.4.19 / Future schema 2` |
-| Automated QA | Pending authoritative final exact-HEAD v2.4.19 workflow evidence |
+| Specified | File 06 governing plan + applicable platform governance |
+| Coded | `audit/file-06-twenty-first-twenty-round-v2.4.20` |
+| Runtime | `2.4.20 / schema 10 / contract 2.4.20 / Future schema 2` |
+| Review cycle | Twenty-first fresh twenty-round review/fix cycle; final outcome is established by the independent round ledger/evidence |
+| Automated QA | Must be established against the exact final HEAD; source text does not self-certify a green run |
 | Staging accepted | **No / unverified** |
 | Live deployed | **No / unverified** |
 | Operational | **No / unverified** |
