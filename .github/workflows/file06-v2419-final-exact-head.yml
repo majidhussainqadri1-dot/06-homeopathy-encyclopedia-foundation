@@ -1,0 +1,57 @@
+name: File 06 v2.4.19 Final Exact-HEAD QA
+
+on:
+  push:
+    branches:
+      - audit/file-06-twentieth-twenty-round-v2.4.19-finalwork
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-qa:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Freeze exact HEAD
+        run: |
+          set -euo pipefail
+          echo "EXACT_HEAD=$(git rev-parse HEAD)"
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+      - name: PHP and JavaScript syntax gates
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -type f -name '*.php' -print0 | sort -z)
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(find homeopathy-encyclopedia -type f -name '*.js' -print0 | sort -z)
+      - name: Full inherited plus twentieth-round regression gate
+        run: |
+          set -euo pipefail
+          bash tests/run-all.sh
+      - name: Freeze deterministic release evidence
+        run: |
+          set -euo pipefail
+          cp /tmp/file06-v2.4.19-a.zip File-06-Homeopathy-Encyclopedia-2.4.19.zip
+          sha256sum File-06-Homeopathy-Encyclopedia-2.4.19.zip | tee FINAL-PACKAGE-SHA256.txt
+          find homeopathy-encyclopedia tests docs -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' | tee FINAL-SOURCE-TREE-SHA256.txt
+          printf '%s\n' "$(git rev-parse HEAD)" > FINAL-EXACT-HEAD.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: file06-v2419-final-exact-head
+          path: |
+            File-06-Homeopathy-Encyclopedia-2.4.19.zip
+            FINAL-PACKAGE-SHA256.txt
+            FINAL-SOURCE-TREE-SHA256.txt
+            FINAL-EXACT-HEAD.txt
+          if-no-files-found: error
+          retention-days: 30
