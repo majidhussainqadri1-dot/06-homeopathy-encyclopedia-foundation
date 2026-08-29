@@ -516,13 +516,16 @@ final class HE_V24_Future_Schema {
 	public static function queue_impact( $type, $id, $event, $payload = array(), $consumers = array(), $notify = true ) {
 		global $wpdb;
 		$consumers = $consumers ?: array( 'file-05','file-12','file-15','file-16','file-21','file-26' );
+		$consumers = array_values( array_filter( array_unique( array_map( 'sanitize_key', $consumers ) ) ) );
 		$now = current_time( 'mysql', true );
 		$payload_json = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-		$queued = 0;
-		foreach ( array_unique( array_map( 'sanitize_key', $consumers ) ) as $consumer ) {
+		$ensured = 0;
+		$failed = false;
+		foreach ( $consumers as $consumer ) {
 			$dedupe = hash( 'sha256', sanitize_key( $type ) . '|' . sanitize_text_field( $id ) . '|' . sanitize_text_field( $event ) . '|' . $consumer . '|' . $payload_json );
 			$existing = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::table( 'impact_queue' ) . ' WHERE dedupe_key=%s', $dedupe ) );
 			if ( $existing ) {
+				$ensured++;
 				continue;
 			}
 			$ok = $wpdb->insert( self::table( 'impact_queue' ), array(
@@ -538,12 +541,22 @@ final class HE_V24_Future_Schema {
 				'created_at' => $now,
 				'updated_at' => $now,
 			) );
-			$queued += $ok ? 1 : 0;
+			$persisted = $ok ? (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::table( 'impact_queue' ) . ' WHERE dedupe_key=%s', $dedupe ) ) : 0;
+			if ( $persisted ) {
+				$ensured++;
+			} else {
+				$failed = true;
+			}
 		}
-		if ( $queued && $notify ) {
+		if ( $failed || $ensured !== count( $consumers ) ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'impact_queue_persistence_incomplete', 'File 06 could not verify every required downstream consumer revalidation record.' );
+			return $ensured;
+		}
+		if ( $ensured && $notify ) {
 			do_action( 'he_v24_knowledge_impact_queued', $type, $id, $event, $payload );
 		}
-		return $queued;
+		return $ensured;
 	}
 
 	private static function process_impact_queue() {

@@ -109,18 +109,25 @@ final class HE_V241_Governance_Privacy {
 			return array( 'items_removed' => false, 'items_retained' => true, 'messages' => array( __( 'A documented legal or research-integrity hold is active.', 'homeopathy-encyclopedia' ) ), 'done' => true );
 		}
 		$removed = false;
+		$messages = array();
 		if ( metadata_exists( 'user', $uid, HE_V241_Governance::META_EDITOR_TYPES ) ) {
-			delete_user_meta( $uid, HE_V241_Governance::META_EDITOR_TYPES );
+			$deleted = delete_user_meta( $uid, HE_V241_Governance::META_EDITOR_TYPES );
+			if ( ! $deleted && metadata_exists( 'user', $uid, HE_V241_Governance::META_EDITOR_TYPES ) ) {
+				HE_V2_Schema::record_runtime_failure( 'privacy_editor_scope_erasure_failed', 'File 06 could not erase editorial scope metadata; the privacy eraser will retry.' );
+				return array( 'items_removed' => false, 'items_retained' => true, 'messages' => array( __( 'Editorial scope metadata could not be erased safely and will be retried.', 'homeopathy-encyclopedia' ) ), 'done' => false );
+			}
 			$removed = true;
 		}
-		/* Progress by immutable post ID, not by a mutating result-set offset; unrelated assignment rows must never stall erasure. */
+		/* Progress by immutable post ID, not by a mutating result-set offset; never advance past a failed assignment write. */
 		$cursor_option = self::erasure_cursor_option( $uid );
 		if ( 1 === max( 1, absint( $page ) ) ) { delete_option( $cursor_option ); }
 		$cursor = absint( get_option( $cursor_option, 0 ) );
+		$processed_cursor = $cursor;
+		$failed = false;
 		$post_ids = self::assigned_posts_after( $cursor );
 		foreach ( $post_ids as $post_id ) {
 			$assignments = get_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, true );
-			if ( ! is_array( $assignments ) ) { continue; }
+			if ( ! is_array( $assignments ) ) { $processed_cursor = (int) $post_id; continue; }
 			$changed = false;
 			foreach ( $assignments as $scope => &$assignment ) {
 				if ( ! is_array( $assignment ) ) { continue; }
@@ -129,18 +136,31 @@ final class HE_V241_Governance_Privacy {
 			}
 			unset( $assignment );
 			if ( $changed ) {
+				if ( $assignments ) {
+					$write = update_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, $assignments );
+					$verified = is_array( get_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, true ) ) && get_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, true ) === $assignments;
+				} else {
+					$write = delete_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS );
+					$verified = ! metadata_exists( 'post', $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS );
+				}
+				if ( false === $write && ! $verified ) {
+					$failed = true;
+					$messages[] = __( 'A reviewer-assignment privacy mutation could not be verified and will be retried.', 'homeopathy-encyclopedia' );
+					HE_V2_Schema::record_runtime_failure( 'privacy_reviewer_assignment_erasure_failed', 'File 06 stopped reviewer-assignment privacy erasure before advancing its cursor past an unverified write.' );
+					break;
+				}
 				$removed = true;
-				if ( $assignments ) { update_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS, $assignments ); }
-				else { delete_post_meta( $post_id, HE_V241_Governance::META_REVIEW_ASSIGNMENTS ); }
 			}
+			$processed_cursor = (int) $post_id;
 		}
-		$done = count( $post_ids ) < self::PAGE_SIZE;
-		if ( $post_ids && ! $done ) { update_option( $cursor_option, (int) end( $post_ids ), false ); }
-		else { delete_option( $cursor_option ); }
+		$done = ! $failed && count( $post_ids ) < self::PAGE_SIZE;
+		if ( $failed || ( $post_ids && ! $done ) ) {
+			if ( $processed_cursor > $cursor ) { update_option( $cursor_option, $processed_cursor, false ); }
+		} else { delete_option( $cursor_option ); }
 		return array(
 			'items_removed' => $removed,
-			'items_retained' => false,
-			'messages' => array(),
+			'items_retained' => $failed,
+			'messages' => $messages,
 			'done' => $done,
 		);
 	}

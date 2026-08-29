@@ -26,7 +26,7 @@ if($round>=15){ok17(has17($api,"/future/impact/(?P<id>[0-9a-fA-F-]{36})")&&subst
 if($round>=16){ok17(has17($runtime,'composer_rollback_future_state_unverified')&&has17($runtime,'! HE_V24_Future_Schema::schema_complete()')&&has17($runtime,'! HE_V24_Migration_Safety::ready()'),'R16 composer rollback does not fail closed on unverified Future state');}
 if($round>=17){ok17(has17($lang,"INNER JOIN ' . $wpdb->posts")&&has17($lang,"p.post_status='publish'")&&has17($lang,'c.current_version>0'),'R17 public language discovery lacks WP/current-version parity');}
 if($round>=18){ok17(has17($ledger,'18. **CLEAN**'),'R18 clean audit record missing');}
-if($round>=19){ok17(has17($boot,' * Version: 2.4.17')&&has17($boot,"define( 'HE_VERSION', '2.4.17' )")&&has17($boot,"define( 'HE_CONTRACT_VERSION', '2.4.17' )")&&has17($boot,"'future_hardening_version'=>'2.4.17'")&&has17($readme,'Stable tag: 2.4.17')&&has17($runall,'v2417-eighteenth-twenty-round-regressions.php')&&has17($runall,'All File 06 v2.4.17 automated checks'),'R19 release truth not aligned to v2.4.17');}
+if($round>=19){ok17(preg_match('/ \* Version: 2\.4\.(?:17|18|19)/',$boot)&&preg_match("/HE_VERSION', '2\.4\.(?:17|18|19)/",$boot)&&preg_match("/HE_CONTRACT_VERSION', '2\.4\.(?:17|18|19)/",$boot)&&preg_match("/future_hardening_version'=>'2\.4\.(?:17|18|19)/",$boot)&&preg_match('/Stable tag: 2\.4\.(?:17|18|19)/',$readme)&&has17($runall,'v2417-eighteenth-twenty-round-regressions.php')&&preg_match('/All File 06 v2\.4\.(?:17|18|19) automated checks/',$runall),'R19 historical release controls no longer tolerate the later current v2.4.x candidate');}
 if($round>=20){
     $r20 = has17($ledger,'20. **DEFECT**')
         && has17($v23,'retire legacy v2.3 runtime surfaces')

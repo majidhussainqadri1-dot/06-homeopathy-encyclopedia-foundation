@@ -70,6 +70,8 @@ final class HE_V2_Public {
 	public function encyclopedia( $atts = array() ) {
 		$atts = shortcode_atts( array( 'limit' => 20, 'type' => '', 'body_system' => '' ), $atts, 'he_encyclopedia' );
 		$letters = array_merge( range( 'A', 'Z' ), array( 'ا', 'ب', 'پ', 'ت', 'ج', 'د', 'ر', 'س', 'ش', 'ع', 'ف', 'ک', 'گ', 'ل', 'م', 'ن', 'و', 'ہ', 'ی' ) );
+		/* Shortcodes can legitimately appear more than once on a page. Keep ARIA references instance-scoped instead of emitting duplicate document IDs. */
+		$results_id = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'he-v2-results-' ) : 'he-v2-results-' . wp_generate_uuid4();
 		ob_start();
 		?>
 		<section class="he-v2" data-he-encyclopedia data-limit="<?php echo esc_attr( min( 50, absint( $atts['limit'] ) ) ); ?>" data-type="<?php echo esc_attr( sanitize_key( $atts['type'] ) ); ?>" data-system="<?php echo esc_attr( sanitize_key( $atts['body_system'] ) ); ?>">
@@ -82,7 +84,7 @@ final class HE_V2_Public {
 				<div class="he-v2__trust" role="note"><?php echo $this->icon( 'shield' ); ?><span><?php esc_html_e( 'Educational knowledge only. Urgent or individualized medical care requires a qualified local professional.', 'homeopathy-encyclopedia' ); ?></span></div>
 			</header>
 			<form class="he-v2__filters" data-he-filters role="search" aria-label="<?php esc_attr_e( 'Search encyclopedia', 'homeopathy-encyclopedia' ); ?>">
-				<label class="he-v2__search"><span class="screen-reader-text"><?php esc_html_e( 'Search', 'homeopathy-encyclopedia' ); ?></span><?php echo $this->icon( 'search' ); ?><input type="search" name="q" autocomplete="off" placeholder="<?php esc_attr_e( 'Search exact terms, phrases, aliases, Urdu or English…', 'homeopathy-encyclopedia' ); ?>" aria-controls="he-v2-results"><div class="he-v2__suggestions" data-he-suggestions hidden></div></label>
+				<label class="he-v2__search"><span class="screen-reader-text"><?php esc_html_e( 'Search', 'homeopathy-encyclopedia' ); ?></span><?php echo $this->icon( 'search' ); ?><input type="search" name="q" autocomplete="off" placeholder="<?php esc_attr_e( 'Search exact terms, phrases, aliases, Urdu or English…', 'homeopathy-encyclopedia' ); ?>" aria-controls="<?php echo esc_attr( $results_id ); ?>"><div class="he-v2__suggestions" data-he-suggestions hidden></div></label>
 				<label><span><?php esc_html_e( 'Knowledge type', 'homeopathy-encyclopedia' ); ?></span><select name="type"><option value=""><?php esc_html_e( 'All types', 'homeopathy-encyclopedia' ); ?></option><?php foreach ( HE_V2_Domain::types() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
 				<label><span><?php esc_html_e( 'Body system', 'homeopathy-encyclopedia' ); ?></span><select name="body_system"><option value=""><?php esc_html_e( 'All systems', 'homeopathy-encyclopedia' ); ?></option><?php foreach ( HE_V2_Domain::systems() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
 				<label><span><?php esc_html_e( 'Language', 'homeopathy-encyclopedia' ); ?></span><select name="language"><option value=""><?php esc_html_e( 'All languages', 'homeopathy-encyclopedia' ); ?></option><option value="en-US">English (US)</option><option value="ur-PK">اردو</option><option value="ar">العربية</option></select></label>
@@ -90,7 +92,7 @@ final class HE_V2_Public {
 			</form>
 			<nav class="he-v2__az" aria-label="<?php esc_attr_e( 'Browse alphabetically', 'homeopathy-encyclopedia' ); ?>"><button type="button" data-letter="" aria-pressed="true"><?php esc_html_e( 'All', 'homeopathy-encyclopedia' ); ?></button><?php foreach ( $letters as $letter ) : ?><button type="button" data-letter="<?php echo esc_attr( $letter ); ?>" aria-pressed="false"><?php echo esc_html( $letter ); ?></button><?php endforeach; ?></nav>
 			<div class="he-v2__status" data-he-status aria-live="polite"></div>
-			<div class="he-v2__grid" id="he-v2-results" data-he-results aria-busy="true"></div>
+			<div class="he-v2__grid" id="<?php echo esc_attr( $results_id ); ?>" data-he-results aria-busy="true"></div>
 			<div class="he-v2__pagination"><button class="he-v2__button he-v2__button--secondary" type="button" data-he-more hidden><?php esc_html_e( 'Load more', 'homeopathy-encyclopedia' ); ?></button></div>
 		</section>
 		<?php

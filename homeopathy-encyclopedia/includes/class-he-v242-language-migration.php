@@ -48,7 +48,12 @@ final class HE_V242_Language_Migration {
 						continue;
 					}
 				}
-				$wpdb->query( $wpdb->prepare( "UPDATE {$translations} SET locale=IF(locale='ur-PK','ur',locale),source_locale=IF(source_locale='ur-PK','ur',source_locale),updated_at=UTC_TIMESTAMP() WHERE id=%d", (int) $row['id'] ) );
+				$changed = $wpdb->query( $wpdb->prepare( "UPDATE {$translations} SET locale=IF(locale='ur-PK','ur',locale),source_locale=IF(source_locale='ur-PK','ur',source_locale),updated_at=UTC_TIMESTAMP() WHERE id=%d", (int) $row['id'] ) );
+				if ( false === $changed ) {
+					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+					HE_V2_Schema::record_runtime_failure( 'language_translation_migration_write_failed', 'A legacy translation locale could not be normalized; the migration cursor was not advanced past the failed row.' );
+					return;
+				}
 			}
 			update_option( self::CONFLICTS, $conflicts, false );
 			update_option( self::CURSOR, $rows ? $last : 0, false );
@@ -65,13 +70,35 @@ final class HE_V242_Language_Migration {
 					if ( $owner ) { $conflicts[ 'alias:' . $alias['id'] ] = array( 'legacy_alias_id' => (int) $alias['id'], 'conflicting_concept_id' => $owner, 'concept_id' => (int) $concept['id'] ); $blocked = true; }
 				}
 				if ( $blocked ) { continue; }
-				$wpdb->update( $aliases, array( 'language' => 'ur' ), array( 'concept_id' => (int) $concept['id'], 'language' => 'ur-PK' ), array( '%s' ), array( '%d','%s' ) );
-				$wpdb->update( $concepts, array( 'language' => 'ur', 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
-				update_post_meta( (int) $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM {$concepts} WHERE id=%d", (int) $concept['id'] ) ), '_he_language', 'ur' );
+				$post_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM {$concepts} WHERE id=%d", (int) $concept['id'] ) );
+				if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+					HE_V2_Schema::record_runtime_failure( 'language_concept_migration_transaction_failed', 'A canonical language migration transaction could not start safely.' );
+					return;
+				}
+				try {
+					$alias_changed = $wpdb->update( $aliases, array( 'language' => 'ur' ), array( 'concept_id' => (int) $concept['id'], 'language' => 'ur-PK' ), array( '%s' ), array( '%d','%s' ) );
+					if ( false === $alias_changed ) { throw new RuntimeException( 'alias-write' ); }
+					$concept_changed = $wpdb->update( $concepts, array( 'language' => 'ur', 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
+					if ( false === $concept_changed ) { throw new RuntimeException( 'concept-write' ); }
+					if ( $post_id ) {
+						update_post_meta( $post_id, '_he_language', 'ur' );
+						clean_post_cache( $post_id );
+						if ( 'ur' !== (string) get_post_meta( $post_id, '_he_language', true ) ) { throw new RuntimeException( 'post-meta-write' ); }
+					}
+					if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+				} catch ( Throwable $error ) {
+					$wpdb->query( 'ROLLBACK' );
+					if ( $post_id ) { clean_post_cache( $post_id ); }
+					update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+					HE_V2_Schema::record_runtime_failure( 'language_concept_migration_write_failed', 'Concept, alias and post-meta language normalization could not be persisted atomically.' );
+					return;
+				}
 			}
 			update_option( self::CONFLICTS, $conflicts, false );
 			$remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$translations} WHERE locale='ur-PK' OR source_locale='ur-PK'" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$remaining += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$concepts} WHERE language='ur-PK'" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$remaining += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$aliases} WHERE language='ur-PK'" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			if ( 0 === $remaining ) {
 				/* Actual database state is authoritative; stale conflict markers must not block completion after manual reconciliation. */
 				update_option( self::DONE, 1, false );

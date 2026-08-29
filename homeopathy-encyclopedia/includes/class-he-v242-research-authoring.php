@@ -210,11 +210,19 @@ final class HE_V242_Research_Authoring {
 		$post = get_post( (int) $row['post_id'] );
 		if ( ! $post || 'draft' !== $post->post_status ) { return false; }
 		$guard = array( 'HE_V242_Third_Audit', 'guard_hard_delete' );
+		$domain_pre_delete = array( 'HE_V2_Domain', 'pre_delete_post' );
+		$domain_deleted = array( 'HE_V2_Domain', 'on_deleted_post' );
 		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
 			HE_V2_Schema::record_runtime_failure( 'research_composer_rollback_start_failed', 'File 06 could not start the research composer rollback transaction.' );
 			return false;
 		}
+		/* A pristine composer rollback is a compensation path, not the normal governed hard-delete lifecycle.
+		 * Suppress both hard-delete guards and the archive/retraction hooks while this transaction owns the physical rollback;
+		 * otherwise HE_V2_Domain::pre_delete_post() starts a nested transaction, changes proposal→retracted, and can
+		 * implicitly commit the outer compensation before the canonical research row is actually deleted. */
 		remove_filter( 'pre_delete_post', $guard, 1 );
+		remove_filter( 'pre_delete_post', $domain_pre_delete, 10 );
+		remove_action( 'deleted_post', $domain_deleted, 10 );
 		try {
 			if ( ! wp_delete_post( (int) $row['post_id'], true ) ) { throw new RuntimeException( 'post-delete-failed' ); }
 			if ( 1 !== (int) $wpdb->delete( HE_V2_Schema::table( 'research' ), array( 'id' => (int) $row['id'] ), array( '%d' ) ) ) { throw new RuntimeException( 'research-delete-failed' ); }
@@ -226,6 +234,8 @@ final class HE_V242_Research_Authoring {
 			return false;
 		} finally {
 			add_filter( 'pre_delete_post', $guard, 1, 3 );
+			add_filter( 'pre_delete_post', $domain_pre_delete, 10, 3 );
+			add_action( 'deleted_post', $domain_deleted, 10, 2 );
 		}
 		HE_V2_Domain::emit_event( 'ResearchDraftRolledBack.v1', 'research', (int) $row['id'], array( 'public_id' => $row['public_id'], 'reason' => 'composer-compensation' ) );
 		return true;

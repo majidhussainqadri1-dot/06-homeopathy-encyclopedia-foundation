@@ -198,7 +198,8 @@ final class HE_V22_Research_Guard {
 		}
 		$prefix = '/' . HE_V2_API::NS;
 		$route = $request->get_route();
-		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research/(\d+)/transition$#', $route, $m ) ) {
+		$uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+		if ( ! preg_match( '#^' . preg_quote( $prefix, '#' ) . '/research/(' . $uuid . ')/transition$#', $route, $m ) ) {
 			return $response;
 		}
 		$state = sanitize_key( $request->get_param( 'state' ) );
@@ -206,7 +207,7 @@ final class HE_V22_Research_Guard {
 			return $response;
 		}
 		global $wpdb;
-		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', absint( $m[1] ) ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE public_id=%s', strtolower( sanitize_text_field( $m[1] ) ) ), ARRAY_A );
 		$result = self::validate_row( $row );
 		return is_wp_error( $result ) ? $result : $response;
 	}

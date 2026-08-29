@@ -324,7 +324,8 @@ final class HE_V2_Integrations {
 		global $wpdb;
 		$limit = min( 100, max( 1, absint( $limit ) ) );
 		$table = HE_V2_Schema::table( 'outbox' );
-		$wpdb->query( "UPDATE {$table} SET status='retry',next_attempt_at=UTC_TIMESTAMP(),last_error='stale-processing-recovered',updated_at=UTC_TIMESTAMP() WHERE status='processing' AND updated_at<=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE) LIMIT 100" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$recovered = $wpdb->query( "UPDATE {$table} SET status='retry',next_attempt_at=UTC_TIMESTAMP(),last_error='stale-processing-recovered',updated_at=UTC_TIMESTAMP() WHERE status='processing' AND updated_at<=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE) LIMIT 100" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( false === $recovered ) { HE_V2_Schema::record_runtime_failure( 'outbox_stale_recovery_write_failed', 'File 06 could not recover stale outbox processing leases safely.' ); return 0; }
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE status IN ('pending','retry') AND next_attempt_at<=UTC_TIMESTAMP() ORDER BY id ASC LIMIT %d", $limit ), ARRAY_A );
 		$processed = 0;
 		foreach ( $rows as $row ) {
@@ -340,7 +341,8 @@ final class HE_V2_Integrations {
 			} catch ( Throwable $error ) {
 				$status = $attempts >= 5 ? 'dead-letter' : 'retry';
 				$delay = min( DAY_IN_SECONDS, 60 * ( 2 ** min( 8, $attempts ) ) );
-				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,next_attempt_at=%s,last_error=%s,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='processing' AND attempts=%d", $status, gmdate( 'Y-m-d H:i:s', time() + $delay ), sanitize_text_field( $error->getMessage() ), (int) $row['id'], $attempts ) );
+				$failed = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status=%s,next_attempt_at=%s,last_error=%s,updated_at=UTC_TIMESTAMP() WHERE id=%d AND status='processing' AND attempts=%d", $status, gmdate( 'Y-m-d H:i:s', time() + $delay ), sanitize_text_field( $error->getMessage() ), (int) $row['id'], $attempts ) );
+				if ( 1 !== (int) $failed ) { HE_V2_Schema::record_runtime_failure( 'outbox_failure_transition_write_failed', 'A File 06 outbox failure could not be moved to retry/dead-letter state safely.' ); }
 			}
 		}
 		return $processed;

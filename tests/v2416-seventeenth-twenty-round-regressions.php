@@ -22,6 +22,6 @@ if($r>=12){ok16(has16($t,'authoritative-wordpress-post-not-published')&&has16($t
 if($r>=13){ok16(has16($p,'Canonical draft hard-delete is governance-blocked'),'R13 privacy draft erasure reconciliation');}
 if($r>=14){ok16(has16($api,"encode_public_cursor( 'reference'")&&has16($api,"decode_public_cursor( 'reference'")&&has16($api,'he_reference_public_id_required'),'R14 opaque reference command contract');}
 if($r>=15){ok16(has16($a,'$result->get_error_message()'),'R15 repair error notice');}
-if($r>=19){ok16(preg_match('/ \* Version: 2\.4\.(?:16|17|18)/',$b)&&preg_match("/define\( 'HE_VERSION', '2\\.4\\.(?:16|17|18)' \)/",$b)&&preg_match('/Stable tag: 2\.4\.(?:16|17|18)/',$rd),'R19 version alignment');}
+if($r>=19){ok16(preg_match('/ \* Version: 2\.4\.(?:16|17|18|19)/',$b)&&preg_match("/define\( 'HE_VERSION', '2\\.4\\.(?:16|17|18|19)' \)/",$b)&&preg_match('/Stable tag: 2\.4\.(?:16|17|18|19)/',$rd),'R19 version alignment');}
 for($i=1;$i<=$r;$i++){ok16(has16($review,$i.'. **'),'review ledger round '.$i);}
 if($f){fwrite(STDERR,"v2.4.16 round {$r} regressions FAILED:\n- ".implode("\n- ",$f)."\n");exit(1);}echo "v2.4.16 round {$r} regressions: PASS\n";

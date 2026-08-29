@@ -6,6 +6,8 @@ final class HE_V242_Watchlist {
 	public static function hooks() {
 		add_action( 'rest_api_init', array( __CLASS__, 'override_route' ), 520 );
 		add_filter( 'sabri_platform_contracts', array( __CLASS__, 'contract' ), 530 );
+		add_filter( 'sabri_notification_event_catalog', array( __CLASS__, 'notification_events' ), 540 );
+		add_action( 'he_v2_event', array( __CLASS__, 'dispatch_event' ), 30, 4 );
 	}
 
 	public static function override_route() {
@@ -98,10 +100,87 @@ final class HE_V242_Watchlist {
 		return self::finish( $reservation, array( 'saved' => true, 'object_type' => $object['type'], 'object_id' => $object['id'], 'events' => $events, 'active' => $active, 'delivery_owner' => 'file-19', 'privacy_minimized' => true ) );
 	}
 
+	private static function event_class( $name ) {
+		$name = strtolower( sanitize_text_field( (string) $name ) );
+		if ( false !== strpos( $name, 'translation' ) ) { return 'translation'; }
+		if ( false !== strpos( $name, 'retract' ) ) { return 'retraction'; }
+		if ( false !== strpos( $name, 'correct' ) ) { return 'correction'; }
+		if ( false !== strpos( $name, 'freshness' ) || false !== strpos( $name, 'stale' ) ) { return 'freshness'; }
+		if ( false !== strpos( $name, 'evidence' ) || false !== strpos( $name, 'reference' ) ) { return 'evidence'; }
+		return 'update';
+	}
+
+	private static function event_object( $event_id ) {
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT object_type,object_id FROM ' . HE_V2_Schema::table( 'events' ) . ' WHERE event_id=%s', sanitize_text_field( (string) $event_id ) ), ARRAY_A );
+		if ( ! $row ) { return null; }
+		if ( 'concept' === $row['object_type'] ) {
+			$concept = HE_V2_Domain::concept_by_id( (int) $row['object_id'], true );
+			return $concept ? array( 'type' => 'concept', 'id' => (string) $concept['public_id'] ) : null;
+		}
+		if ( 'research' === $row['object_type'] ) {
+			$public = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT public_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', (int) $row['object_id'] ) );
+			return $public ? array( 'type' => 'research', 'id' => $public ) : null;
+		}
+		return null;
+	}
+
+	public static function audience( $object_type, $object_id, $event_class ) {
+		global $wpdb;
+		$object_type = sanitize_key( $object_type );
+		$object_id = sanitize_text_field( (string) $object_id );
+		$event_class = sanitize_key( $event_class );
+		if ( ! in_array( $object_type, array( 'concept','topic','research' ), true ) || ! in_array( $event_class, array( 'update','correction','retraction','freshness','evidence','translation' ), true ) || '' === $object_id ) { return array(); }
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT id,user_id FROM ' . HE_V24_Future_Schema::table( 'watchlists' ) . ' WHERE object_type=%s AND object_id=%s AND active=1 AND FIND_IN_SET(%s,event_mask)>0 ORDER BY id ASC LIMIT 5000',
+			$object_type, $object_id, $event_class
+		), ARRAY_A );
+		$out = array();
+		foreach ( $rows as $row ) {
+			$uid = absint( $row['user_id'] );
+			if ( $uid && HE_V2_Auth::membership_allowed( $uid ) ) { $out[] = array( 'watch_id' => (int) $row['id'], 'user_id' => $uid ); }
+		}
+		return $out;
+	}
+
+	public static function dispatch_event( $name, $payload, $event_id, $trace_id ) {
+		if ( 'KnowledgeWatchTriggered.v1' === (string) $name ) { return; }
+		$object = self::event_object( $event_id );
+		if ( ! $object ) { return; }
+		$class = self::event_class( $name );
+		$audience = self::audience( $object['type'], $object['id'], $class );
+		foreach ( $audience as $watch ) {
+			$watch_payload = array(
+				'recipient_user_id' => (int) $watch['user_id'],
+				'watch_id' => (int) $watch['watch_id'],
+				'watch_object_type' => $object['type'],
+				'watch_object_id' => $object['id'],
+				'watch_event_class' => $class,
+				'source_event_name' => sanitize_text_field( (string) $name ),
+				'source_event_id' => sanitize_text_field( (string) $event_id ),
+				'delivery_owner' => 'file-19',
+			);
+			do_action( 'sabri_domain_event', array(
+				'event_id' => wp_generate_uuid4(),
+				'name' => 'KnowledgeWatchTriggered.v1',
+				'owner' => 'file-06',
+				'contract_version' => HE_CONTRACT_VERSION,
+				'trace_id' => sanitize_text_field( (string) $trace_id ),
+				'payload' => HE_V2_Domain::minimize_event_payload( $watch_payload ),
+			) );
+		}
+	}
+
+	public static function notification_events( $catalog ) {
+		$catalog = is_array( $catalog ) ? $catalog : array();
+		$catalog['KnowledgeWatchTriggered.v1'] = array( 'producer' => 'file-06', 'delivery_owner' => 'file-19', 'sensitive_payload' => true, 'recipient_scoped' => true );
+		return $catalog;
+	}
+
 	public static function contract( $contracts ) {
 		$contracts = is_array( $contracts ) ? $contracts : array();
 		if ( isset( $contracts['file-06'] ) && is_array( $contracts['file-06'] ) ) {
-			$contracts['file-06']['watchlists'] = array( 'objects' => array( 'concept','topic','research' ), 'private' => true, 'delivery_owner' => 'file-19', 'idempotent_write' => true, 'validated_public_objects_only' => true, 'excluded_from_public_provenance' => true );
+			$contracts['file-06']['watchlists'] = array( 'objects' => array( 'concept','topic','research' ), 'private' => true, 'delivery_owner' => 'file-19', 'idempotent_write' => true, 'validated_public_objects_only' => true, 'excluded_from_public_provenance' => true, 'trigger_event' => 'KnowledgeWatchTriggered.v1', 'audience_query' => array( __CLASS__, 'audience' ) );
 		}
 		return $contracts;
 	}

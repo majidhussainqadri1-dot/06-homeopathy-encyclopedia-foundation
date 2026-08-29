@@ -28,7 +28,7 @@ final class HE_V22_Integrity {
 			return new WP_Error( 'he_rate_limited', __( 'Too many requests. Please retry later.', 'homeopathy-encyclopedia' ), array( 'status' => 429 ) );
 		}
 		$key = trim( (string) $request->get_header( 'Idempotency-Key' ) );
-		if ( '' === $key || strlen( $key ) > 128 ) {
+		if ( strlen( $key ) < 8 || strlen( $key ) > 128 ) {
 			return new WP_Error( 'he_idempotency_required', __( 'A valid Idempotency-Key header is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
 		}
 		return HE_V2_Domain::idempotent_begin( get_current_user_id(), $operation, $key, $request->get_json_params() ?: $request->get_params() );

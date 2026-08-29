@@ -407,31 +407,49 @@ final class HE_V242_Third_Audit {
 			return;
 		}
 		global $wpdb;
-		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT id,language,created_by FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', absint( $post_id ) ), ARRAY_A );
+		$concepts = HE_V2_Schema::table( 'concepts' );
+		$aliases = HE_V2_Schema::table( 'aliases' );
+		$concept = $wpdb->get_row( $wpdb->prepare( 'SELECT id,language,created_by FROM ' . $concepts . ' WHERE post_id=%d', absint( $post_id ) ), ARRAY_A );
 		if ( ! $concept ) {
 			return;
 		}
 		$language = sanitize_text_field( (string) ( get_post_meta( $post_id, '_he_language', true ) ?: $concept['language'] ?: 'en-US' ) );
-		if ( $language !== $concept['language'] ) {
-			$wpdb->update( HE_V2_Schema::table( 'concepts' ), array( 'language' => $language, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
-		}
 		$title = get_the_title( $post_id );
 		$normalized = HE_V2_Domain::normalize( $title );
-		$aliases = HE_V2_Schema::table( 'aliases' );
 		$canonical = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$aliases} WHERE concept_id=%d AND alias_type='canonical' ORDER BY id ASC LIMIT 1", (int) $concept['id'] ), ARRAY_A );
-		if ( ! $canonical ) {
-			HE_V2_Domain::add_alias( (int) $concept['id'], $title, $language, 'canonical', true, (int) $concept['created_by'] );
+
+		/* Validate target alias ownership before changing the canonical concept language. */
+		if ( $canonical && ( $canonical['language'] !== $language || $canonical['normalized_alias'] !== $normalized ) ) {
+			$collision = (int) $wpdb->get_var( $wpdb->prepare( "SELECT concept_id FROM {$aliases} WHERE normalized_alias=%s AND language=%s AND concept_id<>%d LIMIT 1", $normalized, $language, (int) $concept['id'] ) );
+			if ( $collision ) {
+				update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+				HE_V2_Schema::record_runtime_failure( 'canonical_alias_language_collision', 'A canonical alias cannot be moved to the entry language because that normalized alias is already owned by another concept; no partial language update was applied.' );
+				return;
+			}
+		}
+
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'canonical_alias_language_transaction_start_failed', 'File 06 could not start the canonical language/alias reconciliation transaction.' );
 			return;
 		}
-		if ( $canonical['language'] === $language && $canonical['normalized_alias'] === $normalized ) {
-			return;
+		try {
+			if ( $language !== $concept['language'] ) {
+				$changed = $wpdb->update( $concepts, array( 'language' => $language, 'updated_at' => current_time( 'mysql', true ) ), array( 'id' => (int) $concept['id'] ), array( '%s','%s' ), array( '%d' ) );
+				if ( false === $changed ) { throw new RuntimeException( 'concept-language-write' ); }
+			}
+			if ( ! $canonical ) {
+				if ( ! HE_V2_Domain::add_alias( (int) $concept['id'], $title, $language, 'canonical', true, (int) $concept['created_by'] ) ) { throw new RuntimeException( 'canonical-alias-create' ); }
+			} elseif ( $canonical['language'] !== $language || $canonical['normalized_alias'] !== $normalized || $canonical['alias'] !== sanitize_text_field( $title ) ) {
+				$changed = $wpdb->update( $aliases, array( 'alias' => sanitize_text_field( $title ), 'normalized_alias' => $normalized, 'language' => $language, 'is_primary' => 1 ), array( 'id' => (int) $canonical['id'] ), array( '%s','%s','%s','%d' ), array( '%d' ) );
+				if ( false === $changed ) { throw new RuntimeException( 'canonical-alias-write' ); }
+			}
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			update_option( HE_V2_Schema::OPTION_SAFE_MODE, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'canonical_alias_language_reconciliation_failed', 'Canonical concept language and alias language could not be reconciled atomically.' );
 		}
-		$collision = (int) $wpdb->get_var( $wpdb->prepare( "SELECT concept_id FROM {$aliases} WHERE normalized_alias=%s AND language=%s AND concept_id<>%d LIMIT 1", $normalized, $language, (int) $concept['id'] ) );
-		if ( $collision ) {
-			HE_V2_Schema::record_runtime_failure( 'canonical_alias_language_collision', 'A canonical alias cannot be moved to the entry language because that normalized alias is already owned by another concept.' );
-			return;
-		}
-		$wpdb->update( $aliases, array( 'alias' => sanitize_text_field( $title ), 'normalized_alias' => $normalized, 'language' => $language, 'is_primary' => 1 ), array( 'id' => (int) $canonical['id'] ), array( '%s','%s','%s','%d' ), array( '%d' ) );
 	}
 
 	public static function guard_hard_delete( $delete, $post, $force_delete ) {

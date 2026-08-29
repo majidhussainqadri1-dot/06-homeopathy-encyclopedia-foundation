@@ -79,7 +79,7 @@ final class HE_V24_Future_API {
 			return new WP_Error( 'he_rate_limited', __( 'Too many requests. Please retry later.', 'homeopathy-encyclopedia' ), array( 'status' => 429 ) );
 		}
 		$key = trim( (string) $request->get_header( 'Idempotency-Key' ) );
-		if ( '' === $key || strlen( $key ) > 128 ) {
+		if ( strlen( $key ) < 8 || strlen( $key ) > 128 ) {
 			return new WP_Error( 'he_idempotency_required', __( 'A valid Idempotency-Key header is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
 		}
 		return HE_V2_Domain::idempotent_begin( get_current_user_id(), $operation, $key, $request->get_json_params() ?: $request->get_params() );
@@ -399,7 +399,9 @@ final class HE_V24_Future_API {
 		if ( ! $concept ) { return self::mutation_finish( $reservation, new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) ); }
 		$source = self::concept_fingerprint( $concept );
 		$others = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'concepts' ) . " WHERE id<>%d AND merged_into_id=0 AND type_slug=%s ORDER BY updated_at DESC LIMIT %d", $concept['id'], $concept['type_slug'], self::MAX_DUPLICATE_CANDIDATES ), ARRAY_A );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_duplicate_write_failed', __( 'The duplicate-candidate transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) ); }
 		$out = array();
+		try {
 		foreach ( $others as $other ) {
 			$score = self::jaccard( $source, self::concept_fingerprint( $other ) );
 			if ( $score < 0.25 ) { continue; }
@@ -407,8 +409,15 @@ final class HE_V24_Future_API {
 			$now = current_time( 'mysql', true );
 			$existing = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . HE_V24_Future_Schema::table( 'similarity' ) . ' WHERE concept_a=%d AND concept_b=%d', $a, $b ) );
 			$row = array( 'concept_a' => $a, 'concept_b' => $b, 'score' => $score, 'reason_json' => wp_json_encode( array( 'method' => 'multisignal-jaccard-v2', 'signals' => array( 'content','aliases','structured-fields','references','graph-context' ) ) ), 'state' => 'candidate', 'created_at' => $now, 'updated_at' => $now );
-			if ( $existing ) { $wpdb->update( HE_V24_Future_Schema::table( 'similarity' ), $row, array( 'id' => (int) $existing ) ); } else { $wpdb->insert( HE_V24_Future_Schema::table( 'similarity' ), $row ); }
+			$written = $existing ? $wpdb->update( HE_V24_Future_Schema::table( 'similarity' ), $row, array( 'id' => (int) $existing ) ) : $wpdb->insert( HE_V24_Future_Schema::table( 'similarity' ), $row );
+			if ( false === $written ) { throw new RuntimeException( 'candidate-write' ); }
 			$out[] = array( 'concept_id' => $other['public_id'], 'score' => round( $score, 5 ), 'advisory_only' => true );
+		}
+		if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' );
+			HE_V2_Schema::record_runtime_failure( 'duplicate_candidate_persistence_failed', 'Duplicate-intelligence candidates could not be persisted atomically.' );
+			return self::mutation_finish( $reservation, new WP_Error( 'he_future_duplicate_write_failed', __( 'Duplicate candidates could not be persisted safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
 		}
 		usort( $out, static function( $x, $y ) { return $y['score'] <=> $x['score']; } );
 		return self::mutation_finish( $reservation, array( 'concept_id' => $concept['public_id'], 'candidates' => array_slice( $out, 0, 50 ), 'auto_merge' => false ), 200 );
@@ -467,7 +476,11 @@ final class HE_V24_Future_API {
 		$data = self::request_data( $request );
 		$reason = sanitize_textarea_field( $data['reason'] ?? '' );
 		if ( '' === trim( $reason ) ) { return self::mutation_finish( $reservation, new WP_Error( 'he_future_impact_reason_required', __( 'A reason is required for consumer revalidation.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ) ); }
-		$count = HE_V24_Future_Schema::queue_impact( 'concept', $concept['public_id'], 'KnowledgeConceptChanged.v1', array( 'reason' => $reason, 'concept_id' => $concept['public_id'] ) );
+		$consumers = array( 'file-05','file-12','file-15','file-16','file-21','file-26' );
+		$count = HE_V24_Future_Schema::queue_impact( 'concept', $concept['public_id'], 'KnowledgeConceptChanged.v1', array( 'reason' => $reason, 'concept_id' => $concept['public_id'] ), $consumers );
+		if ( count( $consumers ) !== (int) $count ) {
+			return self::mutation_finish( $reservation, new WP_Error( 'he_future_impact_queue_failed', __( 'All required consumer revalidation records could not be verified.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
+		}
 		return self::mutation_finish( $reservation, array( 'queued' => $count, 'concept_id' => $concept['public_id'], 'direct_companion_writes' => false ), 202 );
 	}
 

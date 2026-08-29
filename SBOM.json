@@ -1,14 +1,14 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "version": 8,
+  "version": 9,
   "metadata": {
-    "timestamp": "2026-08-11T10:35:00Z",
+    "timestamp": "2026-08-29T03:00:00Z",
     "component": {
       "type": "application",
       "name": "File 06 Homeopathy Encyclopedia",
-      "version": "2.4.15",
-      "purl": "pkg:wordpress/homeopathy-encyclopedia@2.4.15"
+      "version": "2.4.19",
+      "purl": "pkg:wordpress/homeopathy-encyclopedia@2.4.19"
     }
   },
   "components": [
@@ -32,29 +32,23 @@
     }
   ],
   "release": {
-    "file": "06-homeopathy-encyclopedia-foundation-2.4.15.zip",
+    "file": "06-homeopathy-encyclopedia-foundation-2.4.19.zip",
     "sha256": null,
     "bytes": null,
     "source_tree_sha256": null,
     "evidence_policy": "Exact values are emitted by the final exact-head workflow; not self-embedded in source.",
     "schema": 10,
     "future_schema": 2,
-    "contract": "2.4.15",
+    "contract": "2.4.19",
     "defect_rounds": [
       1,
       2,
       3,
-      4,
-      5,
       6,
       7,
       8,
-      9,
       10,
-      11,
       12,
-      13,
-      14,
       15,
       16,
       17,
@@ -62,11 +56,19 @@
       19,
       20
     ],
-    "clean_rounds": [],
+    "clean_rounds": [
+      4,
+      5,
+      9,
+      11,
+      13,
+      14
+    ],
     "staging_accepted": false,
     "live_deployed": false,
     "operational": false,
     "twelfth_review_rounds": 10,
-    "sixteenth_review_rounds": 20
+    "sixteenth_review_rounds": 20,
+    "twentieth_review_rounds": 20
   }
 }

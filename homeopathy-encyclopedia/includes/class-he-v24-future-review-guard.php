@@ -83,7 +83,7 @@ final class HE_V24_Future_Review_Guard {
 		$allowed = HE_V2_Auth::rest_permission( $capability ); if ( is_wp_error( $allowed ) ) { return $allowed; }
 		if ( ! HE_V2_Auth::require_nonce( $request ) ) { return new WP_Error( 'he_invalid_nonce', __( 'The security token is missing or expired.', 'homeopathy-encyclopedia' ), array( 'status' => 403 ) ); }
 		if ( ! HE_V2_Domain::rate_allow( 'v24-review:' . sanitize_key( $operation ) . ':' . get_current_user_id(), 30, MINUTE_IN_SECONDS ) ) { return new WP_Error( 'he_rate_limited', __( 'Too many requests. Please retry later.', 'homeopathy-encyclopedia' ), array( 'status' => 429 ) ); }
-		$key = trim( (string) $request->get_header( 'Idempotency-Key' ) ); if ( '' === $key || strlen( $key ) > 128 ) { return new WP_Error( 'he_idempotency_required', __( 'A valid Idempotency-Key header is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
+		$key = trim( (string) $request->get_header( 'Idempotency-Key' ) ); if ( strlen( $key ) < 8 || strlen( $key ) > 128 ) { return new WP_Error( 'he_idempotency_required', __( 'A valid Idempotency-Key header is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
 		return HE_V2_Domain::idempotent_begin( get_current_user_id(), $operation, $key, $request->get_json_params() ?: $request->get_params() );
 	}
 

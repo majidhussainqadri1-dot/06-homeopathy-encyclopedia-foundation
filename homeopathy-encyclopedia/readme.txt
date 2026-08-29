@@ -4,7 +4,7 @@ Tags: encyclopedia, knowledge graph, research, homeopathy, evidence
 Requires at least: 6.1
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.4.17
+Stable tag: 2.4.19
 License: GPLv2 or later
 
 Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
@@ -13,7 +13,7 @@ Canonical, versioned and governed homeopathy encyclopedia, research registry and
 
 File 06 owns permanent canonical knowledge entries, the fixed sixteen-type taxonomy, aliases and transliterations, structured references and evidence grades, immutable published versions, corrections and retractions, duplicate merges and redirects, typed knowledge relations, the public research registry, successful-case governance, restricted dataset-access requests and versioned consumer contracts.
 
-Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities plus File 06 native object/state/type scope. The 2.4.15 candidate also requires explicit editor knowledge-type assignment and reviewer assignment for governed review decisions.
+Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities plus File 06 native object/state/type scope. The current 2.4.19 candidate also requires explicit editor knowledge-type assignment and reviewer assignment for governed review decisions.
 
 == Principal controls ==
 
@@ -51,6 +51,20 @@ Public reading is available without an account where a record is published, inde
 Public DTOs are allowlisted. Drafts, rejected records, private research, dataset grants, conflicts, consent records and private notes are not public-index data. Published institutional knowledge and integrity history may be retained after account erasure in de-identified form under the governed retention/legal-hold rules.
 
 == Changelog ==
+
+= 2.4.19 =
+* Twentieth fresh twenty-round hardening candidate: atomic duplicate persistence, unified mutation idempotency policy, canonical language/migration safety, complete research governance, atomic multilingual writes, durable impact/outbox handling, File 19-owned knowledge-watch trigger integration, retry-safe privacy erasure, isolated research composer compensation, repeated-shortcode accessibility/reflow, and final release-truth alignment.
+* Defects were found and corrected in rounds 1, 2, 3, 6, 7, 8, 10, 12, 15, 16, 17, 18, 19 and 20; rounds 4, 5, 9, 11, 13 and 14 were clean.
+* Repository/automated-QA candidate only; staging, deployed parity and operational status remain separate evidence gates.
+
+= 2.4.17 =
+* Eighteenth twenty-round hardening candidate: canonical research-review assignment binding, opaque research pagination, integrity-state ownership, public identifier/privacy repairs, migration/runtime hardening, and exact-head regression closure.
+
+= 2.4.16 =
+* Seventeenth twenty-round hardening candidate: additional authorization, lifecycle, public DTO, migration and operational guardrails with a clean twentieth-round closure.
+
+= 2.4.15 =
+* Sixteenth twenty-round hardening candidate: public-ID, deletion-governance, dataset-access, projection and rollback corrections.
 
 = 2.4.14 =
 * Fifteenth ten-round corrective candidate: deletion lifecycle certainty, verified entry-create projections and compensation, ambiguous-alias fail-closed resolution, accepted/atomic integrity apply, governed canonical dataset-access requests, public graph UUID edges, retracted-research payload parity, nested structured rendering safety, and refreshed exact-head release truth.

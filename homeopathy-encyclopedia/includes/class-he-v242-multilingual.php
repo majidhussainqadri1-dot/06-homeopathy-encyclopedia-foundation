@@ -102,7 +102,7 @@ final class HE_V242_Multilingual {
 			return new WP_Error( 'he_rate_limited', __( 'Too many requests. Please retry later.', 'homeopathy-encyclopedia' ), array( 'status' => 429 ) );
 		}
 		$key = trim( (string) $request->get_header( 'Idempotency-Key' ) );
-		if ( '' === $key || strlen( $key ) > 128 ) {
+		if ( strlen( $key ) < 8 || strlen( $key ) > 128 ) {
 			return new WP_Error( 'he_idempotency_required', __( 'A valid Idempotency-Key header is required.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) );
 		}
 		return HE_V2_Domain::idempotent_begin( get_current_user_id(), $operation, $key, $request->get_json_params() ?: $request->get_params() );
@@ -161,40 +161,58 @@ final class HE_V242_Multilingual {
 			return self::finish( $reservation, new WP_Error( 'he_future_locale_invalid', __( 'The target locale is not one of the nine governed translations for this source language.', 'homeopathy-encyclopedia' ), array( 'status' => 400, 'allowed_targets' => $targets, 'policy_version' => self::POLICY_VERSION ) ) );
 		}
 		$source = absint( $data['source_version'] ?? 0 );
-		if ( ! $source || $source !== (int) $concept['current_version'] || ! HE_V24_Future_Schema::version_belongs( $concept['id'], $source ) ) {
-			return self::finish( $reservation, new WP_Error( 'he_future_translation_source_invalid', __( 'Translations must bind to the current governed source version.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
-		}
 		$content = self::clean_content( $data['content'] ?? array(), ! empty( $data['machine_assisted'] ) );
 		if ( empty( $content['title'] ) || empty( $content['body'] ) ) {
 			return self::finish( $reservation, new WP_Error( 'he_future_translation_content_required', __( 'Translated title and body are required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ) );
 		}
 		$hash = hash( 'sha256', wp_json_encode( $content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
-		global $wpdb; $table = HE_V24_Future_Schema::table( 'translations' ); $now = current_time( 'mysql', true );
-		$equivalents = self::legacy_equivalent_locales( $locale );
-		if ( 1 === count( $equivalents ) ) {
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND locale=%s", $concept['id'], $locale ), ARRAY_A );
-		} else {
-			$existing_rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND locale IN (%s,%s) ORDER BY CASE WHEN locale=%s THEN 0 ELSE 1 END,id ASC", $concept['id'], $equivalents[0], $equivalents[1], $locale ), ARRAY_A );
-			if ( count( $existing_rows ) > 1 ) {
-				return self::finish( $reservation, new WP_Error( 'he_translation_locale_collision', __( 'Both legacy and canonical Urdu translation rows exist. Reconcile the duplicate before editing.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) );
-			}
-			$existing = $existing_rows ? $existing_rows[0] : null;
+		$table = HE_V24_Future_Schema::table( 'translations' ); $concepts = HE_V2_Schema::table( 'concepts' ); $now = current_time( 'mysql', true );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return self::finish( $reservation, new WP_Error( 'he_future_translation_write_failed', __( 'The translation transaction could not start safely.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ) );
 		}
-		if ( $existing ) {
-			$expected = absint( $data['expected_translation_version'] ?? 0 );
-			if ( ! $expected || $expected !== (int) $existing['translation_version'] ) {
-				return self::finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The translation changed in another session. Reload and retry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) );
+		try {
+			$locked = $wpdb->get_row( $wpdb->prepare( "SELECT id,public_id,current_version,language FROM {$concepts} WHERE id=%d FOR UPDATE", (int) $concept['id'] ), ARRAY_A );
+			if ( ! $locked ) { throw new RuntimeException( 'not-found' ); }
+			$locked_source_locale = self::canonical_locale( $locked['language'] );
+			$locked_targets = self::targets_for_source( $locked_source_locale );
+			if ( ! $source || $source !== (int) $locked['current_version'] || ! HE_V24_Future_Schema::version_belongs( $locked['id'], $source ) ) { throw new RuntimeException( 'source' ); }
+			if ( ! $locale || ! in_array( $locale, $locked_targets, true ) || $locale === $locked_source_locale ) { throw new RuntimeException( 'locale' ); }
+			$equivalents = self::legacy_equivalent_locales( $locale );
+			if ( 1 === count( $equivalents ) ) {
+				$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND locale=%s FOR UPDATE", $locked['id'], $locale ), ARRAY_A );
+			} else {
+				$existing_rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE concept_id=%d AND locale IN (%s,%s) ORDER BY CASE WHEN locale=%s THEN 0 ELSE 1 END,id ASC FOR UPDATE", $locked['id'], $equivalents[0], $equivalents[1], $locale ), ARRAY_A );
+				if ( count( $existing_rows ) > 1 ) { throw new RuntimeException( 'collision' ); }
+				$existing = $existing_rows ? $existing_rows[0] : null;
 			}
-			$version = $expected + 1;
-			$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET locale=%s,source_locale=%s,source_version=%d,translation_version=translation_version+1,status='draft',translator_id=%d,reviewer_id=0,content_json=%s,content_hash=%s,published_at=NULL,updated_at=%s WHERE id=%d AND translation_version=%d", $locale, $source_locale, $source, get_current_user_id(), wp_json_encode( $content ), $hash, $now, (int) $existing['id'], $expected ) );
-			if ( 1 !== (int) $updated ) { return self::finish( $reservation, new WP_Error( 'he_version_conflict', __( 'The translation changed in another session. Reload and retry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ) ); }
-		} else {
-			$version = 1;
-			$ok = $wpdb->insert( $table, array( 'concept_id' => (int) $concept['id'], 'locale' => $locale, 'source_locale' => $source_locale, 'source_version' => $source, 'translation_version' => 1, 'status' => 'draft', 'translator_id' => get_current_user_id(), 'reviewer_id' => 0, 'content_json' => wp_json_encode( $content ), 'content_hash' => $hash, 'created_at' => $now, 'updated_at' => $now ) );
-			if ( ! $ok ) { return self::finish( $reservation, new WP_Error( 'he_future_translation_write_failed', __( 'The translation could not be saved.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) ) ); }
+			if ( $existing ) {
+				$expected = absint( $data['expected_translation_version'] ?? 0 );
+				if ( ! $expected || $expected !== (int) $existing['translation_version'] ) { throw new RuntimeException( 'version' ); }
+				$version = $expected + 1;
+				$updated = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET locale=%s,source_locale=%s,source_version=%d,translation_version=translation_version+1,status='draft',translator_id=%d,reviewer_id=0,content_json=%s,content_hash=%s,published_at=NULL,updated_at=%s WHERE id=%d AND translation_version=%d", $locale, $locked_source_locale, $source, get_current_user_id(), wp_json_encode( $content ), $hash, $now, (int) $existing['id'], $expected ) );
+				if ( 1 !== (int) $updated ) { throw new RuntimeException( 'version' ); }
+				$http_code = 200;
+			} else {
+				$version = 1;
+				$ok = $wpdb->insert( $table, array( 'concept_id' => (int) $locked['id'], 'locale' => $locale, 'source_locale' => $locked_source_locale, 'source_version' => $source, 'translation_version' => 1, 'status' => 'draft', 'translator_id' => get_current_user_id(), 'reviewer_id' => 0, 'content_json' => wp_json_encode( $content ), 'content_hash' => $hash, 'created_at' => $now, 'updated_at' => $now ) );
+				if ( ! $ok ) { throw new RuntimeException( 'write' ); }
+				$http_code = 201;
+			}
+			$provenance = HE_V24_Future_Schema::append_provenance( 'translation', $locked['public_id'] . ':' . $locale, 'translation.saved', '', array( 'source_version' => $source, 'translation_version' => $version, 'source_hash' => $hash, 'policy_version' => self::POLICY_VERSION, 'machine_assisted' => ! empty( $data['machine_assisted'] ) ) );
+			if ( ! $provenance ) { throw new RuntimeException( 'provenance' ); }
+			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'commit' ); }
+			$source_locale = $locked_source_locale; $targets = $locked_targets;
+		} catch ( Throwable $error ) {
+			$wpdb->query( 'ROLLBACK' ); $reason = $error->getMessage();
+			if ( 'not-found' === $reason ) { $err = new WP_Error( 'he_not_found', __( 'Concept not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ); }
+			elseif ( 'source' === $reason ) { $err = new WP_Error( 'he_future_translation_source_invalid', __( 'Translations must bind to the current governed source version.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) ); }
+			elseif ( 'locale' === $reason ) { $err = new WP_Error( 'he_future_locale_invalid', __( 'The target locale is not one of the governed translations for the current source language.', 'homeopathy-encyclopedia' ), array( 'status' => 400 ) ); }
+			elseif ( 'collision' === $reason ) { $err = new WP_Error( 'he_translation_locale_collision', __( 'Both legacy and canonical Urdu translation rows exist. Reconcile the duplicate before editing.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); }
+			elseif ( 'version' === $reason ) { $err = new WP_Error( 'he_version_conflict', __( 'The translation changed in another session. Reload and retry.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) ); }
+			else { HE_V2_Schema::record_runtime_failure( 'multilingual_translation_save_atomic_failed', 'Governed multilingual translation state and provenance could not be committed atomically.' ); $err = new WP_Error( 'he_future_translation_write_failed', __( 'The translation and provenance could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) ); }
+			return self::finish( $reservation, $err );
 		}
-		HE_V24_Future_Schema::append_provenance( 'translation', $concept['public_id'] . ':' . $locale, 'translation.saved', '', array( 'source_version' => $source, 'translation_version' => $version, 'source_hash' => $hash, 'policy_version' => self::POLICY_VERSION, 'machine_assisted' => ! empty( $data['machine_assisted'] ) ) );
-		return self::finish( $reservation, array( 'saved' => true, 'status' => 'draft', 'locale' => $locale, 'source_locale' => $source_locale, 'source_version' => $source, 'translation_version' => $version, 'translation_targets' => $targets, 'policy_version' => self::POLICY_VERSION, 'human_review_required' => true ), $existing ? 200 : 201 );
+		return self::finish( $reservation, array( 'saved' => true, 'status' => 'draft', 'locale' => $locale, 'source_locale' => $source_locale, 'source_version' => $source, 'translation_version' => $version, 'translation_targets' => $targets, 'policy_version' => self::POLICY_VERSION, 'human_review_required' => true ), $http_code );
 	}
 
 	public static function extend_contract( $contracts ) {

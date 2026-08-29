@@ -1324,12 +1324,13 @@ final class HE_V2_Domain {
 		if ( ! in_array( $to_state, $map[ $row['status'] ] ?? array(), true ) ) {
 			return new WP_Error( 'he_transition_forbidden', __( 'This research transition is not allowed.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
 		}
-		if ( in_array( $to_state, array( 'approved', 'active', 'published' ), true ) ) {
-			$ethics = json_decode( $row['ethics_json'], true );
-			$consent = json_decode( $row['consent_json'], true );
-			$case_governance_failed = 'successful-case' === $row['record_type'] && ( empty( $consent['verified'] ) || empty( $row['case_consent_verified'] ) || empty( $row['case_anonymized'] ) );
-			if ( empty( $ethics['approval_reference'] ) || $case_governance_failed ) {
-				return new WP_Error( 'he_ethics_gate_failed', __( 'Ethics approval, verified consent and anonymization must be documented.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+		if ( in_array( $to_state, array( 'approved', 'active', 'analysis', 'peer_review', 'published' ), true ) ) {
+			if ( ! class_exists( 'HE_V22_Research_Guard' ) ) {
+				return new WP_Error( 'he_research_governance_unavailable', __( 'The governed research validator is unavailable.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
+			$governance = HE_V22_Research_Guard::validate_row( $row );
+			if ( is_wp_error( $governance ) ) {
+				return $governance;
 			}
 		}
 		if ( 'published' === $to_state ) {
