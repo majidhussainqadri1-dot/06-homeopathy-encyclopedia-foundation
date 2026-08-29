@@ -47,4 +47,19 @@ foreach ( $r9_needles as $needle ) {
         exit( 1 );
     }
 }
-echo "File 06 v2.4.20 twenty-first-review regressions through R9: PASS\n";
+$watchlist = file_get_contents( $root . '/homeopathy-encyclopedia/includes/class-he-v242-watchlist.php' );
+if ( false === $watchlist ) { fwrite( STDERR, "Unable to read watchlist source.\n" ); exit( 1 ); }
+$r15_needles = array(
+    "HE_V2_Domain::concept_by_id( (int) \$row['object_id'], false )",
+    "if ( 'topic' === \$row['object_type'] )",
+    "get_term( (int) \$row['object_id'], HE_V2_Domain::TAX_TOPIC )",
+    "HE_V22_Research_Guard::public_surface_eligible( \$research )",
+    "'publish' !== \$post->post_status",
+);
+foreach ( $r15_needles as $needle ) {
+    if ( false === strpos( $watchlist, $needle ) ) {
+        fwrite( STDERR, "Missing R15 watchlist delivery privacy/topic invariant: {$needle}\n" );
+        exit( 1 );
+    }
+}
+echo "File 06 v2.4.20 twenty-first-review regressions through R15: PASS\n";

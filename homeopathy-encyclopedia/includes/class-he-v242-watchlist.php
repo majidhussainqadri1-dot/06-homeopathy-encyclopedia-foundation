@@ -115,12 +115,22 @@ final class HE_V242_Watchlist {
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT object_type,object_id FROM ' . HE_V2_Schema::table( 'events' ) . ' WHERE event_id=%s', sanitize_text_field( (string) $event_id ) ), ARRAY_A );
 		if ( ! $row ) { return null; }
 		if ( 'concept' === $row['object_type'] ) {
-			$concept = HE_V2_Domain::concept_by_id( (int) $row['object_id'], true );
+			/* Revalidate public eligibility at delivery time so a formerly public
+			 * concept cannot continue producing private/stale notification links. */
+			$concept = HE_V2_Domain::concept_by_id( (int) $row['object_id'], false );
 			return $concept ? array( 'type' => 'concept', 'id' => (string) $concept['public_id'] ) : null;
 		}
+		if ( 'topic' === $row['object_type'] ) {
+			$term = get_term( (int) $row['object_id'], HE_V2_Domain::TAX_TOPIC );
+			return $term && ! is_wp_error( $term ) ? array( 'type' => 'topic', 'id' => (string) $term->slug ) : null;
+		}
 		if ( 'research' === $row['object_type'] ) {
-			$public = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT public_id FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', (int) $row['object_id'] ) );
-			return $public ? array( 'type' => 'research', 'id' => $public ) : null;
+			$research = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'research' ) . ' WHERE id=%d', (int) $row['object_id'] ), ARRAY_A );
+			$post = $research ? get_post( (int) $research['post_id'] ) : null;
+			if ( ! $research || ! $post || 'publish' !== $post->post_status || ! HE_V22_Research_Guard::public_surface_eligible( $research ) ) {
+				return null;
+			}
+			return array( 'type' => 'research', 'id' => (string) $research['public_id'] );
 		}
 		return null;
 	}
