@@ -1,9 +1,9 @@
 <?php
-/** Stable core architecture invariants for the current File 06 candidate (through 2.4.19; historical regression compatibility included). */
+/** Stable core architecture invariants for the current File 06 candidate (through 2.4.20; historical regression compatibility included). */
 $root=dirname(__DIR__);$p=$root.'/homeopathy-encyclopedia';$fail=array();
 function a($ok,$m){global $fail;if(!$ok)$fail[]=$m;} function rd($f){$v=file_get_contents($f);if(false===$v)throw new RuntimeException($f);return $v;}
 $b=rd($p.'/homeopathy-encyclopedia.php');$s=rd($p.'/includes/class-he-v2-schema.php');$d=rd($p.'/includes/class-he-v2-domain.php');$api=rd($p.'/includes/class-he-v2-api.php');$auth=rd($p.'/includes/class-he-v2-auth.php');$g=rd($p.'/includes/class-he-v22-governance.php');$i=rd($p.'/includes/class-he-v22-integrity.php');$sch=rd($p.'/includes/class-he-v22-schedule.php');$search=rd($p.'/includes/class-he-v22-search.php');$types=rd($p.'/includes/class-he-v22-type-schemas.php');$rg=rd($p.'/includes/class-he-v22-research-guard.php');$c=rd($p.'/includes/class-he-v22-consumers.php');$op=rd($p.'/includes/class-he-v22-operations.php');$privacy=rd($p.'/includes/class-he-v2-privacy.php');$pub=rd($p.'/includes/class-he-v22-public-guard.php');
-a((bool)preg_match("/HE_VERSION', '2\\.4\\.(?:15|16|17|18|19)/",$b),'version');a(false!==strpos($b,"HE_SCHEMA_VERSION', 10"),'schema');a((bool)preg_match("/HE_CONTRACT_VERSION', '2\\.4\\.(?:15|16|17|18|19)/",$b),'contract');
+a((bool)preg_match("/HE_VERSION', '2\\.4\\.(?:15|16|17|18|19|20)/",$b),'version');a(false!==strpos($b,"HE_SCHEMA_VERSION', 10"),'schema');a((bool)preg_match("/HE_CONTRACT_VERSION', '2\\.4\\.(?:15|16|17|18|19|20)/",$b),'contract');
 a((bool)preg_match("/'staging_accepted'\s*=>\s*false/",$b)&&(bool)preg_match("/'live_deployed'\s*=>\s*false/",$b)&&(bool)preg_match("/'operational'\s*=>\s*false/",$b),'release truth');
 preg_match_all("/=> __\( '/",$d,$m);a(count($m[0])>=16,'taxonomy');a(16===substr_count($types,"'body_system_required' =>"),'16 type schemas');
 foreach(array('concepts','aliases','versions','references','relations','reviews','integrity_actions','research','dataset_access','events','outbox','idempotency','bookmarks','rate_limits','search_index') as $t)a(false!==strpos($s,"table( '".$t."' )"),'table '.$t);
