@@ -1,7 +1,7 @@
 diff --git a/homeopathy-encyclopedia/includes/class-he-v242-watchlist.php b/homeopathy-encyclopedia/includes/class-he-v242-watchlist.php
 --- a/homeopathy-encyclopedia/includes/class-he-v242-watchlist.php
 +++ b/homeopathy-encyclopedia/includes/class-he-v242-watchlist.php
-@@ -1,12 +1,22 @@
+@@ -115,12 +115,22 @@ final class HE_V242_Watchlist {
  		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT object_type,object_id FROM ' . HE_V2_Schema::table( 'events' ) . ' WHERE event_id=%s', sanitize_text_field( (string) $event_id ) ), ARRAY_A );
  		if ( ! $row ) { return null; }
  		if ( 'concept' === $row['object_type'] ) {
