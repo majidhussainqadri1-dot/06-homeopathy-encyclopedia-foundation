@@ -32,6 +32,8 @@ jobs:
           cat .github/patchparts/file06-v2419.part* > /tmp/file06-v2419.patch.gz.b64
           echo "combined $(wc -c < /tmp/file06-v2419.patch.gz.b64) bytes"
           sha256sum /tmp/file06-v2419.patch.gz.b64
+          test "$(wc -c < /tmp/file06-v2419.patch.gz.b64)" -eq 35528
+          test "$(sha256sum /tmp/file06-v2419.patch.gz.b64 | awk '{print $1}')" = "f896c7ee9e3f6109bb5a80ac4bab2b5509abd39bd6e68ba2804b6ba2c85410b5"
           base64 -d /tmp/file06-v2419.patch.gz.b64 | gzip -dc > /tmp/file06-v2419.patch
           git apply --check /tmp/file06-v2419.patch
           git apply /tmp/file06-v2419.patch
