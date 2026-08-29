@@ -1,0 +1,117 @@
+--- a/homeopathy-encyclopedia/includes/class-he-v2-domain.php
++++ b/homeopathy-encyclopedia/includes/class-he-v2-domain.php
+@@ -653,35 +653,71 @@
+ 
+ 	public static function add_alias( $concept_id, $alias, $language, $type, $primary, $actor_id ) {
+ 		global $wpdb;
++		$concept_id = absint( $concept_id );
+ 		$alias = sanitize_text_field( $alias );
+ 		$normalized = self::normalize( $alias );
+ 		$language = sanitize_text_field( $language ?: 'en-US' );
+ 		$type = in_array( $type, array( 'canonical', 'synonym', 'transliteration', 'former-name', 'redirect' ), true ) ? $type : 'synonym';
+-		if ( ! $alias || ! $normalized ) {
++		$make_primary = $primary || 'canonical' === $type;
++		if ( ! $concept_id || ! $alias || ! $normalized ) {
+ 			return new WP_Error( 'he_empty_alias', __( 'Alias cannot be empty.', 'homeopathy-encyclopedia' ) );
+ 		}
+-		$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT id,concept_id,alias_type,is_primary FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE normalized_alias=%s AND language=%s', $normalized, $language ), ARRAY_A );
+-		if ( $existing && (int) $existing['concept_id'] !== absint( $concept_id ) ) {
+-			return new WP_Error( 'he_alias_collision', __( 'This alias already belongs to another canonical concept.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
++		$in_transaction = (bool) $wpdb->get_var( 'SELECT @@in_transaction' );
++		$savepoint = 'he_add_alias';
++		if ( $in_transaction ) {
++			if ( false === $wpdb->query( 'SAVEPOINT ' . $savepoint ) ) {
++				return new WP_Error( 'he_alias_write_failed', __( 'Alias persistence could not be protected atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
++			}
++		} elseif ( false === $wpdb->query( 'START TRANSACTION' ) ) {
++			return new WP_Error( 'he_alias_write_failed', __( 'Alias persistence could not start atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+ 		}
+-		if ( $existing ) {
+-			if ( $primary || 'canonical' === $type ) {
+-				$wpdb->query( $wpdb->prepare( 'UPDATE ' . HE_V2_Schema::table( 'aliases' ) . ' SET is_primary=0 WHERE concept_id=%d AND id<>%d AND is_primary=1', absint( $concept_id ), (int) $existing['id'] ) );
+-				$updated = $wpdb->update( HE_V2_Schema::table( 'aliases' ), array( 'alias' => $alias, 'alias_type' => $type, 'is_primary' => $primary ? 1 : 0 ), array( 'id' => (int) $existing['id'] ), array( '%s','%s','%d' ), array( '%d' ) );
+-				return false !== $updated;
++		try {
++			$table = HE_V2_Schema::table( 'aliases' );
++			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id,concept_id,alias_type,is_primary FROM {$table} WHERE normalized_alias=%s AND language=%s FOR UPDATE", $normalized, $language ), ARRAY_A );
++			if ( $existing && (int) $existing['concept_id'] !== $concept_id ) {
++				throw new RuntimeException( 'alias-collision' );
++			}
++			if ( $existing ) {
++				$updated = $wpdb->update( $table, array( 'alias' => $alias, 'alias_type' => $type, 'is_primary' => $make_primary ? 1 : (int) $existing['is_primary'] ), array( 'id' => (int) $existing['id'] ), array( '%s','%s','%d' ), array( '%d' ) );
++				if ( false === $updated ) { throw new RuntimeException( 'alias-update-failed' ); }
++				$alias_id = (int) $existing['id'];
++			} else {
++				$inserted = $wpdb->insert( $table, array(
++					'concept_id' => $concept_id,
++					'alias' => $alias,
++					'normalized_alias' => $normalized,
++					'language' => $language,
++					'alias_type' => $type,
++					'is_primary' => $make_primary ? 1 : 0,
++					'created_by' => absint( $actor_id ),
++					'created_at' => current_time( 'mysql', true ),
++				), array( '%d','%s','%s','%s','%s','%d','%d','%s' ) );
++				if ( false === $inserted ) { throw new RuntimeException( 'alias-insert-failed' ); }
++				$alias_id = (int) $wpdb->insert_id;
++			}
++			if ( $make_primary ) {
++				$demoted = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET is_primary=0 WHERE concept_id=%d AND id<>%d AND is_primary=1", $concept_id, $alias_id ) );
++				if ( false === $demoted ) { throw new RuntimeException( 'alias-primary-demotion-failed' ); }
++			}
++			if ( $in_transaction ) {
++				if ( false === $wpdb->query( 'RELEASE SAVEPOINT ' . $savepoint ) ) { throw new RuntimeException( 'alias-savepoint-release-failed' ); }
++			} elseif ( false === $wpdb->query( 'COMMIT' ) ) {
++				throw new RuntimeException( 'alias-commit-failed' );
+ 			}
+ 			return true;
++		} catch ( Throwable $error ) {
++			if ( $in_transaction ) {
++				$wpdb->query( 'ROLLBACK TO SAVEPOINT ' . $savepoint );
++				$wpdb->query( 'RELEASE SAVEPOINT ' . $savepoint );
++			} else {
++				$wpdb->query( 'ROLLBACK' );
++			}
++			if ( 'alias-collision' === $error->getMessage() ) {
++				return new WP_Error( 'he_alias_collision', __( 'This alias already belongs to another canonical concept.', 'homeopathy-encyclopedia' ), array( 'status' => 409 ) );
++			}
++			HE_V2_Schema::record_runtime_failure( 'alias_atomic_write_failed', 'File 06 rolled back an alias mutation because canonical/primary alias persistence could not be verified atomically.' );
++			return new WP_Error( 'he_alias_write_failed', __( 'The alias could not be saved atomically.', 'homeopathy-encyclopedia' ), array( 'status' => 500 ) );
+ 		}
+-		return (bool) $wpdb->insert( HE_V2_Schema::table( 'aliases' ), array(
+-			'concept_id' => absint( $concept_id ),
+-			'alias' => $alias,
+-			'normalized_alias' => $normalized,
+-			'language' => $language,
+-			'alias_type' => $type,
+-			'is_primary' => $primary ? 1 : 0,
+-			'created_by' => absint( $actor_id ),
+-			'created_at' => current_time( 'mysql', true ),
+-		), array( '%d','%s','%s','%s','%s','%d','%d','%s' ) );
+ 	}
+ 
+ 	public static function add_reference( $concept_id, $data, $actor_id, $version_id = 0 ) {
+--- a/tests/v2420-twenty-first-twenty-round-regressions.php
++++ b/tests/v2420-twenty-first-twenty-round-regressions.php
+@@ -17,4 +17,20 @@
+     fwrite( STDERR, "R2 requires fail-closed re-resolution guards on all core object mutation callbacks.\n" );
+     exit( 1 );
+ }
+-echo "File 06 v2.4.20 twenty-first-review regressions through R2: PASS\n";
++$domain = file_get_contents( $root . '/homeopathy-encyclopedia/includes/class-he-v2-domain.php' );
++if ( false === $domain ) { fwrite( STDERR, "Unable to read domain source.\n" ); exit( 1 ); }
++$r3_needles = array(
++    '$make_primary = $primary || \'canonical\' === $type;',
++    "SELECT @@in_transaction",
++    "FOR UPDATE",
++    'SAVEPOINT \' . $savepoint',
++    'ROLLBACK TO SAVEPOINT \' . $savepoint',
++    "alias_atomic_write_failed",
++);
++foreach ( $r3_needles as $needle ) {
++    if ( false === strpos( $domain, $needle ) ) {
++        fwrite( STDERR, "Missing R3 atomic canonical-alias invariant: {$needle}\n" );
++        exit( 1 );
++    }
++}
++echo "File 06 v2.4.20 twenty-first-review regressions through R3: PASS\n";
