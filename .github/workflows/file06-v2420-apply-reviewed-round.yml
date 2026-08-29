@@ -1,0 +1,48 @@
+name: File 06 v2.4.20 Apply Reviewed Round
+
+on:
+  push:
+    branches:
+      - audit/file-06-twenty-first-twenty-round-v2.4.20
+    paths:
+      - '.review-patches/*.patch'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-reviewed-round:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply frozen round patch
+        run: |
+          set -euo pipefail
+          mapfile -t patches < <(find .review-patches -maxdepth 1 -type f -name '*.patch' -print | sort)
+          test "${#patches[@]}" -gt 0
+          for patch in "${patches[@]}"; do
+            git apply --check "$patch"
+            git apply "$patch"
+          done
+          rm -rf .review-patches
+      - name: Full regression after corrections
+        run: |
+          set -euo pipefail
+          bash tests/run-all.sh
+      - name: Commit corrected round
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(file-06): apply frozen review-round corrections'
+          git push origin HEAD:${GITHUB_REF_NAME}
