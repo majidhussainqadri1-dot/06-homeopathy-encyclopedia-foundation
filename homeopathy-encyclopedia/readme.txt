@@ -4,7 +4,7 @@ Tags: encyclopedia, knowledge graph, research, homeopathy, evidence
 Requires at least: 6.1
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.4.19
+Stable tag: 2.4.20
 License: GPLv2 or later
 
 Canonical, versioned and governed homeopathy encyclopedia, research registry and knowledge graph for the Sabri Social Homeopathy Platform.
@@ -13,7 +13,7 @@ Canonical, versioned and governed homeopathy encyclopedia, research registry and
 
 File 06 owns permanent canonical knowledge entries, the fixed sixteen-type taxonomy, aliases and transliterations, structured references and evidence grades, immutable published versions, corrections and retractions, duplicate merges and redirects, typed knowledge relations, the public research registry, successful-case governance, restricted dataset-access requests and versioned consumer contracts.
 
-Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities plus File 06 native object/state/type scope. The current 2.4.19 candidate also requires explicit editor knowledge-type assignment and reviewer assignment for governed review decisions.
+Public reading is available without an account where a record is published, independently reviewed and safety-approved. Creation, review, publication, merge, research and dataset operations require File 00-aware capabilities plus File 06 native object/state/type scope. The current 2.4.20 candidate also requires explicit editor knowledge-type assignment and reviewer assignment for governed review decisions.
 
 == Principal controls ==
 
@@ -51,6 +51,11 @@ Public reading is available without an account where a record is published, inde
 Public DTOs are allowlisted. Drafts, rejected records, private research, dataset grants, conflicts, consent records and private notes are not public-index data. Published institutional knowledge and integrity history may be retained after account erasure in de-identified form under the governed retention/legal-hold rules.
 
 == Changelog ==
+
+= 2.4.20 =
+* Twenty-first fresh twenty-round source-review candidate. Current-cycle corrections include mutation callback race closure, atomic canonical-alias writes, token-safe language migration leases, and delivery-time privacy/topic validation for File 19-owned knowledge-watch notifications.
+* Release identity, runtime/contract labels, build labels and repository evidence are aligned to 2.4.20. Final round outcomes and exact package/hash evidence are established by separate review and exact-HEAD QA evidence, not self-certified by this readme.
+* Repository candidate only; staging, deployed parity, live DB/migration state and operational acceptance remain separate evidence gates.
 
 = 2.4.19 =
 * Twentieth fresh twenty-round hardening candidate: atomic duplicate persistence, unified mutation idempotency policy, canonical language/migration safety, complete research governance, atomic multilingual writes, durable impact/outbox handling, File 19-owned knowledge-watch trigger integration, retry-safe privacy erasure, isolated research composer compensation, repeated-shortcode accessibility/reflow, and final release-truth alignment.
