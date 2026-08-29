@@ -8,6 +8,7 @@ final class HE_V242_Language_Migration {
 	const CURSOR = 'he_v242_language_migration_cursor';
 	const LOCK = 'he_v242_language_migration_lock';
 	const BATCH = 50;
+	private static $lock_token = '';
 
 	public static function hooks() {
 		add_action( 'admin_init', array( __CLASS__, 'run_bounded' ), 15 );
@@ -16,17 +17,42 @@ final class HE_V242_Language_Migration {
 	}
 
 	private static function lock() {
-		$token = array( 'time' => time(), 'token' => wp_generate_uuid4() );
-		if ( add_option( self::LOCK, $token, '', false ) ) { return true; }
-		$existing = get_option( self::LOCK );
-		if ( is_array( $existing ) && ! empty( $existing['time'] ) && time() - (int) $existing['time'] > 300 ) {
-			delete_option( self::LOCK );
-			return add_option( self::LOCK, $token, '', false );
+		global $wpdb;
+		$token = wp_generate_uuid4();
+		$value = array( 'time' => time(), 'token' => $token );
+		if ( add_option( self::LOCK, $value, '', false ) ) {
+			self::$lock_token = $token;
+			return true;
 		}
-		return false;
+		$existing = get_option( self::LOCK );
+		if ( ! is_array( $existing ) || empty( $existing['time'] ) || time() - (int) $existing['time'] <= 300 ) {
+			return false;
+		}
+		$deleted = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+			self::LOCK,
+			maybe_serialize( $existing )
+		) );
+		if ( 1 !== (int) $deleted || ! add_option( self::LOCK, $value, '', false ) ) {
+			return false;
+		}
+		self::$lock_token = $token;
+		return true;
 	}
 
-	private static function unlock() { delete_option( self::LOCK ); }
+	private static function unlock() {
+		global $wpdb;
+		if ( ! self::$lock_token ) { return; }
+		$current = get_option( self::LOCK );
+		if ( is_array( $current ) && ! empty( $current['token'] ) && hash_equals( (string) $current['token'], self::$lock_token ) ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name=%s AND option_value=%s",
+				self::LOCK,
+				maybe_serialize( $current )
+			) );
+		}
+		self::$lock_token = '';
+	}
 
 	public static function ready() { return (bool) get_option( self::DONE, false ); }
 

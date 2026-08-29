@@ -33,4 +33,18 @@ foreach ( $r3_needles as $needle ) {
         exit( 1 );
     }
 }
-echo "File 06 v2.4.20 twenty-first-review regressions through R3: PASS\n";
+$language_migration = file_get_contents( $root . '/homeopathy-encyclopedia/includes/class-he-v242-language-migration.php' );
+if ( false === $language_migration ) { fwrite( STDERR, "Unable to read language migration source.\n" ); exit( 1 ); }
+$r9_needles = array(
+    "private static \$lock_token = '';",
+    "maybe_serialize( \$existing )",
+    "hash_equals( (string) \$current['token'], self::\$lock_token )",
+    "maybe_serialize( \$current )",
+);
+foreach ( $r9_needles as $needle ) {
+    if ( false === strpos( $language_migration, $needle ) ) {
+        fwrite( STDERR, "Missing R9 token-safe language migration lease invariant: {$needle}\n" );
+        exit( 1 );
+    }
+}
+echo "File 06 v2.4.20 twenty-first-review regressions through R9: PASS\n";
