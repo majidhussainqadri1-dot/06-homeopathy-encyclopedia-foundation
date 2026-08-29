@@ -1,0 +1,171 @@
+name: File 06 v2.4.20 R18 Consolidated Release Fix
+
+on:
+  push:
+    branches:
+      - audit/file-06-twenty-first-twenty-round-v2.4.20
+    paths:
+      - .github/workflows/file06-v2420-r18-release-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  correct-and-retest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Apply the complete frozen R18 correction set
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          branch = 'audit/file-06-twenty-first-twenty-round-v2.4.20'
+
+          main = Path('homeopathy-encyclopedia/homeopathy-encyclopedia.php')
+          text = main.read_text()
+          replacements = {
+              'Version: 2.4.19': 'Version: 2.4.20',
+              "define( 'HE_VERSION', '2.4.19' );": "define( 'HE_VERSION', '2.4.20' );",
+              "define( 'HE_CONTRACT_VERSION', '2.4.19' );": "define( 'HE_CONTRACT_VERSION', '2.4.20' );",
+              "'future_hardening_version'=>'2.4.19'": "'future_hardening_version'=>'2.4.20'",
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing main-file release marker: {old}')
+              text = text.replace(old, new, 1)
+          main.write_text(text)
+
+          readme = Path('homeopathy-encyclopedia/readme.txt')
+          text = readme.read_text()
+          for old, new in {
+              'Stable tag: 2.4.19': 'Stable tag: 2.4.20',
+              'The current 2.4.19 candidate': 'The current 2.4.20 candidate',
+          }.items():
+              if old not in text:
+                  raise SystemExit(f'missing readme release marker: {old}')
+              text = text.replace(old, new, 1)
+          marker = '== Changelog ==\n'
+          section = """\n= 2.4.20 =\n* Twenty-first fresh twenty-round source-review candidate. Current-cycle corrections include mutation callback race closure, atomic canonical-alias writes, token-safe language migration leases, and delivery-time privacy/topic validation for File 19-owned knowledge-watch notifications.\n* Release identity, runtime/contract labels, build labels and repository evidence are aligned to 2.4.20. Final round outcomes and exact package/hash evidence are established by separate review and exact-HEAD QA evidence, not self-certified by this readme.\n* Repository candidate only; staging, deployed parity, live DB/migration state and operational acceptance remain separate evidence gates.\n\n"""
+          if '= 2.4.20 =' not in text:
+              if marker not in text:
+                  raise SystemExit('readme changelog marker missing')
+              text = text.replace(marker, marker + section, 1)
+          readme.write_text(text)
+
+          Path('README.md').write_text(f'''# File 06 — Homeopathy Encyclopedia 2.4.20\n\nCurrent repository candidate for the twenty-first fresh twenty-round review/fix cycle under the File 06 governing plan. Repository evidence is not staging or live evidence.\n\n## Candidate identity\n- Branch: `{branch}`\n- Plugin / contract: `2.4.20`\n- Global schema: `10`\n- V24 Future schema: `2`\n- REST namespace: `sabri/v2/file-06`\n\nRun `bash tests/run-all.sh`. Exact final HEAD, deterministic package SHA-256 and source-tree SHA-256 are authoritative only from the exact-HEAD GitHub Actions evidence for this candidate. `Staging-Accepted`, `Live-Deployed`, and `Operational` must not be inferred from repository or automated-QA evidence.\n''')
+
+          Path('STATUS.md').write_text(f'''# File 06 Status — 2.4.20 Repository Candidate\n\n| Status | Evidence |\n|---|---|\n| Specified | File 06 governing plan + applicable platform governance |\n| Coded | `{branch}` |\n| Runtime | `2.4.20 / schema 10 / contract 2.4.20 / Future schema 2` |\n| Review cycle | Twenty-first fresh twenty-round review/fix cycle; final outcome is established by the independent round ledger/evidence |\n| Automated QA | Must be established against the exact final HEAD; source text does not self-certify a green run |\n| Staging accepted | **No / unverified** |\n| Live deployed | **No / unverified** |\n| Operational | **No / unverified** |\n\nRepository, staging and live are separate realities.\n''')
+
+          sbom_path = Path('SBOM.json')
+          sbom = json.loads(sbom_path.read_text())
+          sbom['version'] = 10
+          sbom['metadata']['timestamp'] = '2026-08-29T05:00:00Z'
+          sbom['metadata']['component']['version'] = '2.4.20'
+          sbom['metadata']['component']['purl'] = 'pkg:wordpress/homeopathy-encyclopedia@2.4.20'
+          sbom['release'] = {
+              'file': '06-homeopathy-encyclopedia-foundation-2.4.20.zip',
+              'sha256': None,
+              'bytes': None,
+              'source_tree_sha256': None,
+              'evidence_policy': 'Exact final values are emitted by exact-HEAD CI; source does not self-embed pre-build hashes.',
+              'schema': 10,
+              'future_schema': 2,
+              'contract': '2.4.20',
+              'review_cycle': 'twenty-first-fresh-twenty-round',
+              'staging_accepted': False,
+              'live_deployed': False,
+              'operational': False,
+          }
+          sbom_path.write_text(json.dumps(sbom, indent=2, ensure_ascii=False) + '\n')
+
+          Path('V2-MANIFEST.md').write_text(f'''# File 06 v2.4.20 Candidate Manifest\n\n## Release identity\n- Runtime version: `2.4.20`\n- Schema: `10`\n- Contract: `2.4.20`\n- Future schema: `2`\n- Branch: `{branch}`\n- Package top-level folder: `06-homeopathy-encyclopedia-foundation/`\n- Canonical plugin folder: `homeopathy-encyclopedia/`\n- REST namespace: `sabri/v2/file-06`\n- Review cycle: twenty-first fresh twenty-round review/fix cycle\n\n## Evidence policy\nExact tested HEAD, ZIP SHA-256, byte count and source-tree SHA-256 are emitted by exact-HEAD GitHub Actions evidence. They are not guessed or self-embedded before that run. Repository evidence does not establish staging or live deployment.\n\n## Deployment state\n- Automated-QA: requires exact-final-HEAD evidence\n- Staging-Accepted: unverified\n- Live-Deployed: unverified\n- Operational: unverified\n''')
+
+          Path('V2-CHECKSUMS.sha256').write_text('''# Historical checksum evidence retained for provenance only.\n# The lines below are for the v2.4.2 exact candidate and MUST NOT be treated as the current v2.4.20 release hash.\n# Current v2.4.20 package/source hashes are emitted by exact-HEAD CI artifacts.\nb031e5bfec3130713fe812cf14614a83c43d35ed92c130f02e98b0c98fd7975a  HISTORICAL:06-homeopathy-encyclopedia-foundation-2.4.2.zip\n4e36b9f8ecd6346861b17f44b5eded0fa0d2210bbb16178030d8ff111100829a  HISTORICAL:SOURCE-TREE:homeopathy-encyclopedia/:v2.4.2\n''')
+
+          changelog = Path('CHANGELOG.md')
+          text = changelog.read_text()
+          if '## 2.4.20 — Twenty-first fresh twenty-round' not in text:
+              insertion = '''# Changelog\n\n## 2.4.20 — Twenty-first fresh twenty-round repository candidate\n- Fresh post-2.4.19 review cycle with full-review-before-fix discipline.\n- Corrected callback race handling, canonical-alias atomicity, token-safe language migration leasing, and File 19 knowledge-watch delivery privacy/topic resolution before release-truth consolidation.\n- Harmonized runtime/contract/readme/manifest/SBOM/build labels to 2.4.20. Exact final round results and package/source hashes are independent QA evidence, not predeclared here.\n- Staging/live/operational evidence remains unverified.\n\n## 2.4.19 — Twentieth fresh twenty-round corrected candidate\n- Completed the preceding twenty-round repository hardening cycle and aligned runtime/contract to 2.4.19.\n- Exact-head automated QA and deterministic package evidence were established separately; staging/live/operational evidence remained unverified.\n\n'''
+              if not text.startswith('# Changelog\n'):
+                  raise SystemExit('unexpected changelog header')
+              text = insertion + text[len('# Changelog\n\n'):]
+              changelog.write_text(text)
+
+          runall = Path('tests/run-all.sh')
+          text = runall.read_text()
+          text = text.replace('file06-v2.4.19-a.zip', 'file06-v2.4.20-a.zip')
+          text = text.replace('file06-v2.4.19-b.zip', 'file06-v2.4.20-b.zip')
+          text = text.replace('All File 06 v2.4.19 automated checks, inherited review matrices, twentieth twenty-round regressions and deterministic package comparison passed.', 'All File 06 v2.4.20 automated checks, inherited review matrices, twenty-first-cycle regressions and deterministic package comparison passed.')
+          call = 'php "$root/tests/v2420-release-truth-regressions.php"\n'
+          anchor = 'php "$root/tests/v2420-twenty-first-twenty-round-regressions.php"\n'
+          if call not in text:
+              if anchor not in text:
+                  raise SystemExit('run-all current-cycle anchor missing')
+              text = text.replace(anchor, anchor + call, 1)
+          runall.write_text(text)
+
+          Path('tests/v2420-release-truth-regressions.php').write_text(r'''<?php
+/** File 06 v2.4.20 R18 release-truth regression invariants. */
+$root = dirname( __DIR__ );
+$files = array(
+    'main' => file_get_contents( $root . '/homeopathy-encyclopedia/homeopathy-encyclopedia.php' ),
+    'plugin_readme' => file_get_contents( $root . '/homeopathy-encyclopedia/readme.txt' ),
+    'readme' => file_get_contents( $root . '/README.md' ),
+    'status' => file_get_contents( $root . '/STATUS.md' ),
+    'sbom' => file_get_contents( $root . '/SBOM.json' ),
+    'manifest' => file_get_contents( $root . '/V2-MANIFEST.md' ),
+    'runall' => file_get_contents( $root . '/tests/run-all.sh' ),
+);
+foreach ( $files as $name => $content ) {
+    if ( false === $content ) { fwrite( STDERR, "Unable to read release file: {$name}\n" ); exit( 1 ); }
+}
+$needles = array(
+    'main' => array("Version: 2.4.20", "HE_VERSION', '2.4.20", "HE_CONTRACT_VERSION', '2.4.20", "future_hardening_version'=>'2.4.20'"),
+    'plugin_readme' => array('Stable tag: 2.4.20', '= 2.4.20 ='),
+    'readme' => array('Homeopathy Encyclopedia 2.4.20', 'audit/file-06-twenty-first-twenty-round-v2.4.20'),
+    'status' => array('2.4.20 / schema 10 / contract 2.4.20'),
+    'sbom' => array('"version": "2.4.20"', 'homeopathy-encyclopedia@2.4.20', '2.4.20.zip', '"contract": "2.4.20"'),
+    'manifest' => array('Runtime version: `2.4.20`', 'Contract: `2.4.20`', 'audit/file-06-twenty-first-twenty-round-v2.4.20'),
+    'runall' => array('file06-v2.4.20-a.zip', 'file06-v2.4.20-b.zip', 'All File 06 v2.4.20 automated checks'),
+);
+foreach ( $needles as $name => $required ) {
+    foreach ( $required as $needle ) {
+        if ( false === strpos( $files[$name], $needle ) ) {
+            fwrite( STDERR, "Missing R18 release-truth invariant in {$name}: {$needle}\n" );
+            exit( 1 );
+        }
+    }
+}
+foreach ( array('main','plugin_readme','readme','status','sbom','manifest','runall') as $name ) {
+    if ( false !== strpos( $files[$name], 'v2.4.19-a.zip' ) || false !== strpos( $files[$name], 'v2.4.19-b.zip' ) ) {
+        fwrite( STDERR, "Stale current package label remains in {$name}.\n" );
+        exit( 1 );
+    }
+}
+echo "File 06 v2.4.20 R18 release-truth regressions: PASS\n";
+''')
+          PY
+      - name: Full regression after all R18 corrections
+        run: |
+          set -euo pipefail
+          bash tests/run-all.sh
+      - name: Commit the consolidated R18 correction batch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add homeopathy-encyclopedia/homeopathy-encyclopedia.php homeopathy-encyclopedia/readme.txt README.md STATUS.md SBOM.json V2-MANIFEST.md V2-CHECKSUMS.sha256 CHANGELOG.md tests/run-all.sh tests/v2420-release-truth-regressions.php
+          git commit -m 'fix(file-06): complete R18 release-truth correction batch'
+          git push origin HEAD:${GITHUB_REF_NAME}
