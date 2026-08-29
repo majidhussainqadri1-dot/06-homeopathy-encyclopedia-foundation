@@ -324,6 +324,9 @@ final class HE_V2_API {
 	public function add_alias( WP_REST_Request $request ) {
 		$reservation = $this->require_mutation_guards( $request, 'add-alias-' . $request['id'] );
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
+		if ( ! is_wp_error( $reservation ) && ! $row ) {
+			return $this->mutation_response( $reservation, new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 );
+		}
 		$data = (array) $request->get_json_params();
 		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::add_alias( $row['id'], $data['alias'] ?? '', $data['language'] ?? 'en-US', $data['type'] ?? 'synonym', false, get_current_user_id() );
 		return $this->mutation_response( $reservation, $result, 201 );
@@ -332,6 +335,9 @@ final class HE_V2_API {
 	public function add_reference( WP_REST_Request $request ) {
 		$reservation = $this->require_mutation_guards( $request, 'add-reference-' . $request['id'] );
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
+		if ( ! is_wp_error( $reservation ) && ! $row ) {
+			return $this->mutation_response( $reservation, new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 );
+		}
 		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::add_reference( $row['id'], (array) $request->get_json_params(), get_current_user_id(), absint( $request->get_param( 'version_id' ) ) );
 		if ( ! is_wp_error( $result ) ) { $result = array( 'reference_id' => HE_V2_Domain::encode_public_cursor( 'reference', (int) $result ) ); }
 		return $this->mutation_response( $reservation, $result, 201 );
@@ -352,6 +358,9 @@ final class HE_V2_API {
 	public function transition_entry( WP_REST_Request $request ) {
 		$reservation = $this->require_mutation_guards( $request, 'transition-entry-' . $request['id'] );
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
+		if ( ! is_wp_error( $reservation ) && ! $row ) {
+			return $this->mutation_response( $reservation, new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ) );
+		}
 		$data = (array) $request->get_json_params();
 		$result = is_wp_error( $reservation ) ? $reservation : HE_V2_Domain::transition_entry( $row['id'], sanitize_key( $data['state'] ?? '' ), absint( $data['expected_version'] ?? 0 ), get_current_user_id(), $data['note'] ?? '', $data['effective_at'] ?? '' );
 		return $this->mutation_response( $reservation, $result );
@@ -402,6 +411,9 @@ final class HE_V2_API {
 	public function add_relation( WP_REST_Request $request ) {
 		$reservation = $this->require_mutation_guards( $request, 'add-relation-' . $request['id'] );
 		$row = HE_V2_Domain::concept_by_id( $request['id'], true );
+		if ( ! is_wp_error( $reservation ) && ! $row ) {
+			return $this->mutation_response( $reservation, new WP_Error( 'he_not_found', __( 'Entry not found.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) ), 201 );
+		}
 		$data = (array) $request->get_json_params();
 		$target = HE_V2_Domain::concept_by_id( $data['target_id'] ?? '', true );
 		$reference_id = HE_V2_Domain::decode_public_cursor( 'reference', (string) ( $data['reference_id'] ?? '' ) );
