@@ -1,16 +1,12 @@
-# File 06 — Homeopathy Encyclopedia 2.4.19
+# File 06 — Homeopathy Encyclopedia 2.4.20
 
-Twentieth fresh twenty-round review/fix repository candidate for the File 06 governing plan. Repository evidence is not staging or live evidence.
+Current repository candidate for the twenty-first fresh twenty-round review/fix cycle under the File 06 governing plan. Repository evidence is not staging or live evidence.
 
-## Candidate truth
-- Branch: `audit/file-06-twentieth-twenty-round-v2.4.19-finalwork`
-- Plugin / contract: `2.4.19`
+## Candidate identity
+- Branch: `audit/file-06-twenty-first-twenty-round-v2.4.20`
+- Plugin / contract: `2.4.20`
 - Global schema: `10`
 - V24 Future schema: `2`
 - REST namespace: `sabri/v2/file-06`
-- Defect rounds: `1, 2, 3, 6, 7, 8, 10, 12, 15, 16, 17, 18, 19, 20`
-- Clean rounds: `4, 5, 9, 11, 13, 14`
 
-This cycle hardens release-truth documentation, duplicate-intelligence persistence, aggregate regression portability, mutation idempotency policy, canonical language reconciliation and migration safety, research-governance transitions, multilingual atomicity, impact/outbox reliability, File 19 knowledge-watch integration, privacy-erasure retry safety, research composer compensation, repeated-shortcode accessibility/reflow, and final release-truth/package alignment.
-
-Run `bash tests/run-all.sh`. Final package/source hashes are authoritative only from the final exact-HEAD workflow. `Staging-Accepted`, `Live-Deployed`, and `Operational` remain unverified until target-environment evidence exists.
+Run `bash tests/run-all.sh`. Exact final HEAD, deterministic package SHA-256 and source-tree SHA-256 are authoritative only from the exact-HEAD GitHub Actions evidence for this candidate. `Staging-Accepted`, `Live-Deployed`, and `Operational` must not be inferred from repository or automated-QA evidence.
