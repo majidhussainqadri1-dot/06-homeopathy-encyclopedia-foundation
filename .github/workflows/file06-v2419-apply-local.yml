@@ -24,10 +24,14 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-      - name: Reconstruct and apply reviewed patch
+      - name: Verify transport parts and apply reviewed patch
         run: |
           set -euo pipefail
+          wc -c .github/patchparts/file06-v2419.part*
+          sha256sum .github/patchparts/file06-v2419.part*
           cat .github/patchparts/file06-v2419.part* > /tmp/file06-v2419.patch.gz.b64
+          echo "combined $(wc -c < /tmp/file06-v2419.patch.gz.b64) bytes"
+          sha256sum /tmp/file06-v2419.patch.gz.b64
           base64 -d /tmp/file06-v2419.patch.gz.b64 | gzip -dc > /tmp/file06-v2419.patch
           git apply --check /tmp/file06-v2419.patch
           git apply /tmp/file06-v2419.patch
