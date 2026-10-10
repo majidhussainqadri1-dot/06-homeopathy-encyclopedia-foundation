@@ -37,3 +37,21 @@ jobs:
         run: |
           set -euo pipefail
           bash tests/run-all.sh
+      - name: Twenty sequential complete automated verification passes
+        run: |
+          set -euo pipefail
+          expected="$(git rev-parse HEAD)"
+          for round in $(seq 1 20); do
+            echo "::group::FILE06 FULL QA PASS $round/20"
+            logfile="${RUNNER_TEMP}/file06-full-pass-${round}.log"
+            if ! bash tests/run-all.sh > "$logfile" 2>&1; then
+              cat "$logfile"
+              echo "::error::Full File 06 QA failed in pass $round/20"
+              exit 1
+            fi
+            tail -n 1 "$logfile"
+            test "$(git rev-parse HEAD)" = "$expected"
+            test -z "$(git status --porcelain)"
+            echo "::endgroup::"
+          done
+          echo "20/20 sequential complete File 06 automated verification passes succeeded at HEAD $expected"
