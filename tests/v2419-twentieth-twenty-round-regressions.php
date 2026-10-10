@@ -1,19 +1,33 @@
 <?php
-/** File 06 v2.4.19 twentieth fresh twenty-round regression controls. */
+/** File 06 v2.4.19 historical twentieth-review safety controls, retained in successor releases. */
 $root=dirname(__DIR__);$fail=[];
 function f06r20_read($p){return file_exists($p)?file_get_contents($p):'';}
 function f06r20_ok($ok,$m){global $fail;if(!$ok)$fail[]=$m;}
-$status=f06r20_read($root.'/STATUS.md');$readme=f06r20_read($root.'/README.md');$plugin_readme=f06r20_read($root.'/homeopathy-encyclopedia/readme.txt');
-f06r20_ok(strpos($status,'2.4.19 Twentieth Fresh Twenty-Round Candidate')!==false,'R20 status candidate truth is not aligned');
-f06r20_ok(strpos($status,'audit/file-06-twentieth-twenty-round-v2.4.19-finalwork')!==false,'R20 status branch truth is not aligned');
-f06r20_ok(strpos($status,'`1, 2, 3, 6, 7, 8, 10, 12, 15, 16, 17, 18, 19, 20`')!==false&&strpos($status,'`4, 5, 9, 11, 13, 14`')!==false,'R20 defect/clean ledger truth is not aligned');
-f06r20_ok(strpos($readme,'audit/file-06-twentieth-twenty-round-v2.4.19-finalwork')!==false,'R20 README branch truth is not aligned');
-f06r20_ok(strpos($plugin_readme,'= 2.4.19 =')!==false,'R20 plugin changelog missing current candidate');
-$manifest=f06r20_read($root.'/V2-MANIFEST.md');$sbom=f06r20_read($root.'/SBOM.json');$runall=f06r20_read($root.'/tests/run-all.sh');$boot=f06r20_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
-f06r20_ok(strpos($manifest,'File 06 v2.4.19 Candidate Manifest')!==false&&strpos($manifest,'Runtime version: `2.4.19`')!==false&&strpos($manifest,'Contract: `2.4.19`')!==false,'R20 manifest release truth not aligned');
-f06r20_ok(strpos($sbom,'"version": "2.4.19"')!==false&&strpos($sbom,'homeopathy-encyclopedia@2.4.19')!==false&&strpos($sbom,'2.4.19.zip')!==false,'R20 SBOM release truth not aligned');
-f06r20_ok(strpos($runall,'file06-v2.4.19-a.zip')!==false&&strpos($runall,'All File 06 v2.4.19 automated checks')!==false,'R20 aggregate package/release truth not aligned');
-f06r20_ok(strpos($boot,"HE_VERSION', '2.4.19'")!==false&&strpos($boot,"HE_CONTRACT_VERSION', '2.4.19'")!==false&&strpos($boot,"future_hardening_version'=>'2.4.19'")!==false,'R20 runtime/contract hardening truth not aligned');
+$status=f06r20_read($root.'/STATUS.md');
+$readme=f06r20_read($root.'/README.md');
+$plugin_readme=f06r20_read($root.'/homeopathy-encyclopedia/readme.txt');
+$manifest=f06r20_read($root.'/V2-MANIFEST.md');
+$sbom=f06r20_read($root.'/SBOM.json');
+$runall=f06r20_read($root.'/tests/run-all.sh');
+$boot=f06r20_read($root.'/homeopathy-encyclopedia/homeopathy-encyclopedia.php');
+$ledger=f06r20_read($root.'/docs/FILE-06-v2.4.19-TWENTIETH-TWENTY-ROUND-REVIEW.md');
+
+// Historical v2.4.19 evidence must persist unchanged; current release metadata must
+// match the actually selected 2.4.19 or 2.4.20 source, not the historical branch.
+f06r20_ok(strpos($ledger,'Defect rounds: **1, 2, 3, 6, 7, 8, 10, 12, 15, 16, 17, 18, 19, 20**')!==false,'R20 original defect ledger was lost');
+f06r20_ok(strpos($ledger,'Clean rounds: **4, 5, 9, 11, 13, 14**')!==false,'R20 original clean ledger was lost');
+preg_match("/HE_VERSION', '(2[.]4[.](?:19|20))'/",$boot,$version_match);
+$current_version=$version_match[1]??'';
+f06r20_ok($current_version!=='','R20 active runtime is not an accepted v2.4.19 successor');
+if($current_version!==''){
+    f06r20_ok(strpos($status,$current_version)!==false,'R20 status active version mismatch');
+    f06r20_ok(strpos($readme,$current_version)!==false,'R20 README active version mismatch');
+    f06r20_ok(strpos($plugin_readme,'= '.$current_version.' =')!==false,'R20 plugin changelog active version mismatch');
+    f06r20_ok(strpos($manifest,'Runtime version:')!==false&&strpos($manifest,'Contract:')!==false&&substr_count($manifest,$current_version)>=2,'R20 manifest active runtime/contract mismatch');
+    f06r20_ok(strpos($sbom,'"version": "'.$current_version.'"')!==false&&strpos($sbom,'homeopathy-encyclopedia@'.$current_version)!==false&&strpos($sbom,$current_version.'.zip')!==false,'R20 SBOM current version mismatch');
+    f06r20_ok(strpos($runall,'file06-v'.$current_version.'-a.zip')!==false&&strpos($runall,'All File 06 v'.$current_version.' automated checks')!==false,'R20 aggregate package/release mismatch');
+    f06r20_ok(strpos($boot,"HE_CONTRACT_VERSION', '".$current_version."'")!==false&&strpos($boot,"future_hardening_version'=>'".$current_version."'")!==false,'R20 runtime/contract/future hardening mismatch');
+}
 
 $future=f06r20_read($root.'/homeopathy-encyclopedia/includes/class-he-v24-future-api.php');
 f06r20_ok(strpos($future,"duplicate_candidate_persistence_failed")!==false&&strpos($future,"he_future_duplicate_write_failed")!==false&&strpos($future,"START TRANSACTION")!==false,'R2 duplicate intelligence persistence is not fail-closed/atomic');

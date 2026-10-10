@@ -1,0 +1,57 @@
+name: File 06 20-Part Governing Plan Parity
+
+on:
+  push:
+    branches:
+      - audit/file-06-v2420-plan-parity-20-review-fix
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Freeze exact repository code
+        run: |
+          set -euo pipefail
+          echo "REPOSITORY_HEAD=$(git rev-parse HEAD)"
+          test -z "$(git status --porcelain)"
+      - name: PHP and JS syntax
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find homeopathy-encyclopedia tests -name '*.php' -type f -print0 | sort -z)
+          node --check homeopathy-encyclopedia/assets/js/encyclopedia-v2.js
+      - name: Twenty review focuses plus all prior File 06 regressions
+        run: |
+          set -euo pipefail
+          bash tests/run-all.sh
+      - name: Twenty sequential complete automated verification passes
+        run: |
+          set -euo pipefail
+          expected="$(git rev-parse HEAD)"
+          for round in $(seq 1 20); do
+            echo "::group::FILE06 FULL QA PASS $round/20"
+            logfile="${RUNNER_TEMP}/file06-full-pass-${round}.log"
+            if ! bash tests/run-all.sh > "$logfile" 2>&1; then
+              cat "$logfile"
+              echo "::error::Full File 06 QA failed in pass $round/20"
+              exit 1
+            fi
+            tail -n 1 "$logfile"
+            test "$(git rev-parse HEAD)" = "$expected"
+            test -z "$(git status --porcelain)"
+            echo "::endgroup::"
+          done
+          echo "20/20 sequential complete File 06 automated verification passes succeeded at HEAD $expected"

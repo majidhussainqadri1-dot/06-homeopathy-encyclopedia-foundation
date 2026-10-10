@@ -5,6 +5,7 @@ while IFS= read -r -d '' file; do php -l "$file" >/dev/null; done < <(find "$roo
 node --check "$root/homeopathy-encyclopedia/assets/js/encyclopedia-v2.js"
 php "$root/tests/v2-invariants.php"
 bash "$root/tests/v2-source-invariants.sh"
+php "$root/tests/v2420-governing-plan-parity.php"
 php "$root/tests/v23-future-invariants.php"
 php "$root/tests/v24-80-round-invariants.php"
 php "$root/tests/v241-second-80-invariants.php"
