@@ -65,7 +65,7 @@ final class HE_V12_Completion {
 					// A HEAD method blocked by the publisher does not prove a dead link.
 					if ( in_array( $code, array( 403, 405, 429 ), true ) || $code >= 500 ) {
 						$state = 'unchecked';
-					} elseif ( $code >= 200 && $code < 400 ) {
+					} elseif ( $code >= 200 && $code < 300 ) {
 						$state = 'ok';
 					} elseif ( 404 === $code || 410 === $code ) {
 						$state = 'broken';
@@ -239,7 +239,7 @@ final class HE_V12_Completion {
 		// The owner-only supplemental panel must never invent cross-file links.
 		$dto = HE_V2_Domain::public_dto( $raw );
 		$extra = '';
-		if ( is_array( $dto ) ) {
+		if ( is_array( $dto ) && 'published' === $raw['status'] ) {
 			$refs = self::public_references( $dto );
 			if ( count( $refs ) >= 2 ) {
 				$extra .= '<section class="he-v12__comparison" aria-label="Compare bibliographic sources"><h2>Compare sources and editions</h2><div class="he-v12__columns">';
