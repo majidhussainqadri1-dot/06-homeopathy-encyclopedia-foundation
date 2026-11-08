@@ -155,7 +155,13 @@ final class HE_V22_Research_Guard {
 					return new WP_Error( 'he_case_governance_failed', __( 'Successful-case governance fields are incomplete.', 'homeopathy-encyclopedia' ), array( 'status' => 422, 'field' => $field ) );
 				}
 			}
-			if ( empty( $row['case_anonymized'] ) || empty( $row['case_consent_verified'] ) || empty( $consent['verified'] ) || 'کامیاب کیس' !== $row['case_tag'] ) {
+			if ( empty( $row['case_anonymized'] ) || empty( $row['case_consent_verified'] ) || empty( $consent['verified'] )
+				|| 'accepted' !== ( $consent['state'] ?? '' )
+				|| 'file-00' !== ( $consent['verified_by'] ?? '' )
+				|| empty( $consent['policy_version'] ) || empty( $consent['locale'] )
+				|| 'patient-story-research' !== ( $consent['purpose'] ?? '' )
+				|| empty( $consent['evidence_ref'] ) || empty( $consent['verification_id'] )
+				|| ! empty( $consent['withdrawn_at_utc'] ) || 'کامیاب کیس' !== $row['case_tag'] ) {
 				return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require anonymization, verified consent and the mandatory کامیاب کیس classification.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
 			if ( self::has_direct_identifier( implode( ' ', array_map( 'strval', $case ) ) ) ) {
