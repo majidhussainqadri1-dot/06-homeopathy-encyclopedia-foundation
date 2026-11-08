@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - audit/file-06-v2420-plan-parity-20-review-fix
+      - fix/file06-file15-canonical-bridge-2026-11-08
   workflow_dispatch:
 
 permissions:
