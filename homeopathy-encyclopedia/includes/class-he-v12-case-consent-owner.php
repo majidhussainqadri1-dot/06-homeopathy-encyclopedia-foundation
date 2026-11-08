@@ -13,7 +13,27 @@ final class HE_V12_Case_Consent_Owner {
 	public static function hooks() {
 		add_filter( 'he_v12_file06_patient_relation_v1', array( __CLASS__, 'relation_claim' ), 10, 3 );
 		add_filter( 'he_v12_file06_consent_policy_v1', array( __CLASS__, 'approved_policy' ), 10, 1 );
+		add_filter( 'he_v12_file06_concept_assertion_v1', array( __CLASS__, 'concept_assertion' ), 10, 3 );
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
+	}
+
+	/** Exact canonical owner assertion; title/category matching is prohibited. */
+	public static function concept_assertion( $value, $public_id, $version ) {
+		$public_id = strtolower( sanitize_text_field( (string) $public_id ) );
+		if ( 'active' !== HE_V2_Schema::runtime_status()
+			|| ! preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $public_id )
+			|| absint( $version ) < 1 ) { return null; }
+		$row = HE_V2_Domain::concept_by_id( $public_id, true );
+		if ( ! is_array( $row ) || ! hash_equals( $public_id, strtolower( (string) ( $row['public_id'] ?? '' ) ) )
+			|| 'published' !== ( $row['status'] ?? '' )
+			|| ! HE_V2_Domain::is_public_concept( $row ) ) { return null; }
+		$dto = HE_V2_Domain::public_dto( $row );
+		if ( ! is_array( $dto ) || ! empty( $dto['is_historical'] )
+			|| (int) ( $dto['version'] ?? 0 ) !== absint( $version )
+			|| (int) ( $dto['current_version'] ?? 0 ) !== absint( $version ) ) { return null; }
+		return array( 'owner_file'=>'file-06','public_id'=>$public_id,
+			'published'=>true,'version'=>absint( $version ),
+			'canonical_url'=>(string) ( $dto['canonical_url'] ?? '' ) );
 	}
 
 	private static function problem( $code, $message, $status ) {
