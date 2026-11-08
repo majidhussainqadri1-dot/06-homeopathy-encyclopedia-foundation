@@ -53,6 +53,7 @@ function wp_strip_all_tags( $v ) { return strip_tags( (string) $v ); }
 function rest_ensure_response( $v ) { return $v; }
 function is_wp_error( $v ) { return $v instanceof WP_Error; }
 function esc_url_raw( $v ) { return $v; }
+function esc_url( $v ) { return htmlspecialchars( (string) $v, ENT_QUOTES, 'UTF-8' ); }
 function wp_parse_url( $v ) { return parse_url( $v ); }
 function wp_json_encode( $v, $flags = 0 ) { return json_encode( $v, $flags ); }
 function do_action( $name, ...$args ) { $GLOBALS['actions'][] = $name; }
@@ -61,6 +62,7 @@ function apply_filters( $name, $default, $payload = array(), ...$args ) {
    return array( 'verified' => true, 'authority' => 'file-00', 'evidence_ref' => $payload['evidence_ref'], 'policy_version' => $payload['policy_version'], 'locale' => $payload['locale'], 'purpose' => $payload['purpose'], 'verification_id' => 'file00-verification-0001' );
  }
  if ( $name === 'he_v12_related_resource_owner_attested_v1' ) { return ! empty( $GLOBALS['resource_authorized'] ); }
+ if ( $name === 'he_v12_canonical_related_resources' ) { return $GLOBALS['related_links'] ?? $default; }
  return $default;
 }
 function esc_html( $v ) { return htmlspecialchars( (string) $v, ENT_QUOTES, 'UTF-8' ); }
@@ -87,7 +89,7 @@ class DBV12 {
 		return array();
 	}
 	public function get_row( $sql, $format = null ) {
-		if ( str_contains( $sql['sql'], 'freshness' ) ) { return array( 'freshness_state'=>'stale', 'last_human_review'=>'2025-01-01 00:00:00','review_due_at'=>'2026-01-01 00:00:00', 'updated_at'=>'2026-01-01' ); }
+		if ( str_contains( $sql['sql'], 'freshness' ) ) { return $GLOBALS['freshness_fixture'] ?? array( 'freshness_state'=>'stale', 'risk_tier'=>'normal', 'last_human_review'=>'2025-01-01 00:00:00','review_due_at'=>'2026-01-01 00:00:00', 'updated_at'=>'2026-01-01' ); }
 		return null;
 	}
 	public function update( $table, $changes, $where, $format = array(), $wformat = array() ) {
@@ -102,7 +104,7 @@ $GLOBALS['dto']=array('id'=>$GLOBALS['concept']['public_id'],'type'=>'remedy','l
 	'canonical_url'=>'https://example.org/encyclopedia/entry/example','version'=>3,'current_version'=>3,'is_historical'=>false,
 	'freshness'=>array('updated_at'=>'2026-11-08 00:00:00'),
 	'references'=>array(
-		array('id'=>901,'title'=>'Book A','edition'=>'1st','page_locator'=>'12','rights_status'=>'citation-only','url'=>'https://example.org/a','source_type'=>'classical-primary'),
+		array('id'=>901,'title'=>'Book A','edition'=>'1st','page_locator'=>'12','rights_status'=>'citation-only','url'=>'https://example.org/a?access_token=secret#section','source_type'=>'classical-primary'),
 		array('id'=>902,'title'=>'Book B','edition'=>'2nd','page_locator'=>'77','rights_status'=>'citation-only','url'=>'https://example.org/b','source_type'=>'classical-secondary')
 	));
 require dirname( __DIR__ ) . '/homeopathy-encyclopedia/includes/class-he-v12-completion.php';
@@ -112,6 +114,10 @@ $att=HE_V12_Completion::consent_attestation(array('consent_version'=>'policy-v3'
 assert_true(is_array($att),'Valid consent attestation');
 assert_true($att['purpose']==='patient-story-research','Purpose bound consent');
 assert_true($att['recorded_by']===11 && $att['state']==='accepted','Consent actor/state');
+assert_true($att['verified_by']==='file-00' && $att['evidence_ref']==='receipt:00001','File 00 proof attribution');
+$GLOBALS['verified_receipts']=false;
+assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_version'=>'policy-v3','consent_locale'=>'ur-PK','consent_evidence_ref'=>'receipt:00001'),11,true,'successful-case')),'Self-asserted consent rejected without independent owner');
+$GLOBALS['verified_receipts']=true;
 assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_locale'=>'en-US'),11,true,'successful-case')),'Missing policy version rejected');
 assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_version'=>'v3'),11,true,'successful-case')),'Missing locale rejected');
 assert_true(HE_V12_Completion::consent_attestation(array(),11,false,'proposal')['state']==='unverified','No inferred blanket consent');
@@ -122,6 +128,9 @@ assert_true(count($exp['sources'])===2,'Bibliographic sources exported');
 assert_true(count($exp['approved_current_claims'])===1,'Reviewed claim-level evidence included');
 assert_true(!array_key_exists('id',$exp['sources'][0]),'Private/internal reference keys excluded');
 assert_true(!array_key_exists('body',$exp),'No unrestricted manuscript export');
+assert_true($exp['sources'][0]['url']==='https://example.org/a','Bibliographic export strips query tokens');
+$conflict=HE_V12_Completion::import_preview(new WP_REST_Request(array('format'=>$exp['format'],'canonical_public_id'=>$id,'version'=>3,'record_digest'=>str_repeat('0',64))));
+assert_true($conflict['mapping']==='source-content-conflict','Equal version cannot hide different source content');
 $cmp=HE_V12_Completion::compare_references(new WP_REST_Request(array('id'=>$id,'left'=>0,'right'=>1)));
 assert_true($cmp['columns'][0]['source']['edition']==='1st','Edition 1 identity');
 assert_true($cmp['columns'][1]['source']['page_locator']==='77','Edition 2 page identity');
@@ -136,6 +145,16 @@ $enriched=HE_V12_Completion::public_entry_enrichment('<article data-he-entry-id=
 assert_true(str_contains($enriched,'Knowledge freshness'),'Public review freshness displayed');
 assert_true(str_contains($enriched,'Outdated review'),'Staleness disclosed');
 assert_true(str_contains($enriched,'aria-label="Knowledge review freshness"'),'Accessible notice');
+$GLOBALS['freshness_fixture']=array('freshness_state'=>'current','risk_tier'=>'critical','last_human_review'=>'2025-01-01 00:00:00','review_due_at'=>'2026-01-01 00:00:00');
+$overdue=HE_V12_Completion::public_entry_enrichment('<article data-he-entry-id="'.$id.'"><header>Title</header></article>');
+assert_true(str_contains($overdue,'Urgent human review required'),'Expired critical review cannot be falsely current');
+unset($GLOBALS['freshness_fixture']);
+$GLOBALS['related_links']=array(array('eligible'=>true,'rights_ok'=>true,'owner_file'=>'file-12','source_version'=>3,'url'=>'https://example.org/pdf','label'=>'Verified PDF Edition'));
+$GLOBALS['resource_authorized']=false;
+assert_true(!str_contains(HE_V12_Completion::public_entry_enrichment('<article data-he-entry-id="'.$id.'"><header>Title</header></article>'),'Verified PDF Edition'),'Related link without owner attestation denied');
+$GLOBALS['resource_authorized']=true;
+assert_true(str_contains(HE_V12_Completion::public_entry_enrichment('<article data-he-entry-id="'.$id.'"><header>Title</header></article>'),'Verified PDF Edition'),'Owner-attested current PDF link allowed');
+$GLOBALS['related_links']=array();
 $GLOBALS['concept']['status']='retracted';
 assert_true(is_wp_error(HE_V12_Completion::export_entry(new WP_REST_Request(array('id'=>$id)))),'Retracted export excluded');
 $GLOBALS['concept']['status']='published';
@@ -145,6 +164,9 @@ $GLOBALS['dto']['is_historical']=false;
 $wpdb->ref_rows=array(array('id'=>3,'url'=>'https://example.org/missing','link_status'=>'unchecked'),array('id'=>4,'url'=>'https://example.org/available','link_status'=>'unchecked'));
 assert_true(HE_V12_Completion::check_reference_links(2)===2,'Bounded link scan');
 assert_true($wpdb->updates[0][1]['link_status']==='suspect','First HEAD 404 marked suspect, not proven broken');
+$wpdb->ref_rows=array(array('id'=>3,'url'=>'https://example.org/missing','link_status'=>'suspect'));
+assert_true(HE_V12_Completion::check_reference_links(1)===1,'Second status check processed');
+assert_true(end($wpdb->updates)[1]['link_status']==='broken','Repeated 404 confirms broken source');
 assert_true($wpdb->updates[1][1]['link_status']==='ok','200 marked OK');
 assert_true(get_option('he_v12_reference_link_cursor')===4,'Resumable scan checkpoint');
 $wpdb->rows=array(array('id'=>11,'concept_id'=>7,'version_id'=>4,'review_status'=>'approved','row_version'=>2,'public_id'=>$id));
