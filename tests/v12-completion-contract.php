@@ -36,7 +36,7 @@ class HE_V24_Migration_Safety { public static function ready() { return true; } 
 class HE_V24_Future_Schema {
 	public static function table( $name ) { return 'wp_he_' . $name; }
 	public static function public_claims( $id ) { return array( array( 'public_id' => '44444444-4444-4444-8444-444444444444', 'claim_text' => 'Reviewer approved source claim' ) ); }
-	public static function append_provenance( $type, $id, $action, $url = '', $metadata = array() ) { $GLOBALS['provenance'][] = [$type,$id,$action]; return 'proof'; }
+	public static function append_provenance( $type, $id, $action, $url = '', $metadata = array() ) { if(!empty($GLOBALS['fail_provenance']))return false;$GLOBALS['provenance'][] = [$type,$id,$action]; return 'proof'; }
 	public static function queue_impact( $type, $id, $name, $payload = array(), $consumers = array(), $notify = true ) { $GLOBALS['impact'][] = [$type,$id,$name]; return isset( $GLOBALS['impact_failure'] ) && $GLOBALS['impact_failure'] ? 0 : 6; }
 }
 class HE_V2_Domain {
@@ -73,14 +73,14 @@ function is_main_query() { return true; }
 function get_option( $name, $default = false ) { return $GLOBALS['options'][ $name ] ?? $default; }
 function update_option( $name, $value, $autoload = false ) { $GLOBALS['options'][ $name ] = $value; return true; }
 function wp_http_validate_url( $url ) { return ! str_contains( $url, 'localhost' ); }
-function wp_safe_remote_head( $url, $args ) { return array( 'code' => str_contains( $url, 'missing' ) ? 404 : 200 ); }
+function wp_safe_remote_head( $url, $args ) { if(str_contains($url,'timeout'))return new WP_Error('timeout');return array( 'code' => str_contains( $url, 'missing' ) ? 404 : 200 ); }
 function wp_remote_retrieve_response_code( $response ) { return $response['code']; }
 function assert_true( $ok, $message ) {
 	$GLOBALS['checks']++;
 	if ( ! $ok ) { fwrite( STDERR, 'FAILED v12: '.$message.PHP_EOL ); exit( 1 ); }
 }
 class DBV12 {
-	public $ref_rows = array(), $last_sql = '', $updates = array(), $rows = array(), $query_count = 0;
+	public $ref_rows = array(), $last_sql = '', $updates = array(), $rows = array(), $query_count = 0, $queries = array();
 	public function prepare( $sql, ...$args ) { return array( 'sql' => $sql, 'args' => $args ); }
 	public function get_results( $sql, $format = null ) {
 		$s = is_array( $sql ) ? $sql['sql'] : $sql;
@@ -95,7 +95,7 @@ class DBV12 {
 	public function update( $table, $changes, $where, $format = array(), $wformat = array() ) {
 		$this->updates[] = [$table,$changes,$where]; return 1;
 	}
-	public function query( $sql ) { $this->query_count++; return 1; }
+	public function query( $sql ) { $this->query_count++;$this->queries[]=$sql;return 1; }
 }
 $wpdb = new DBV12(); $post = (object) array( 'ID' => 19 );
 $GLOBALS['checks']=0; $GLOBALS['options']=array(); $GLOBALS['nonce']=true; $GLOBALS['verified_receipts']=true;
@@ -169,12 +169,23 @@ $wpdb->ref_rows=array(array('id'=>3,'url'=>'https://example.org/missing','link_s
 assert_true(HE_V12_Completion::check_reference_links(1)===1,'Second status check processed');
 assert_true(end($wpdb->updates)[1]['link_status']==='broken','Repeated 404 confirms broken source');
 assert_true($wpdb->updates[1][1]['link_status']==='ok','200 marked OK');
+$wpdb->ref_rows=array(array('id'=>5,'url'=>'https://example.org/timeout','link_status'=>'broken'));
+$before=count($wpdb->updates);
+assert_true(HE_V12_Completion::check_reference_links(1)===1 && count($wpdb->updates)===$before,'Transient provider outage does not erase confirmed broken link status');
 $wpdb->rows=array(array('id'=>11,'concept_id'=>7,'version_id'=>4,'review_status'=>'approved','row_version'=>2,'public_id'=>$id));
 $GLOBALS['provenance']=array();$GLOBALS['impact']=array();
 $result=HE_V12_Evidence_Impact::revalidate_crossref(array('id'=>51,'provider'=>'crossref','external_id'=>'10.1234/example'),array('retraction'));
 assert_true($result===true,'Exact linked claim revalidation');
 assert_true($wpdb->query_count>=1 && count($GLOBALS['provenance'])===1,'Claim invalidation and provenance');
 assert_true(count($GLOBALS['impact'])===1,'Downstream consumers queued');
+$wpdb->queries=array();$GLOBALS['impact_failure']=true;$GLOBALS['actions']=array();
+assert_true(is_wp_error(HE_V12_Evidence_Impact::revalidate_crossref(array('id'=>51,'provider'=>'crossref','external_id'=>'10.1234/example'),array('retraction'))),'Consumer queue insertion failure rejects claim change');
+assert_true(in_array('ROLLBACK',$wpdb->queries,true),'Claim update, proof and impact queue rollback together');
+assert_true(!count($GLOBALS['actions']),'No early downstream notification before source transaction commit');
+$GLOBALS['impact_failure']=false;$GLOBALS['fail_provenance']=true;$wpdb->queries=array();
+assert_true(is_wp_error(HE_V12_Evidence_Impact::revalidate_crossref(array('id'=>51,'provider'=>'crossref','external_id'=>'10.1234/example'),array('correction'))),'Provenance failure rejects revalidation');
+assert_true(in_array('ROLLBACK',$wpdb->queries,true),'Provenance failure rolls back claim CAS');
+$GLOBALS['fail_provenance']=false;
 $wpdb->rows=array_fill(0,101,array('id'=>11,'concept_id'=>7,'version_id'=>4,'review_status'=>'approved','row_version'=>2,'public_id'=>$id));
 assert_true(is_wp_error(HE_V12_Evidence_Impact::revalidate_crossref(array('id'=>51,'provider'=>'crossref','external_id'=>'10.1234/example'),array('retraction'))),'Large DOI fan-out is bounded and retried');
 echo "File 06 v12 isolated safety, source, export, compare and claim-impact assertions PASS ({$GLOBALS['checks']}).\n";
