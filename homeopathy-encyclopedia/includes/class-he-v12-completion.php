@@ -233,13 +233,20 @@ final class HE_V12_Completion {
 			|| $left === $right || ! isset( $sources[ $left ], $sources[ $right ] ) ) {
 			return new WP_Error( 'he_v12_compare_indices_invalid', 'Two distinct published reference positions are required.', array( 'status' => 400 ) );
 		}
+		$columns = array();
+		foreach ( array( $left, $right ) as $idx ) {
+			$reviewed = class_exists( 'HE_V12_Reviewed_Sources' )
+				? HE_V12_Reviewed_Sources::column( $dto, $idx ) : null;
+			$columns[] = array_merge(
+				array( 'source' => $sources[ $idx ], 'original_excerpt'=>null, 'translation'=>null,
+					'review_note'=>null, 'verified'=>false ),
+				is_array( $reviewed ) ? array_merge( $reviewed, array( 'verified'=>true ) ) : array()
+			);
+		}
 		return rest_ensure_response( array(
 			'concept_id' => $dto['id'], 'version' => (int) $dto['version'],
-			'columns' => array(
-				array( 'source' => $sources[ $left ], 'original_excerpt' => null, 'translation' => null, 'review_note' => null ),
-				array( 'source' => $sources[ $right ], 'original_excerpt' => null, 'translation' => null, 'review_note' => null ),
-			),
-			'notice' => 'Original source text and translation are unavailable unless separately verified, rights-cleared and independently reviewed. Do not invent quotations.',
+			'columns' => $columns,
+			'notice' => 'Only source-matched, licensed, independently human-reviewed original excerpts and translations may appear. Missing proof remains unavailable.',
 		) );
 	}
 
@@ -318,10 +325,26 @@ final class HE_V12_Completion {
 			$refs = self::public_references( $dto );
 			if ( count( $refs ) >= 2 ) {
 				$extra .= '<section class="he-v12__comparison" aria-label="Compare bibliographic sources"><h2>Compare sources and editions</h2><div class="he-v12__columns">';
-				foreach ( array_slice( $refs, 0, 2 ) as $ref ) {
+				foreach ( array_slice( $refs, 0, 2 ) as $position => $ref ) {
 					$extra .= '<div class="he-v12__source"><h3>' . esc_html( (string) ( $ref['title'] ?? 'Untitled source' ) ) . '</h3>';
 					$extra .= '<p>' . esc_html( (string) ( $ref['edition'] ?? 'Edition not recorded' ) ) . '; ' . esc_html( (string) ( $ref['page_locator'] ?? 'Page not recorded' ) ) . '</p>';
-					$extra .= '<p>Original text, translation and independent review note unavailable until separately verified and rights-cleared.</p></div>';
+					$verified = class_exists( 'HE_V12_Reviewed_Sources' )
+						? HE_V12_Reviewed_Sources::column( $dto, $position ) : null;
+					if ( is_array( $verified ) ) {
+						$extra .= '<blockquote dir="auto">' . esc_html( (string) $verified['original_excerpt'] ) . '</blockquote>';
+						$extra .= '<p><strong>Reviewed translation (' . esc_html( (string) $verified['translation_locale'] ) . '):</strong> '
+							. esc_html( (string) $verified['translation'] ) . '</p>';
+						if ( ! empty( $verified['review_note'] ) ) {
+							$extra .= '<p><strong>Editorial note:</strong> ' . esc_html( (string) $verified['review_note'] ) . '</p>';
+						}
+						$extra .= '<p>Rights: ' . esc_html( (string) $verified['rights_basis'] )
+							. '. PDF edition ' . absint( $verified['edition_id'] ) . ', page ' . absint( $verified['page'] ) . '.</p>';
+						$extra .= '<p><a href="' . esc_url( (string) $verified['source_url'] )
+							. '">Open rights-checked source edition</a></p>';
+					} else {
+						$extra .= '<p>Original text and reviewed translation are unavailable pending a verified File 12 source, current rights and independent review.</p>';
+					}
+					$extra .= '</div>';
 				}
 				$extra .= '</div></section>';
 			}
