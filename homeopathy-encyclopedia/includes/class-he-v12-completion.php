@@ -227,9 +227,45 @@ final class HE_V12_Completion {
 		$markup = '<aside class="he-v12__freshness" role="status" aria-label="Knowledge review freshness"><strong>'
 			. esc_html__( 'Knowledge freshness', 'homeopathy-encyclopedia' ) . '</strong> '
 			. esc_html( $notice ) . '</aside>';
-		// The owned content markup contains this exact closing tag once.
-		return false !== strpos( $content, '</header>' )
+		// The owner-only supplemental panel must never invent cross-file links.
+		$dto = HE_V2_Domain::public_dto( $raw );
+		$extra = '';
+		if ( is_array( $dto ) ) {
+			$refs = self::public_references( $dto );
+			if ( count( $refs ) >= 2 ) {
+				$extra .= '<section class="he-v12__comparison" aria-label="Compare bibliographic sources"><h2>Compare sources and editions</h2><div class="he-v12__columns">';
+				foreach ( array_slice( $refs, 0, 2 ) as $ref ) {
+					$extra .= '<div class="he-v12__source"><h3>' . esc_html( (string) ( $ref['title'] ?? 'Untitled source' ) ) . '</h3>';
+					$extra .= '<p>' . esc_html( (string) ( $ref['edition'] ?? 'Edition not recorded' ) ) . '; ' . esc_html( (string) ( $ref['page_locator'] ?? 'Page not recorded' ) ) . '</p>';
+					$extra .= '<p>Original text, translation and independent review note unavailable until separately verified and rights-cleared.</p></div>';
+				}
+				$extra .= '</div></section>';
+			}
+			// Other owners alone can attest current public URL/ACL/licence/version.
+			$links = function_exists( 'apply_filters' ) ? apply_filters( 'he_v12_canonical_related_resources', array(), $dto ) : array();
+			$safe_links = array();
+			foreach ( array_slice( is_array( $links ) ? $links : array(), 0, 20 ) as $link ) {
+				if ( ! is_array( $link ) || true !== ( $link['eligible'] ?? false ) || true !== ( $link['rights_ok'] ?? false )
+					|| ! in_array( (string) ( $link['owner_file'] ?? '' ), array( 'file-05','file-10','file-12' ), true )
+					|| (int) ( $link['source_version'] ?? 0 ) !== (int) $dto['version'] ) { continue; }
+				$url = esc_url_raw( (string) ( $link['url'] ?? '' ) );
+				$label = sanitize_text_field( (string) ( $link['label'] ?? '' ) );
+				if ( ! $url || ! $label || ! wp_http_validate_url( $url ) ) { continue; }
+				$safe_links[] = '<li><a rel="noopener noreferrer" href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a></li>';
+			}
+			if ( $safe_links ) {
+				$extra .= '<nav class="he-v12__related" aria-label="Verified related scholarly resources"><h2>Related learning and library resources</h2><ul>' . implode( '', $safe_links ) . '</ul></nav>';
+			}
+			if ( function_exists( 'rest_url' ) ) {
+				$version_url = rest_url( HE_V2_API::NS . '/entries/' . rawurlencode( (string) $dto['id'] ) . '/versions' );
+				$extra .= '<p class="he-v12__history"><a href="' . esc_url( $version_url ) . '">View version and correction history (metadata)</a></p>';
+			}
+		}
+		// The owned content markup contains these closing tags once.
+		$content = false !== strpos( $content, '</header>' )
 			? preg_replace( '#</header>#', '</header>' . $markup, $content, 1 ) : $content;
+		return $extra && false !== strpos( $content, '</article>' )
+			? preg_replace( '#</article>#', $extra . '</article>', $content, 1 ) : $content;
 	}
 
 	/** Version and purpose-bound attestation; no personal subject identifiers stored. */
