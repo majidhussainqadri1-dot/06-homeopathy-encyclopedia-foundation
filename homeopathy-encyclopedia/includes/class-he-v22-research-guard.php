@@ -150,6 +150,9 @@ final class HE_V22_Research_Guard {
 			return new WP_Error( 'he_invalid_data_class', __( 'Research data class is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
 		if ( 'successful-case' === $row['record_type'] ) {
+			if ( get_option( HE_V2_Schema::OPTION_SAFE_MODE ) ) {
+				return new WP_Error( 'he_case_privacy_safe_mode', __( 'Patient-case display is paused while research privacy reconciliation is pending.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
 			foreach ( array( 'observation_label', 'baseline', 'intervention', 'follow_up', 'adverse_events', 'limitations' ) as $field ) {
 				if ( empty( $case[ $field ] ) ) {
 					return new WP_Error( 'he_case_governance_failed', __( 'Successful-case governance fields are incomplete.', 'homeopathy-encyclopedia' ), array( 'status' => 422, 'field' => $field ) );
