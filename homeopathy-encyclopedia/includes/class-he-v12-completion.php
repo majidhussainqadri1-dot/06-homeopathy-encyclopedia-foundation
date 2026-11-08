@@ -221,7 +221,7 @@ final class HE_V12_Completion {
 		) );
 	}
 
-	/** A lawful side-by-side source-identity view; missing quotations stay missing. */
+	/** A lawful side-by-side source-identity view; only rights-cleared original excerpts with independent translation review are shown. */
 	public static function compare_references( WP_REST_Request $request ) {
 		$pair = self::published_entry( $request['id'] );
 		if ( ! $pair ) { return new WP_Error( 'he_v12_comparison_unavailable', 'No published concept for this comparison.', array( 'status' => 404 ) ); }
