@@ -158,28 +158,13 @@ final class HE_V12_Completion {
 		return $out;
 	}
 
-	/** Canonical digest compares approved current public data, not a caller's claims. */
-	private static function record_digest( $dto ) {
-		return hash( 'sha256', wp_json_encode( array(
-			'id' => (string) $dto['id'], 'version' => (int) $dto['version'],
-			'title' => sanitize_text_field( (string) $dto['title'] ),
-			'summary' => wp_strip_all_tags( (string) $dto['summary'] ),
-			'sources' => self::public_references( $dto ),
-		), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
-	}
-
-	/** Rights-scoped, public scholarly record export; no hidden cases or full text. */
-	public static function export_entry( WP_REST_Request $request ) {
-		$pair = self::published_entry( $request['id'] );
-		if ( ! $pair ) { return new WP_Error( 'he_v12_export_unavailable', 'This published scholarly record is not available.', array( 'status' => 404 ) ); }
-		list( $row, $dto ) = $pair;
-		// Native Future-18 public_claims() already enforces current version,
-		// independent review and source-bound evidence (never draft claims).
+	/** Central, current version reviewed claim projection; no raw private evidence. */
+	private static function reviewed_claims( $concept_id ) {
 		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready()
 			|| ! method_exists( 'HE_V24_Future_Schema', 'public_claims' ) ) {
-			return new WP_Error( 'he_v12_export_claims_unavailable', 'The governed current claim-evidence provider is unavailable.', array( 'status' => 503 ) );
+			return new WP_Error( 'he_v12_export_claims_unavailable', 'Governed claim-evidence schema is unavailable.', array( 'status' => 503 ) );
 		}
-		$claims = HE_V24_Future_Schema::public_claims( (int) $row['id'] );
+		$claims = HE_V24_Future_Schema::public_claims( (int) $concept_id );
 		if ( ! is_array( $claims ) ) {
 			return new WP_Error( 'he_v12_export_claims_unavailable', 'Current approved claims could not be verified.', array( 'status' => 503 ) );
 		}
@@ -192,10 +177,32 @@ final class HE_V12_Completion {
 			unset( $item );
 		}
 		unset( $claim );
+		return $claims;
+	}
+
+	/** Digest binds bibliographic metadata AND approved claim-level evidence. */
+	private static function record_digest( $dto, $claims ) {
+		return hash( 'sha256', wp_json_encode( array(
+			'id' => (string) $dto['id'], 'version' => (int) $dto['version'],
+			'title' => sanitize_text_field( (string) $dto['title'] ),
+			'summary' => wp_strip_all_tags( (string) $dto['summary'] ),
+			'sources' => self::public_references( $dto ),
+			'approved_current_claims' => $claims,
+		), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
+	}
+
+	/** Rights-scoped, public scholarly record export; no hidden cases or full text. */
+	public static function export_entry( WP_REST_Request $request ) {
+		$pair = self::published_entry( $request['id'] );
+		if ( ! $pair ) { return new WP_Error( 'he_v12_export_unavailable', 'This published scholarly record is not available.', array( 'status' => 404 ) ); }
+		list( $row, $dto ) = $pair;
+		// File 06's native Future-18 projection enforces approved current claims.
+		$claims = self::reviewed_claims( (int) $row['id'] );
+		if ( is_wp_error( $claims ) ) { return $claims; }
 		return rest_ensure_response( array(
 			'format' => self::EXPORT_VERSION,
 			'canonical_public_id' => $dto['id'],
-			'record_digest' => self::record_digest( $dto ),
+			'record_digest' => self::record_digest( $dto, $claims ),
 			'canonical_url' => esc_url_raw( (string) $dto['canonical_url'] ),
 			'version' => (int) $dto['version'],
 			'type' => $dto['type'],
@@ -255,8 +262,10 @@ final class HE_V12_Completion {
 		$version = filter_var( $data['version'], FILTER_VALIDATE_INT );
 		$reported_digest = (string) ( $data['record_digest'] ?? '' );
 		$same_version = false !== $version && (int) $version === (int) $target['version'];
+		$claims = self::reviewed_claims( (int) $pair[0]['id'] );
+		if ( is_wp_error( $claims ) ) { return $claims; }
 		$match = $same_version && preg_match( '/^[a-f0-9]{64}$/', $reported_digest )
-			&& hash_equals( self::record_digest( $target ), $reported_digest );
+			&& hash_equals( self::record_digest( $target, $claims ), $reported_digest );
 		return rest_ensure_response( array(
 			'mapping' => ! $same_version ? 'version-conflict' : ( $match ? 'same-canonical-version' : 'source-content-conflict' ),
 			'canonical_public_id' => $target['id'], 'current_version' => (int) $target['version'],
