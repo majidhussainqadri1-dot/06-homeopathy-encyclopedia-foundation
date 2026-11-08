@@ -719,6 +719,8 @@ final class HE_V24_Future_Schema {
 			$written=$wpdb->update(self::table('external_records'),array('metadata_json'=>wp_json_encode($data),'checked_at'=>current_time('mysql',true),'review_required'=>$urgent?1:(int)$row['review_required'],'status'=>$urgent?'urgent-review':$row['status']),array('id'=>(int)$row['id']));
 			if(false===$written){HE_V2_Schema::record_runtime_failure('retraction_watch_state_write_failed','A retraction-watch provider result could not be persisted; the cursor was not advanced past the failed row.');break;}
 			if($urgent){
+				$claim_revalidated=HE_V12_Evidence_Impact::revalidate_crossref($row,$signals);
+				if(is_wp_error($claim_revalidated)){HE_V2_Schema::record_runtime_failure('v12_crossref_claim_revalidation_failed','The Crossref signal was held for retry because affected claim review invalidation could not be verified.');break;}
 				$hash=self::append_provenance('external-record',(string)$row['id'],'integrity.signal.detected','',array('signals'=>$signals,'source_hash'=>hash('sha256',wp_json_encode($data))));
 				if(!$hash){HE_V2_Schema::record_runtime_failure('retraction_watch_provenance_failed','A retraction signal could not be written to the provenance chain; the cursor was not advanced.');break;}
 				self::queue_impact('external-record',(string)$row['id'],'KnowledgeEvidenceChanged.v1',array('provider'=>'crossref','external_id'=>$row['external_id'],'signals'=>$signals));$flagged++;
