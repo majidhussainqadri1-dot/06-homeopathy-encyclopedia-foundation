@@ -124,8 +124,8 @@ final class HE_V12_Reviewed_Sources {
 		$locale=sanitize_text_field((string)($data['translation_locale']??''));
 		if(strlen($original)<4||strlen($original)>3000||strlen($translation)<4||strlen($translation)>4000
 			||strlen($note)>1500||!preg_match('/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/',$locale)
-			||absint($data['concept_version']??0)!==(int)$dto['version'])
-			||absint($data['reference_id']??0)!==(int)$ref['id'])
+			||absint($data['concept_version']??0)!==(int)$dto['version']
+			||absint($data['reference_id']??0)!==(int)$ref['id']
 			||!preg_match('/^[a-f0-9]{64}$/i',(string)($data['edition_sha256']??''))
 			||!preg_match('/^[A-Za-z0-9._:-]{8,120}$/',(string)($data['rights_evidence_ref']??''))) {
 			return new WP_Error('he_v12_source_invalid','Original and translation, exact citation, rights and current versions required',array('status'=>422));
