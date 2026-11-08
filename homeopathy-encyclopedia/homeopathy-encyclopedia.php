@@ -46,6 +46,7 @@ require_once HE_DIR . 'includes/class-he-v12-evidence-impact.php';
 require_once HE_DIR . 'includes/class-he-v12-research-consent.php';
 require_once HE_DIR . 'includes/class-he-v12-sitemap.php';
 require_once HE_DIR . 'includes/class-he-v12-case-consent-owner.php';
+require_once HE_DIR . 'includes/class-he-v12-reviewed-sources.php';
 require_once HE_DIR . 'includes/class-he-v22-operations.php';
 require_once HE_DIR . 'includes/class-he-v23-future.php';
 require_once HE_DIR . 'includes/class-he-v24-future-schema.php';
@@ -115,7 +116,7 @@ function he_start_v2() {
 
 	HE_V2_Domain::register();
 	( new HE_V2_API() )->hooks(); ( new HE_V2_Public() )->hooks(); ( new HE_V2_Admin() )->hooks(); ( new HE_V2_Integrations() )->hooks(); ( new HE_V2_Privacy() )->hooks();
-	HE_V22_Search::hooks(); HE_V22_REST_Guard::hooks(); HE_V22_Governance::hooks(); HE_V22_Public_Guard::hooks(); HE_V22_Integrity::hooks(); HE_V22_Schedule::hooks(); HE_V22_Type_Schemas::hooks(); HE_V22_Research_Guard::hooks(); HE_V22_Admin_First_Save::hooks(); HE_V22_Consumers::hooks(); HE_File15_Bridge::hooks(); HE_V12_Completion::hooks(); HE_V12_Research_Consent::hooks(); HE_V12_Case_Consent_Owner::hooks(); HE_V12_Sitemap::hooks(); HE_V22_Operations::hooks();
+	HE_V22_Search::hooks(); HE_V22_REST_Guard::hooks(); HE_V22_Governance::hooks(); HE_V22_Public_Guard::hooks(); HE_V22_Integrity::hooks(); HE_V22_Schedule::hooks(); HE_V22_Type_Schemas::hooks(); HE_V22_Research_Guard::hooks(); HE_V22_Admin_First_Save::hooks(); HE_V22_Consumers::hooks(); HE_File15_Bridge::hooks(); HE_V12_Completion::hooks(); HE_V12_Research_Consent::hooks(); HE_V12_Case_Consent_Owner::hooks(); HE_V12_Reviewed_Sources::hooks(); HE_V12_Sitemap::hooks(); HE_V22_Operations::hooks();
 	$future_v24_ready = HE_V24_Migration_Safety::ready();
 	if ( $future_v24_ready ) { HE_V23_Future::hooks(); HE_V24_Future_Schema::hooks(); HE_V24_Future_API::hooks(); HE_V24_Future_Privacy::hooks(); HE_V24_Future_Review_Guard::hooks(); HE_V24_Public_Provenance::hooks(); }
 	else { wp_clear_scheduled_hook( HE_V23_Future::CRON ); wp_clear_scheduled_hook( HE_V24_Future_Schema::CRON ); }
