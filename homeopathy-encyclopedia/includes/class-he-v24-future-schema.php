@@ -723,7 +723,9 @@ final class HE_V24_Future_Schema {
 				if(is_wp_error($claim_revalidated)){HE_V2_Schema::record_runtime_failure('v12_crossref_claim_revalidation_failed','The Crossref signal was held for retry because affected claim review invalidation could not be verified.');break;}
 				$hash=self::append_provenance('external-record',(string)$row['id'],'integrity.signal.detected','',array('signals'=>$signals,'source_hash'=>hash('sha256',wp_json_encode($data))));
 				if(!$hash){HE_V2_Schema::record_runtime_failure('retraction_watch_provenance_failed','A retraction signal could not be written to the provenance chain; the cursor was not advanced.');break;}
-				self::queue_impact('external-record',(string)$row['id'],'KnowledgeEvidenceChanged.v1',array('provider'=>'crossref','external_id'=>$row['external_id'],'signals'=>$signals));$flagged++;
+				$queued=self::queue_impact('external-record',(string)$row['id'],'KnowledgeEvidenceChanged.v1',array('provider'=>'crossref','external_id'=>$row['external_id'],'signals'=>$signals),array(),false);
+				if(6!==(int)$queued){HE_V2_Schema::record_runtime_failure('v12_retraction_consumer_queue_incomplete','External-source retraction impacts were not durably queued for all consumers; cursor held for retry.');break;}
+				do_action('he_v24_knowledge_impact_queued','external-record',(string)$row['id'],'KnowledgeEvidenceChanged.v1',array('provider'=>'crossref','external_id'=>$row['external_id'],'signals'=>$signals));$flagged++;
 			}
 			$processed++;$last_completed_id=(int)$row['id'];
 		}
