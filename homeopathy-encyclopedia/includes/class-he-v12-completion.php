@@ -54,6 +54,7 @@ final class HE_V12_Completion {
 		foreach ( (array) $rows as $row ) {
 			$id = (int) $row['id'];
 			$url = (string) $row['url'];
+			$previous = (string) ( $row['link_status'] ?? 'unchecked' );
 			$state = 'error';
 			if ( preg_match( '#^https?://#i', $url ) && wp_http_validate_url( $url ) ) {
 				$response = wp_safe_remote_head( $url, array(
@@ -64,25 +65,34 @@ final class HE_V12_Completion {
 					$code = (int) wp_remote_retrieve_response_code( $response );
 					// A HEAD method blocked by the publisher does not prove a dead link.
 					if ( in_array( $code, array( 403, 405, 429 ), true ) || $code >= 500 ) {
-						$state = 'unchecked';
+						$state = 'broken' === $previous ? 'broken' : 'unchecked';
 					} elseif ( $code >= 200 && $code < 300 ) {
 						$state = 'ok';
 					} elseif ( 404 === $code || 410 === $code ) {
-						$state = 'broken';
+						// One HEAD 404 can be an anti-bot response. Require a repeat.
+						$state = in_array( $previous, array( 'suspect','broken' ), true ) ? 'broken' : 'suspect';
 					} else {
-						$state = 'unchecked';
+						// Do not erase a previously confirmed 404 due to 30x/unknown.
+						$state = 'broken' === $previous ? 'broken' : 'unchecked';
 					}
+				} else {
+					$state = 'broken' === $previous ? 'broken' : 'unchecked';
 				}
 			}
-			if ( $state !== (string) $row['link_status'] ) {
+			if ( $state !== $previous ) {
 				$written = $wpdb->update( $table, array( 'link_status' => $state ), array( 'id' => $id ), array( '%s' ), array( '%d' ) );
 				if ( false === $written ) {
 					HE_V2_Schema::record_runtime_failure( 'v12_link_scan_write_failed', 'Link status could not be updated safely; the scan cursor was not advanced.' );
 					break;
 				}
 			}
+			if ( false === update_option( self::LINK_CURSOR, $id, false )
+				&& $id !== absint( get_option( self::LINK_CURSOR, 0 ) ) ) {
+				HE_V2_Schema::record_runtime_failure( 'v12_link_scan_cursor_failed',
+					'Link scan status was stored but its resume cursor could not be persisted.' );
+				break;
+			}
 			$processed++;
-			update_option( self::LINK_CURSOR, $id, false );
 		}
 		if ( $processed ) { update_option( self::LINK_LAST, gmdate( 'Y-m-d H:i:s' ), false ); }
 		return $processed;
