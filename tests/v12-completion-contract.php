@@ -59,7 +59,7 @@ function wp_json_encode( $v, $flags = 0 ) { return json_encode( $v, $flags ); }
 function do_action( $name, ...$args ) { $GLOBALS['actions'][] = $name; }
 function apply_filters( $name, $default, $payload = array(), ...$args ) {
  if ( $name === 'he_v12_consent_receipt_verification_v1' && ! empty( $GLOBALS['verified_receipts'] ) ) {
-   return array( 'verified' => true, 'authority' => 'file-00', 'evidence_ref' => $payload['evidence_ref'], 'policy_version' => $payload['policy_version'], 'locale' => $payload['locale'], 'purpose' => $payload['purpose'], 'verification_id' => 'file00-verification-0001' );
+   return array( 'verified' => true, 'authority' => 'file-00', 'evidence_ref' => $payload['evidence_ref'], 'research_public_id' => $payload['research_public_id'], 'policy_version' => $payload['policy_version'], 'locale' => $payload['locale'], 'purpose' => $payload['purpose'], 'verification_id' => 'file00-verification-0001' );
  }
  if ( $name === 'he_v12_related_resource_owner_attested_v1' ) { return ! empty( $GLOBALS['resource_authorized'] ); }
  if ( $name === 'he_v12_canonical_related_resources' ) { return $GLOBALS['related_links'] ?? $default; }
@@ -110,13 +110,13 @@ $GLOBALS['dto']=array('id'=>$GLOBALS['concept']['public_id'],'type'=>'remedy','l
 require dirname( __DIR__ ) . '/homeopathy-encyclopedia/includes/class-he-v12-completion.php';
 require dirname( __DIR__ ) . '/homeopathy-encyclopedia/includes/class-he-v12-evidence-impact.php';
 $id=$GLOBALS['concept']['public_id'];
-$att=HE_V12_Completion::consent_attestation(array('consent_version'=>'policy-v3','consent_locale'=>'ur-PK','consent_evidence_ref'=>'receipt:00001'),11,true,'successful-case');
+$att=HE_V12_Completion::consent_attestation(array('consent_version'=>'policy-v3','consent_locale'=>'ur-PK','consent_evidence_ref'=>'receipt:00001','research_public_id'=>'11111111-1111-4111-8111-111111111111'),11,true,'successful-case');
 assert_true(is_array($att),'Valid consent attestation');
 assert_true($att['purpose']==='patient-story-research','Purpose bound consent');
 assert_true($att['recorded_by']===11 && $att['state']==='accepted','Consent actor/state');
 assert_true($att['verified_by']==='file-00' && $att['evidence_ref']==='receipt:00001','File 00 proof attribution');
 $GLOBALS['verified_receipts']=false;
-assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_version'=>'policy-v3','consent_locale'=>'ur-PK','consent_evidence_ref'=>'receipt:00001'),11,true,'successful-case')),'Self-asserted consent rejected without independent owner');
+assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_version'=>'policy-v3','consent_locale'=>'ur-PK','consent_evidence_ref'=>'receipt:00001','research_public_id'=>'11111111-1111-4111-8111-111111111111'),11,true,'successful-case')),'Self-asserted consent rejected without independent owner');
 $GLOBALS['verified_receipts']=true;
 assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_locale'=>'en-US'),11,true,'successful-case')),'Missing policy version rejected');
 assert_true(is_wp_error(HE_V12_Completion::consent_attestation(array('consent_version'=>'v3'),11,true,'successful-case')),'Missing locale rejected');

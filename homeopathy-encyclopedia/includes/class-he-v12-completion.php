@@ -221,7 +221,7 @@ final class HE_V12_Completion {
 		) );
 	}
 
-	/** A lawful side-by-side source-identity view; missing quotations stay missing. */
+	/** A lawful side-by-side source-identity view; only rights-cleared original excerpts with independent translation review are shown. */
 	public static function compare_references( WP_REST_Request $request ) {
 		$pair = self::published_entry( $request['id'] );
 		if ( ! $pair ) { return new WP_Error( 'he_v12_comparison_unavailable', 'No published concept for this comparison.', array( 'status' => 404 ) ); }
@@ -233,13 +233,20 @@ final class HE_V12_Completion {
 			|| $left === $right || ! isset( $sources[ $left ], $sources[ $right ] ) ) {
 			return new WP_Error( 'he_v12_compare_indices_invalid', 'Two distinct published reference positions are required.', array( 'status' => 400 ) );
 		}
+		$columns = array();
+		foreach ( array( $left, $right ) as $idx ) {
+			$reviewed = class_exists( 'HE_V12_Reviewed_Sources' )
+				? HE_V12_Reviewed_Sources::column( $dto, $idx ) : null;
+			$columns[] = array_merge(
+				array( 'source' => $sources[ $idx ], 'original_excerpt'=>null, 'translation'=>null,
+					'review_note'=>null, 'verified'=>false ),
+				is_array( $reviewed ) ? array_merge( $reviewed, array( 'verified'=>true ) ) : array()
+			);
+		}
 		return rest_ensure_response( array(
 			'concept_id' => $dto['id'], 'version' => (int) $dto['version'],
-			'columns' => array(
-				array( 'source' => $sources[ $left ], 'original_excerpt' => null, 'translation' => null, 'review_note' => null ),
-				array( 'source' => $sources[ $right ], 'original_excerpt' => null, 'translation' => null, 'review_note' => null ),
-			),
-			'notice' => 'Original source text and translation are unavailable unless separately verified, rights-cleared and independently reviewed. Do not invent quotations.',
+			'columns' => $columns,
+			'notice' => 'Only source-matched, licensed, independently human-reviewed original excerpts and translations may appear. Missing proof remains unavailable.',
 		) );
 	}
 
@@ -318,10 +325,26 @@ final class HE_V12_Completion {
 			$refs = self::public_references( $dto );
 			if ( count( $refs ) >= 2 ) {
 				$extra .= '<section class="he-v12__comparison" aria-label="Compare bibliographic sources"><h2>Compare sources and editions</h2><div class="he-v12__columns">';
-				foreach ( array_slice( $refs, 0, 2 ) as $ref ) {
+				foreach ( array_slice( $refs, 0, 2 ) as $position => $ref ) {
 					$extra .= '<div class="he-v12__source"><h3>' . esc_html( (string) ( $ref['title'] ?? 'Untitled source' ) ) . '</h3>';
 					$extra .= '<p>' . esc_html( (string) ( $ref['edition'] ?? 'Edition not recorded' ) ) . '; ' . esc_html( (string) ( $ref['page_locator'] ?? 'Page not recorded' ) ) . '</p>';
-					$extra .= '<p>Original text, translation and independent review note unavailable until separately verified and rights-cleared.</p></div>';
+					$verified = class_exists( 'HE_V12_Reviewed_Sources' )
+						? HE_V12_Reviewed_Sources::column( $dto, $position ) : null;
+					if ( is_array( $verified ) ) {
+						$extra .= '<blockquote dir="auto">' . esc_html( (string) $verified['original_excerpt'] ) . '</blockquote>';
+						$extra .= '<p><strong>Reviewed translation (' . esc_html( (string) $verified['translation_locale'] ) . '):</strong> '
+							. esc_html( (string) $verified['translation'] ) . '</p>';
+						if ( ! empty( $verified['review_note'] ) ) {
+							$extra .= '<p><strong>Editorial note:</strong> ' . esc_html( (string) $verified['review_note'] ) . '</p>';
+						}
+						$extra .= '<p>Rights: ' . esc_html( (string) $verified['rights_basis'] )
+							. '. PDF edition ' . absint( $verified['edition_id'] ) . ', page ' . absint( $verified['page'] ) . '.</p>';
+						$extra .= '<p><a href="' . esc_url( (string) $verified['source_url'] )
+							. '">Open rights-checked source edition</a></p>';
+					} else {
+						$extra .= '<p>Original text and reviewed translation are unavailable pending a verified File 12 source, current rights and independent review.</p>';
+					}
+					$extra .= '</div>';
 				}
 				$extra .= '</div></section>';
 			}
@@ -367,11 +390,13 @@ final class HE_V12_Completion {
 		$version = sanitize_text_field( (string) ( $data['consent_version'] ?? '' ) );
 		$locale = sanitize_text_field( (string) ( $data['consent_locale'] ?? '' ) );
 		$purpose = 'successful-case' === $record_type ? 'patient-story-research' : ( 'dataset' === $record_type ? 'research-dataset' : 'research-processing' );
+		$research_public_id = strtolower( sanitize_text_field( (string) ( $data['research_public_id'] ?? '' ) ) );
 		$receipt = sanitize_text_field( (string) ( $data['consent_evidence_ref'] ?? '' ) );
 		$verification_id = '';
 		if ( $verified ) {
 			if ( '' === $version || ! preg_match( '/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale )
-				|| ! preg_match( '/^[A-Za-z0-9._:-]{8,120}$/', $receipt ) ) {
+				|| ! preg_match( '/^[A-Za-z0-9._:-]{8,120}$/', $receipt )
+				|| ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $research_public_id ) ) {
 				return new WP_Error( 'he_v12_consent_proof_required',
 					'Consent policy version, source locale and an evidence receipt ID are mandatory.', array( 'status' => 422 ) );
 			}
@@ -379,7 +404,7 @@ final class HE_V12_Completion {
 			// independently governed subject-consent owner must attest the receipt.
 			$proof = function_exists( 'apply_filters' )
 				? apply_filters( 'he_v12_consent_receipt_verification_v1', null,
-					array( 'evidence_ref' => $receipt, 'policy_version' => $version,
+					array( 'evidence_ref' => $receipt, 'research_public_id' => $research_public_id, 'policy_version' => $version,
 						'locale' => $locale, 'purpose' => $purpose, 'actor_id' => absint( $actor_id ) ) ) : null;
 			if ( ! is_array( $proof ) || true !== ( $proof['verified'] ?? false )
 				|| 'file-00' !== ( $proof['authority'] ?? '' )
@@ -387,6 +412,7 @@ final class HE_V12_Completion {
 				|| ! hash_equals( $version, (string) ( $proof['policy_version'] ?? '' ) )
 				|| ! hash_equals( $locale, (string) ( $proof['locale'] ?? '' ) )
 				|| ! hash_equals( $purpose, (string) ( $proof['purpose'] ?? '' ) )
+				|| ! hash_equals( $research_public_id, (string) ( $proof['research_public_id'] ?? '' ) )
 				|| empty( $proof['verification_id'] ) ) {
 				return new WP_Error( 'he_v12_consent_independent_verification_required',
 					'An eligible File 00 verified consent receipt matching the exact purpose, policy and locale is required.', array( 'status' => 503 ) );
@@ -398,7 +424,7 @@ final class HE_V12_Completion {
 			'policy_version' => $version, 'locale' => $locale, 'purpose' => $purpose,
 			'recorded_by' => absint( $actor_id ), 'recorded_at_utc' => gmdate( 'c' ),
 			'evidence_ref' => $verified ? $receipt : '', 'verified_by' => $verified ? 'file-00' : '',
-			'verification_id' => $verification_id,
+			'verification_id' => $verification_id, 'research_public_id' => $verified ? $research_public_id : '',
 			'state' => $verified ? 'accepted' : 'unverified',
 			'withdrawn_at_utc' => null, 'withdrawal_policy' => 'requires-subject-authenticated-or-owner-governed-record; no implied blanket consent',
 		);
