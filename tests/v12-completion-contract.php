@@ -34,6 +34,7 @@ class HE_V2_Schema {
 class HE_V24_Migration_Safety { public static function ready() { return true; } }
 class HE_V24_Future_Schema {
 	public static function table( $name ) { return 'wp_he_' . $name; }
+	public static function public_claims( $id ) { return array( array( 'public_id' => '44444444-4444-4444-8444-444444444444', 'claim_text' => 'Reviewer approved source claim' ) ); }
 	public static function append_provenance( $type, $id, $action, $url = '', $metadata = array() ) { $GLOBALS['provenance'][] = [$type,$id,$action]; return 'proof'; }
 	public static function queue_impact( $type, $id, $name, $payload = array() ) { $GLOBALS['impact'][] = [$type,$id,$name]; return 6; }
 }
@@ -107,6 +108,7 @@ $exp=HE_V12_Completion::export_entry(new WP_REST_Request(array('id'=>$id)));
 assert_true($exp['format']==='file06-scholarly-export-v1','Versioned public export');
 assert_true($exp['canonical_public_id']===$id && $exp['version']===3,'Canonical provenance retained');
 assert_true(count($exp['sources'])===2,'Bibliographic sources exported');
+assert_true(count($exp['approved_current_claims'])===1,'Reviewed claim-level evidence included');
 assert_true(!array_key_exists('id',$exp['sources'][0]),'Private/internal reference keys excluded');
 assert_true(!array_key_exists('body',$exp),'No unrestricted manuscript export');
 $cmp=HE_V12_Completion::compare_references(new WP_REST_Request(array('id'=>$id,'left'=>0,'right'=>1)));
