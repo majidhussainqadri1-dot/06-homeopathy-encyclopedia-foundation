@@ -167,6 +167,16 @@ final class HE_V22_Research_Guard {
 				|| ! empty( $consent['withdrawn_at_utc'] ) || 'کامیاب کیس' !== $row['case_tag'] ) {
 				return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require anonymization, verified consent and the mandatory کامیاب کیس classification.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
+			// Consent can be revoked outside File 06. Never trust an old local
+			// boolean at the moment of public presentation or research approval.
+			$current_receipt = apply_filters( 'he_v12_consent_receipt_current_v1', null,
+				(string) $consent['verification_id'], (string) $consent['evidence_ref'],
+				(string) $row['public_id'], 'patient-story-research' );
+			if ( true !== $current_receipt ) {
+				return new WP_Error( 'he_case_consent_current_not_verified',
+					__( 'This patient-case consent cannot be confirmed as currently valid.', 'homeopathy-encyclopedia' ),
+					array( 'status' => 503 ) );
+			}
 			if ( self::has_direct_identifier( implode( ' ', array_map( 'strval', $case ) ) ) ) {
 				return new WP_Error( 'he_case_pii_detected', __( 'Potential direct patient identifiers were detected.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
