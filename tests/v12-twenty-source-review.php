@@ -29,7 +29,7 @@ $rounds=array(
  11=>array('Bounded repeatable source impact','evidence',array('MAX_CLAIMS_PER_SCAN = 40','he_v12_evidence_more_claims')),
  12=>array('Retraction cursor owner ACK','future',array('v12_retraction_consumer_queue_incomplete','6!==(int)$queued')),
  13=>array('Safe reference HTTP','v12',array('wp_safe_remote_head',"'redirection' => 0",'wp_http_validate_url')),
- 14=>array('Two-event link verdict','v12',array("'suspect'","'broken'","404 === $code")),
+ 14=>array('Two-event link verdict','v12',array("'suspect'","'broken'",'404 === $code')),
  15=>array('Reference cursor durability','v12',array('v12_link_scan_cursor_failed','LINK_CURSOR')),
  16=>array('Elapsed review-date verification','v12',array('due_timestamp','urgent-review','Human review date unverified')),
  17=>array('Citation URL credential minimization','v12',array('public_source_url','wp_parse_url','parts[\'user\']')),
