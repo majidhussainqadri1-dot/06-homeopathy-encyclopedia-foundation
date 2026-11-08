@@ -137,6 +137,14 @@ final class HE_V12_Completion {
 		$pair = self::published_entry( $request['id'] );
 		if ( ! $pair ) { return new WP_Error( 'he_v12_export_unavailable', 'This published scholarly record is not available.', array( 'status' => 404 ) ); }
 		list( $row, $dto ) = $pair;
+		// Native Future-18 public_claims() already enforces current version,
+		// independent review and source-bound evidence (never draft claims).
+		$claims = array();
+		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready()
+			&& method_exists( 'HE_V24_Future_Schema', 'public_claims' ) ) {
+			$reviewed_claims = HE_V24_Future_Schema::public_claims( (int) $row['id'] );
+			if ( is_array( $reviewed_claims ) ) { $claims = $reviewed_claims; }
+		}
 		return rest_ensure_response( array(
 			'format' => self::EXPORT_VERSION,
 			'canonical_public_id' => $dto['id'],
@@ -148,6 +156,7 @@ final class HE_V12_Completion {
 			'summary' => wp_strip_all_tags( (string) $dto['summary'] ),
 			'source_updated_at_utc' => (string) $dto['freshness']['updated_at'],
 			'sources' => self::public_references( $dto ),
+			'approved_current_claims' => $claims,
 			'rights_rule' => 'public-metadata-only; no private notes, withdrawn content, protected full text or patient records',
 			'import_mapping' => array(
 				'match_on' => 'canonical_public_id',
