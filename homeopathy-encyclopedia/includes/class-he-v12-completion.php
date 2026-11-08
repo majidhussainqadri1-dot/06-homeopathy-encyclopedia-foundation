@@ -126,6 +126,20 @@ final class HE_V12_Completion {
 		) );
 	}
 
+	/** External metadata URLs must not leak credentials, tokens or query strings. */
+	private static function public_source_url( $raw ) {
+		$raw = esc_url_raw( (string) $raw );
+		if ( ! $raw ) { return ''; }
+		$parts = wp_parse_url( $raw );
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] )
+			|| ! in_array( strtolower( $parts['scheme'] ), array( 'https','http' ), true )
+			|| isset( $parts['user'] ) || isset( $parts['pass'] ) ) { return ''; }
+		$url = strtolower( $parts['scheme'] ) . '://' . $parts['host'];
+		if ( isset( $parts['port'] ) ) { $url .= ':' . absint( $parts['port'] ); }
+		$url .= isset( $parts['path'] ) ? $parts['path'] : '/';
+		return wp_http_validate_url( $url ) ? esc_url_raw( $url ) : '';
+	}
+
 	private static function public_references( $dto ) {
 		$out = array();
 		foreach ( array_slice( (array) $dto['references'], 0, 100 ) as $ref ) {
@@ -134,12 +148,24 @@ final class HE_V12_Completion {
 			$entry = array();
 			foreach ( $fields as $key ) {
 				if ( isset( $ref[ $key ] ) && is_scalar( $ref[ $key ] ) ) {
-					$entry[ $key ] = sanitize_text_field( (string) $ref[ $key ] );
+					$entry[ $key ] = 'url' === $key
+						? self::public_source_url( $ref[ $key ] )
+						: sanitize_text_field( (string) $ref[ $key ] );
 				}
 			}
 			$out[] = $entry;
 		}
 		return $out;
+	}
+
+	/** Canonical digest compares approved current public data, not a caller's claims. */
+	private static function record_digest( $dto ) {
+		return hash( 'sha256', wp_json_encode( array(
+			'id' => (string) $dto['id'], 'version' => (int) $dto['version'],
+			'title' => sanitize_text_field( (string) $dto['title'] ),
+			'summary' => wp_strip_all_tags( (string) $dto['summary'] ),
+			'sources' => self::public_references( $dto ),
+		), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
 	}
 
 	/** Rights-scoped, public scholarly record export; no hidden cases or full text. */
@@ -149,15 +175,27 @@ final class HE_V12_Completion {
 		list( $row, $dto ) = $pair;
 		// Native Future-18 public_claims() already enforces current version,
 		// independent review and source-bound evidence (never draft claims).
-		$claims = array();
-		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready()
-			&& method_exists( 'HE_V24_Future_Schema', 'public_claims' ) ) {
-			$reviewed_claims = HE_V24_Future_Schema::public_claims( (int) $row['id'] );
-			if ( is_array( $reviewed_claims ) ) { $claims = $reviewed_claims; }
+		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready()
+			|| ! method_exists( 'HE_V24_Future_Schema', 'public_claims' ) ) {
+			return new WP_Error( 'he_v12_export_claims_unavailable', 'The governed current claim-evidence provider is unavailable.', array( 'status' => 503 ) );
 		}
+		$claims = HE_V24_Future_Schema::public_claims( (int) $row['id'] );
+		if ( ! is_array( $claims ) ) {
+			return new WP_Error( 'he_v12_export_claims_unavailable', 'Current approved claims could not be verified.', array( 'status' => 503 ) );
+		}
+		foreach ( $claims as &$claim ) {
+			foreach ( (array) ( $claim['evidence'] ?? array() ) as &$item ) {
+				if ( isset( $item['reference']['url'] ) ) {
+					$item['reference']['url'] = self::public_source_url( $item['reference']['url'] );
+				}
+			}
+			unset( $item );
+		}
+		unset( $claim );
 		return rest_ensure_response( array(
 			'format' => self::EXPORT_VERSION,
 			'canonical_public_id' => $dto['id'],
+			'record_digest' => self::record_digest( $dto ),
 			'canonical_url' => esc_url_raw( (string) $dto['canonical_url'] ),
 			'version' => (int) $dto['version'],
 			'type' => $dto['type'],
@@ -215,8 +253,12 @@ final class HE_V12_Completion {
 		}
 		$target = $pair[1];
 		$version = filter_var( $data['version'], FILTER_VALIDATE_INT );
+		$reported_digest = (string) ( $data['record_digest'] ?? '' );
+		$same_version = false !== $version && (int) $version === (int) $target['version'];
+		$match = $same_version && preg_match( '/^[a-f0-9]{64}$/', $reported_digest )
+			&& hash_equals( self::record_digest( $target ), $reported_digest );
 		return rest_ensure_response( array(
-			'mapping' => $version !== false && (int) $version === (int) $target['version'] ? 'same-canonical-version' : 'version-conflict',
+			'mapping' => ! $same_version ? 'version-conflict' : ( $match ? 'same-canonical-version' : 'source-content-conflict' ),
 			'canonical_public_id' => $target['id'], 'current_version' => (int) $target['version'],
 			'write_allowed' => false, 'requires_owner_review' => true,
 		) );
