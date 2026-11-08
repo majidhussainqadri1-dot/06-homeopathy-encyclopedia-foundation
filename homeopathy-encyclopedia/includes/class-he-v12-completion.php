@@ -221,13 +221,26 @@ final class HE_V12_Completion {
 		$notice = 'Last human verification: unavailable. Do not interpret this page as a live clinical service.';
 		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready() ) {
 			$freshness = $wpdb->get_row( $wpdb->prepare(
-				'SELECT freshness_state,last_human_review,review_due_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'freshness' ) . ' WHERE concept_id=%d',
+				'SELECT freshness_state,risk_tier,last_human_review,review_due_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'freshness' ) . ' WHERE concept_id=%d',
 				(int) $raw['id']
 			), ARRAY_A );
 			if ( $freshness ) {
 				$state = (string) $freshness['freshness_state'];
+				// A stale cron projection must never label an overdue entry current.
+				$due_timestamp = ! empty( $freshness['review_due_at'] ) ? strtotime( (string) $freshness['review_due_at'] . ' UTC' ) : false;
+				if ( ! empty( $freshness['last_human_review'] ) && false !== $due_timestamp ) {
+					if ( $due_timestamp <= time() ) {
+						$state = in_array( (string) ( $freshness['risk_tier'] ?? '' ), array( 'high','critical' ), true ) ? 'urgent-review' : 'stale';
+					} elseif ( $due_timestamp <= time() + 30 * DAY_IN_SECONDS && 'current' === $state ) {
+						$state = 'review-due';
+					}
+				} else {
+					$state = 'unknown';
+				}
+				if ( 'retracted' === (string) $raw['status'] ) { $state = 'retracted'; }
 				$labels = array( 'current' => 'Current at last recorded review', 'review-due' => 'Review due',
-					'stale' => 'Outdated review', 'urgent-review' => 'Urgent human review required' );
+					'stale' => 'Outdated review', 'urgent-review' => 'Urgent human review required',
+					'unknown' => 'Human review date unverified', 'retracted' => 'Retracted knowledge; not current' );
 				$reviewed = $freshness['last_human_review'] ? substr( (string) $freshness['last_human_review'], 0, 10 ) . ' UTC' : 'unavailable';
 				$due = $freshness['review_due_at'] ? substr( (string) $freshness['review_due_at'], 0, 10 ) . ' UTC' : 'not scheduled';
 				$notice = ( $labels[ $state ] ?? 'Review status unknown' ) . '. Last human review: ' . $reviewed . '. Review due: ' . $due . '.';
