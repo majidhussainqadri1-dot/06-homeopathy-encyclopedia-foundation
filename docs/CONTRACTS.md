@@ -66,3 +66,13 @@ File 06 v1.1 adds `F06-FUT-001..018`: claim evidence, provenance, retraction wat
 ## Release truth
 
 The 2.4.20 source candidate **must not** be equated with the default `main`, an installed plugin, a verified target database or a production system. Source review, exact-HEAD QA, reproducible artifact + checksums, controlled WordPress staging, verified companion contracts, backups, rollback rehearsal, Founder acceptance, deployment and live retest are separately required.
+
+
+## File 15 remedy bridge — isolated corrective candidate (2026-11-08)
+
+- WordPress filter `rsr_file06_get_remedies($existing, $canonical_public_ids, 'v1')` supplies only reviewed, currently published, safety-approved `remedy` concepts with exact canonical UUID identity, current immutable version, linked references, fresh independent approval tied to the current content hash, source version and review date. It fails closed on inactive/migration-required File 06 schema. Numeric IDs, aliases, archived/merged/retracted and non-remedy records are excluded. It never exposes patient, private studies, internal post IDs or editorial drafts.
+- **Do not fabricate a `rsr_file06_search` match.** File 15 owns symptom-to-remedy mappings and can use its established local governed mapping search when no fully source-linked external search adapter exists. A generic encyclopedia text hit is not clinical mapping evidence.
+- File 06's persisted outbox `he_v2_outbox_event` forwards only remedy `EncyclopediaEntryPublished.v1`, `EncyclopediaEntryCorrected.v1`, `EncyclopediaEntryRetracted.v1` and `KnowledgeConceptMerged.v1` to File 15's `rsr_accept_platform_event` v1 consumer. Original event IDs are stable; the event's canonical object ID is independently resolved from File 06's stored event row. Merge carries original source and target public IDs; File 15 must mark source mappings review-required and never silently transfer medical evidence.
+- If installed File 15 rejects an event, File 06 throws for outbox retry/dead-letter instead of acknowledging success. When File 15 is absent there is no subscriber and new installations need full pre-enable mapping reconciliation; a missed historical event is not automatically replayed by installation.
+- Changes require **both** File 06 and File 15 source candidates, automated contract tests, real deployed version/schema/companion contract parity, staged publish/correct/retract/merge with duplicate/delayed/revoked cases, search/caches and File 26 validation, backups/rollback, Founder approval and live re-test before an operational claim.
+- Bridge change has no implication that the plugin has been merged into default `main`, deployed, or verified on Hostinger.
