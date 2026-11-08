@@ -266,7 +266,8 @@ final class HE_V12_Completion {
 
 	/** Accessible source date and stale/review-due information, never "live" by default. */
 	public static function public_entry_enrichment( $content ) {
-		if ( ! is_singular( HE_V2_Domain::ENTRY_TYPE ) || ! in_the_loop() || ! is_main_query() ) { return $content; }
+		if ( ! is_singular( HE_V2_Domain::ENTRY_TYPE ) || ! in_the_loop() || ! is_main_query()
+			|| ! is_string( $content ) || false === strpos( $content, 'data-he-entry-id=' ) ) { return $content; }
 		global $wpdb, $post;
 		$raw = $post ? HE_V2_Domain::concept_by_post_id( (int) $post->ID ) : null;
 		if ( ! $raw || ! HE_V2_Domain::is_public_concept( $raw ) || ! empty( $raw['merged_into_id'] ) ) { return $content; }
@@ -324,7 +325,11 @@ final class HE_V12_Completion {
 					|| (int) ( $link['source_version'] ?? 0 ) !== (int) $dto['version'] ) { continue; }
 				$url = esc_url_raw( (string) ( $link['url'] ?? '' ) );
 				$label = sanitize_text_field( (string) ( $link['label'] ?? '' ) );
-				if ( ! $url || ! $label || ! wp_http_validate_url( $url ) ) { continue; }
+				if ( ! $url || ! $label || ! wp_http_validate_url( $url )
+					|| ! function_exists( 'apply_filters' )
+					|| true !== apply_filters( 'he_v12_related_resource_owner_attested_v1', false, $link, $dto ) ) {
+					continue;
+				}
 				$safe_links[] = '<li><a rel="noopener noreferrer" href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a></li>';
 			}
 			if ( $safe_links ) {
@@ -335,11 +340,17 @@ final class HE_V12_Completion {
 				$extra .= '<p class="he-v12__history"><a href="' . esc_url( $version_url ) . '">View version and correction history (metadata)</a></p>';
 			}
 		}
-		// The owned content markup contains these closing tags once.
-		$content = false !== strpos( $content, '</header>' )
-			? preg_replace( '#</header>#', '</header>' . $markup, $content, 1 ) : $content;
-		return $extra && false !== strpos( $content, '</article>' )
-			? preg_replace( '#</article>#', $extra . '</article>', $content, 1 ) : $content;
+		// Strict string insertion avoids treating source/link text as a
+		// regular-expression replacement string ($1/backreference interpolation).
+		$header_pos = strpos( $content, '</header>' );
+		if ( false !== $header_pos ) {
+			$content = substr_replace( $content, '</header>' . $markup, $header_pos, strlen( '</header>' ) );
+		}
+		$article_pos = $extra ? strrpos( $content, '</article>' ) : false;
+		if ( false !== $article_pos ) {
+			$content = substr_replace( $content, $extra . '</article>', $article_pos, strlen( '</article>' ) );
+		}
+		return $content;
 	}
 
 	/** Version and purpose-bound attestation; no personal subject identifiers stored. */
