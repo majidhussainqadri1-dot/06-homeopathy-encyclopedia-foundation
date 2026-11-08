@@ -1193,6 +1193,8 @@ final class HE_V2_Domain {
 			return new WP_Error( 'he_research_governance_required', __( 'At least one investigator and an explicit conflict-of-interest statement are required.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
 		$consent = ! empty( $data['consent_verified'] );
+		$consent_attestation = HE_V12_Completion::consent_attestation( $data, $actor_id, $consent, $type );
+		if ( is_wp_error( $consent_attestation ) ) { return $consent_attestation; }
 		$anonymized = ! empty( $data['anonymized'] );
 		$case_tag = '';
 		if ( 'successful-case' === $type ) {
@@ -1230,7 +1232,7 @@ final class HE_V2_Domain {
 			'protocol' => $protocol,
 			'investigators_json' => wp_json_encode( $investigators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'ethics_json' => wp_json_encode( array( 'review_required' => true, 'approval_reference' => sanitize_text_field( $data['ethics_reference'] ?? '' ) ) ),
-			'consent_json' => wp_json_encode( array( 'verified' => $consent, 'version' => sanitize_text_field( $data['consent_version'] ?? '' ) ) ),
+			'consent_json' => wp_json_encode( $consent_attestation ),
 			'conflicts_json' => wp_json_encode( $conflicts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ),
 			'data_class' => sanitize_key( $data['data_class'] ?? 'restricted' ),
 			'case_anonymized' => $anonymized ? 1 : 0,
