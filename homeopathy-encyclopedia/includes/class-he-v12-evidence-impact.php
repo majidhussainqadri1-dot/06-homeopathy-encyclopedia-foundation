@@ -82,8 +82,15 @@ final class HE_V12_Evidence_Impact {
 					'Claim revalidation was not durably completed. Retry after operator reconciliation.', array( 'status' => 503 ) );
 			}
 			// Notification after commit only. Consumer reads the durable impact queue.
-			do_action( 'he_v24_knowledge_impact_queued', 'concept', (string) $claim['public_id'],
-				'KnowledgeEvidenceChanged.v1', $payload );
+			try {
+				do_action( 'he_v24_knowledge_impact_queued', 'concept', (string) $claim['public_id'],
+					'KnowledgeEvidenceChanged.v1', $payload );
+			} catch ( Throwable $error ) {
+				// State and all consumer queue rows have committed. A callback failure
+				// cannot invalidate or roll back the durable reviewer notification.
+				HE_V2_Schema::record_runtime_failure( 'v12_revalidation_notification_callback_failed',
+					'An optional post-commit notification callback failed; replay the durable impact queue.' );
+			}
 		}
 		if ( $has_more ) {
 			// The outer provider cursor stays on this external record; next maintenance
