@@ -18,7 +18,6 @@ final class HE_V12_Reviewed_Sources {
 		return self::OPTION_PREFIX.hash('sha256',strtolower($concept_id).'|'.absint($reference_id));
 	}
 	private static function public_entry($id) {
-		$check=apply_filters('he_v12_file06_concept_assertion_v1',null,(string)$id,absint(self::requested_version($id)));
 		// Use canonical File 06 row, never authority assumed from route ID alone.
 		if('active'!==HE_V2_Schema::runtime_status())return null;
 		$row=HE_V2_Domain::concept_by_id((string)$id,true);
@@ -29,7 +28,6 @@ final class HE_V12_Reviewed_Sources {
 			||(int)$dto['version']!==(int)($dto['current_version']??0))return null;
 		return array($row,$dto);
 	}
-	private static function requested_version($id) {return 1;}
 
 	private static function reference($dto,$position) {
 		$position=filter_var($position,FILTER_VALIDATE_INT);
@@ -55,8 +53,8 @@ final class HE_V12_Reviewed_Sources {
 			||!hash_equals((string)($claim['rights_evidence_ref']??''),(string)($proof['rights_evidence_ref']??'')))return null;
 		// Reference bibliography must name the edition/source being quoted,
 		// not any unrelated book from the same concept's reference list.
-		$left=trim(mb_strtolower((string)($reference['title']??''),'UTF-8'));
-		$right=trim(mb_strtolower((string)($proof['source_title']??''),'UTF-8'));
+		$left=trim((function_exists('mb_strtolower')?mb_strtolower((string)($reference['title']??''),'UTF-8'):strtolower((string)($reference['title']??''))));
+		$right=trim((function_exists('mb_strtolower')?mb_strtolower((string)($proof['source_title']??''),'UTF-8'):strtolower((string)($proof['source_title']??''))));
 		if(!$left||!$right||$left!==$right)return null;
 		$reference_edition=trim((string)($reference['edition']??''));
 		if($reference_edition!==''&&!hash_equals($reference_edition,(string)($proof['edition_label']??'')))return null;
