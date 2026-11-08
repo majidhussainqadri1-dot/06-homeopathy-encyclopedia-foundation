@@ -95,4 +95,16 @@ $wpdb->reject=true;$GLOBALS['post_ok']=true;$GLOBALS['events']=array();
 $broken=HE_V12_Research_Consent::withdraw(new WP_REST_Request($payload));
 must(is_wp_error($broken)&&$broken->get_error_code()==='he_v12_withdraw_failed','Failed DB mutation does not succeed');
 must(count($GLOBALS['events'])===0,'No event on rolled back mutation');
+// A pre-v12 record with only a consent checkbox must remain withdrawable,
+// but must never acquire inferred verified consent or new publication rights.
+$wpdb->reject=false;$GLOBALS['options']=array();$GLOBALS['posts']=array();$GLOBALS['impact']=array();$GLOBALS['events']=array();
+$GLOBALS['row']['row_version']=8;
+$GLOBALS['row']['consent_json']=json_encode(array('verified'=>true,'version'=>'legacy-v1'));
+$legacy=$payload;
+$legacy['policy_version']='legacy-unverified';$legacy['locale']='und';$legacy['row_version']=8;
+must(is_wp_error(HE_V12_Research_Consent::withdraw(new WP_REST_Request($legacy))),'Legacy consent requires explicit withdrawal acknowledgment');
+$legacy['legacy_unverified_acknowledged']=true;
+$withdrawn=HE_V12_Research_Consent::withdraw(new WP_REST_Request($legacy));
+must($withdrawn instanceof WP_REST_Response && $withdrawn->data['status']==='retracted','Authorized legacy withdrawal remains available');
+must(count($GLOBALS['events'])===1&&count($GLOBALS['impact'])===1,'Legacy removal also emits reviewed consumer invalidation');
 echo "File 06 v12 consent withdrawal: {$GLOBALS['checks']} isolated checks PASS.\n";

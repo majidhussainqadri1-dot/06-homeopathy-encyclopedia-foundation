@@ -54,6 +54,7 @@ final class HE_V12_Completion {
 		foreach ( (array) $rows as $row ) {
 			$id = (int) $row['id'];
 			$url = (string) $row['url'];
+			$previous = (string) ( $row['link_status'] ?? 'unchecked' );
 			$state = 'error';
 			if ( preg_match( '#^https?://#i', $url ) && wp_http_validate_url( $url ) ) {
 				$response = wp_safe_remote_head( $url, array(
@@ -64,25 +65,34 @@ final class HE_V12_Completion {
 					$code = (int) wp_remote_retrieve_response_code( $response );
 					// A HEAD method blocked by the publisher does not prove a dead link.
 					if ( in_array( $code, array( 403, 405, 429 ), true ) || $code >= 500 ) {
-						$state = 'unchecked';
+						$state = 'broken' === $previous ? 'broken' : 'unchecked';
 					} elseif ( $code >= 200 && $code < 300 ) {
 						$state = 'ok';
 					} elseif ( 404 === $code || 410 === $code ) {
-						$state = 'broken';
+						// One HEAD 404 can be an anti-bot response. Require a repeat.
+						$state = in_array( $previous, array( 'suspect','broken' ), true ) ? 'broken' : 'suspect';
 					} else {
-						$state = 'unchecked';
+						// Do not erase a previously confirmed 404 due to 30x/unknown.
+						$state = 'broken' === $previous ? 'broken' : 'unchecked';
 					}
+				} else {
+					$state = 'broken' === $previous ? 'broken' : 'unchecked';
 				}
 			}
-			if ( $state !== (string) $row['link_status'] ) {
+			if ( $state !== $previous ) {
 				$written = $wpdb->update( $table, array( 'link_status' => $state ), array( 'id' => $id ), array( '%s' ), array( '%d' ) );
 				if ( false === $written ) {
 					HE_V2_Schema::record_runtime_failure( 'v12_link_scan_write_failed', 'Link status could not be updated safely; the scan cursor was not advanced.' );
 					break;
 				}
 			}
+			if ( false === update_option( self::LINK_CURSOR, $id, false )
+				&& $id !== absint( get_option( self::LINK_CURSOR, 0 ) ) ) {
+				HE_V2_Schema::record_runtime_failure( 'v12_link_scan_cursor_failed',
+					'Link scan status was stored but its resume cursor could not be persisted.' );
+				break;
+			}
 			$processed++;
-			update_option( self::LINK_CURSOR, $id, false );
 		}
 		if ( $processed ) { update_option( self::LINK_LAST, gmdate( 'Y-m-d H:i:s' ), false ); }
 		return $processed;
@@ -116,6 +126,20 @@ final class HE_V12_Completion {
 		) );
 	}
 
+	/** External metadata URLs must not leak credentials, tokens or query strings. */
+	private static function public_source_url( $raw ) {
+		$raw = esc_url_raw( (string) $raw );
+		if ( ! $raw ) { return ''; }
+		$parts = wp_parse_url( $raw );
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['scheme'] )
+			|| ! in_array( strtolower( $parts['scheme'] ), array( 'https','http' ), true )
+			|| isset( $parts['user'] ) || isset( $parts['pass'] ) ) { return ''; }
+		$url = strtolower( $parts['scheme'] ) . '://' . $parts['host'];
+		if ( isset( $parts['port'] ) ) { $url .= ':' . absint( $parts['port'] ); }
+		$url .= isset( $parts['path'] ) ? $parts['path'] : '/';
+		return wp_http_validate_url( $url ) ? esc_url_raw( $url ) : '';
+	}
+
 	private static function public_references( $dto ) {
 		$out = array();
 		foreach ( array_slice( (array) $dto['references'], 0, 100 ) as $ref ) {
@@ -124,7 +148,9 @@ final class HE_V12_Completion {
 			$entry = array();
 			foreach ( $fields as $key ) {
 				if ( isset( $ref[ $key ] ) && is_scalar( $ref[ $key ] ) ) {
-					$entry[ $key ] = sanitize_text_field( (string) $ref[ $key ] );
+					$entry[ $key ] = 'url' === $key
+						? self::public_source_url( $ref[ $key ] )
+						: sanitize_text_field( (string) $ref[ $key ] );
 				}
 			}
 			$out[] = $entry;
@@ -132,22 +158,51 @@ final class HE_V12_Completion {
 		return $out;
 	}
 
+	/** Central, current version reviewed claim projection; no raw private evidence. */
+	private static function reviewed_claims( $concept_id ) {
+		if ( ! class_exists( 'HE_V24_Migration_Safety' ) || ! HE_V24_Migration_Safety::ready()
+			|| ! method_exists( 'HE_V24_Future_Schema', 'public_claims' ) ) {
+			return new WP_Error( 'he_v12_export_claims_unavailable', 'Governed claim-evidence schema is unavailable.', array( 'status' => 503 ) );
+		}
+		$claims = HE_V24_Future_Schema::public_claims( (int) $concept_id );
+		if ( ! is_array( $claims ) ) {
+			return new WP_Error( 'he_v12_export_claims_unavailable', 'Current approved claims could not be verified.', array( 'status' => 503 ) );
+		}
+		foreach ( $claims as &$claim ) {
+			foreach ( (array) ( $claim['evidence'] ?? array() ) as &$item ) {
+				if ( isset( $item['reference']['url'] ) ) {
+					$item['reference']['url'] = self::public_source_url( $item['reference']['url'] );
+				}
+			}
+			unset( $item );
+		}
+		unset( $claim );
+		return $claims;
+	}
+
+	/** Digest binds bibliographic metadata AND approved claim-level evidence. */
+	private static function record_digest( $dto, $claims ) {
+		return hash( 'sha256', wp_json_encode( array(
+			'id' => (string) $dto['id'], 'version' => (int) $dto['version'],
+			'title' => sanitize_text_field( (string) $dto['title'] ),
+			'summary' => wp_strip_all_tags( (string) $dto['summary'] ),
+			'sources' => self::public_references( $dto ),
+			'approved_current_claims' => $claims,
+		), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
+	}
+
 	/** Rights-scoped, public scholarly record export; no hidden cases or full text. */
 	public static function export_entry( WP_REST_Request $request ) {
 		$pair = self::published_entry( $request['id'] );
 		if ( ! $pair ) { return new WP_Error( 'he_v12_export_unavailable', 'This published scholarly record is not available.', array( 'status' => 404 ) ); }
 		list( $row, $dto ) = $pair;
-		// Native Future-18 public_claims() already enforces current version,
-		// independent review and source-bound evidence (never draft claims).
-		$claims = array();
-		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready()
-			&& method_exists( 'HE_V24_Future_Schema', 'public_claims' ) ) {
-			$reviewed_claims = HE_V24_Future_Schema::public_claims( (int) $row['id'] );
-			if ( is_array( $reviewed_claims ) ) { $claims = $reviewed_claims; }
-		}
+		// File 06's native Future-18 projection enforces approved current claims.
+		$claims = self::reviewed_claims( (int) $row['id'] );
+		if ( is_wp_error( $claims ) ) { return $claims; }
 		return rest_ensure_response( array(
 			'format' => self::EXPORT_VERSION,
 			'canonical_public_id' => $dto['id'],
+			'record_digest' => self::record_digest( $dto, $claims ),
 			'canonical_url' => esc_url_raw( (string) $dto['canonical_url'] ),
 			'version' => (int) $dto['version'],
 			'type' => $dto['type'],
@@ -205,8 +260,14 @@ final class HE_V12_Completion {
 		}
 		$target = $pair[1];
 		$version = filter_var( $data['version'], FILTER_VALIDATE_INT );
+		$reported_digest = (string) ( $data['record_digest'] ?? '' );
+		$same_version = false !== $version && (int) $version === (int) $target['version'];
+		$claims = self::reviewed_claims( (int) $pair[0]['id'] );
+		if ( is_wp_error( $claims ) ) { return $claims; }
+		$match = $same_version && preg_match( '/^[a-f0-9]{64}$/', $reported_digest )
+			&& hash_equals( self::record_digest( $target, $claims ), $reported_digest );
 		return rest_ensure_response( array(
-			'mapping' => $version !== false && (int) $version === (int) $target['version'] ? 'same-canonical-version' : 'version-conflict',
+			'mapping' => ! $same_version ? 'version-conflict' : ( $match ? 'same-canonical-version' : 'source-content-conflict' ),
 			'canonical_public_id' => $target['id'], 'current_version' => (int) $target['version'],
 			'write_allowed' => false, 'requires_owner_review' => true,
 		) );
@@ -214,20 +275,34 @@ final class HE_V12_Completion {
 
 	/** Accessible source date and stale/review-due information, never "live" by default. */
 	public static function public_entry_enrichment( $content ) {
-		if ( ! is_singular( HE_V2_Domain::ENTRY_TYPE ) || ! in_the_loop() || ! is_main_query() ) { return $content; }
+		if ( ! is_singular( HE_V2_Domain::ENTRY_TYPE ) || ! in_the_loop() || ! is_main_query()
+			|| ! is_string( $content ) || false === strpos( $content, 'data-he-entry-id=' ) ) { return $content; }
 		global $wpdb, $post;
 		$raw = $post ? HE_V2_Domain::concept_by_post_id( (int) $post->ID ) : null;
 		if ( ! $raw || ! HE_V2_Domain::is_public_concept( $raw ) || ! empty( $raw['merged_into_id'] ) ) { return $content; }
 		$notice = 'Last human verification: unavailable. Do not interpret this page as a live clinical service.';
 		if ( class_exists( 'HE_V24_Migration_Safety' ) && HE_V24_Migration_Safety::ready() ) {
 			$freshness = $wpdb->get_row( $wpdb->prepare(
-				'SELECT freshness_state,last_human_review,review_due_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'freshness' ) . ' WHERE concept_id=%d',
+				'SELECT freshness_state,risk_tier,last_human_review,review_due_at,updated_at FROM ' . HE_V24_Future_Schema::table( 'freshness' ) . ' WHERE concept_id=%d',
 				(int) $raw['id']
 			), ARRAY_A );
 			if ( $freshness ) {
 				$state = (string) $freshness['freshness_state'];
+				// A stale cron projection must never label an overdue entry current.
+				$due_timestamp = ! empty( $freshness['review_due_at'] ) ? strtotime( (string) $freshness['review_due_at'] . ' UTC' ) : false;
+				if ( ! empty( $freshness['last_human_review'] ) && false !== $due_timestamp ) {
+					if ( $due_timestamp <= time() ) {
+						$state = in_array( (string) ( $freshness['risk_tier'] ?? '' ), array( 'high','critical' ), true ) ? 'urgent-review' : 'stale';
+					} elseif ( $due_timestamp <= time() + 30 * DAY_IN_SECONDS && 'current' === $state ) {
+						$state = 'review-due';
+					}
+				} else {
+					$state = 'unknown';
+				}
+				if ( 'retracted' === (string) $raw['status'] ) { $state = 'retracted'; }
 				$labels = array( 'current' => 'Current at last recorded review', 'review-due' => 'Review due',
-					'stale' => 'Outdated review', 'urgent-review' => 'Urgent human review required' );
+					'stale' => 'Outdated review', 'urgent-review' => 'Urgent human review required',
+					'unknown' => 'Human review date unverified', 'retracted' => 'Retracted knowledge; not current' );
 				$reviewed = $freshness['last_human_review'] ? substr( (string) $freshness['last_human_review'], 0, 10 ) . ' UTC' : 'unavailable';
 				$due = $freshness['review_due_at'] ? substr( (string) $freshness['review_due_at'], 0, 10 ) . ' UTC' : 'not scheduled';
 				$notice = ( $labels[ $state ] ?? 'Review status unknown' ) . '. Last human review: ' . $reviewed . '. Review due: ' . $due . '.';
@@ -259,7 +334,11 @@ final class HE_V12_Completion {
 					|| (int) ( $link['source_version'] ?? 0 ) !== (int) $dto['version'] ) { continue; }
 				$url = esc_url_raw( (string) ( $link['url'] ?? '' ) );
 				$label = sanitize_text_field( (string) ( $link['label'] ?? '' ) );
-				if ( ! $url || ! $label || ! wp_http_validate_url( $url ) ) { continue; }
+				if ( ! $url || ! $label || ! wp_http_validate_url( $url )
+					|| ! function_exists( 'apply_filters' )
+					|| true !== apply_filters( 'he_v12_related_resource_owner_attested_v1', false, $link, $dto ) ) {
+					continue;
+				}
 				$safe_links[] = '<li><a rel="noopener noreferrer" href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a></li>';
 			}
 			if ( $safe_links ) {
@@ -270,11 +349,17 @@ final class HE_V12_Completion {
 				$extra .= '<p class="he-v12__history"><a href="' . esc_url( $version_url ) . '">View version and correction history (metadata)</a></p>';
 			}
 		}
-		// The owned content markup contains these closing tags once.
-		$content = false !== strpos( $content, '</header>' )
-			? preg_replace( '#</header>#', '</header>' . $markup, $content, 1 ) : $content;
-		return $extra && false !== strpos( $content, '</article>' )
-			? preg_replace( '#</article>#', $extra . '</article>', $content, 1 ) : $content;
+		// Strict string insertion avoids treating source/link text as a
+		// regular-expression replacement string ($1/backreference interpolation).
+		$header_pos = strpos( $content, '</header>' );
+		if ( false !== $header_pos ) {
+			$content = substr_replace( $content, '</header>' . $markup, $header_pos, strlen( '</header>' ) );
+		}
+		$article_pos = $extra ? strrpos( $content, '</article>' ) : false;
+		if ( false !== $article_pos ) {
+			$content = substr_replace( $content, $extra . '</article>', $article_pos, strlen( '</article>' ) );
+		}
+		return $content;
 	}
 
 	/** Version and purpose-bound attestation; no personal subject identifiers stored. */
@@ -282,13 +367,38 @@ final class HE_V12_Completion {
 		$version = sanitize_text_field( (string) ( $data['consent_version'] ?? '' ) );
 		$locale = sanitize_text_field( (string) ( $data['consent_locale'] ?? '' ) );
 		$purpose = 'successful-case' === $record_type ? 'patient-story-research' : ( 'dataset' === $record_type ? 'research-dataset' : 'research-processing' );
-		if ( $verified && ( '' === $version || ! preg_match( '/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale ) ) ) {
-			return new WP_Error( 'he_v12_consent_proof_required', 'Consent policy version and language must be recorded for a verified research consent.', array( 'status' => 422 ) );
+		$receipt = sanitize_text_field( (string) ( $data['consent_evidence_ref'] ?? '' ) );
+		$verification_id = '';
+		if ( $verified ) {
+			if ( '' === $version || ! preg_match( '/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale )
+				|| ! preg_match( '/^[A-Za-z0-9._:-]{8,120}$/', $receipt ) ) {
+				return new WP_Error( 'he_v12_consent_proof_required',
+					'Consent policy version, source locale and an evidence receipt ID are mandatory.', array( 'status' => 422 ) );
+			}
+			// A form checkbox is NOT evidence of subject consent. File 00 or an
+			// independently governed subject-consent owner must attest the receipt.
+			$proof = function_exists( 'apply_filters' )
+				? apply_filters( 'he_v12_consent_receipt_verification_v1', null,
+					array( 'evidence_ref' => $receipt, 'policy_version' => $version,
+						'locale' => $locale, 'purpose' => $purpose, 'actor_id' => absint( $actor_id ) ) ) : null;
+			if ( ! is_array( $proof ) || true !== ( $proof['verified'] ?? false )
+				|| 'file-00' !== ( $proof['authority'] ?? '' )
+				|| ! hash_equals( $receipt, (string) ( $proof['evidence_ref'] ?? '' ) )
+				|| ! hash_equals( $version, (string) ( $proof['policy_version'] ?? '' ) )
+				|| ! hash_equals( $locale, (string) ( $proof['locale'] ?? '' ) )
+				|| ! hash_equals( $purpose, (string) ( $proof['purpose'] ?? '' ) )
+				|| empty( $proof['verification_id'] ) ) {
+				return new WP_Error( 'he_v12_consent_independent_verification_required',
+					'An eligible File 00 verified consent receipt matching the exact purpose, policy and locale is required.', array( 'status' => 503 ) );
+			}
+			$verification_id = sanitize_text_field( (string) $proof['verification_id'] );
 		}
 		return array(
 			'verified' => (bool) $verified, 'version' => $version,
 			'policy_version' => $version, 'locale' => $locale, 'purpose' => $purpose,
 			'recorded_by' => absint( $actor_id ), 'recorded_at_utc' => gmdate( 'c' ),
+			'evidence_ref' => $verified ? $receipt : '', 'verified_by' => $verified ? 'file-00' : '',
+			'verification_id' => $verification_id,
 			'state' => $verified ? 'accepted' : 'unverified',
 			'withdrawn_at_utc' => null, 'withdrawal_policy' => 'requires-subject-authenticated-or-owner-governed-record; no implied blanket consent',
 		);

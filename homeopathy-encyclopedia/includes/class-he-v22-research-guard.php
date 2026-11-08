@@ -150,13 +150,32 @@ final class HE_V22_Research_Guard {
 			return new WP_Error( 'he_invalid_data_class', __( 'Research data class is invalid.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 		}
 		if ( 'successful-case' === $row['record_type'] ) {
+			if ( get_option( HE_V2_Schema::OPTION_SAFE_MODE ) ) {
+				return new WP_Error( 'he_case_privacy_safe_mode', __( 'Patient-case display is paused while research privacy reconciliation is pending.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
 			foreach ( array( 'observation_label', 'baseline', 'intervention', 'follow_up', 'adverse_events', 'limitations' ) as $field ) {
 				if ( empty( $case[ $field ] ) ) {
 					return new WP_Error( 'he_case_governance_failed', __( 'Successful-case governance fields are incomplete.', 'homeopathy-encyclopedia' ), array( 'status' => 422, 'field' => $field ) );
 				}
 			}
-			if ( empty( $row['case_anonymized'] ) || empty( $row['case_consent_verified'] ) || empty( $consent['verified'] ) || 'کامیاب کیس' !== $row['case_tag'] ) {
+			if ( empty( $row['case_anonymized'] ) || empty( $row['case_consent_verified'] ) || empty( $consent['verified'] )
+				|| 'accepted' !== ( $consent['state'] ?? '' )
+				|| 'file-00' !== ( $consent['verified_by'] ?? '' )
+				|| empty( $consent['policy_version'] ) || empty( $consent['locale'] )
+				|| 'patient-story-research' !== ( $consent['purpose'] ?? '' )
+				|| empty( $consent['evidence_ref'] ) || empty( $consent['verification_id'] )
+				|| ! empty( $consent['withdrawn_at_utc'] ) || 'کامیاب کیس' !== $row['case_tag'] ) {
 				return new WP_Error( 'he_case_governance_failed', __( 'Successful cases require anonymization, verified consent and the mandatory کامیاب کیس classification.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
+			}
+			// Consent can be revoked outside File 06. Never trust an old local
+			// boolean at the moment of public presentation or research approval.
+			$current_receipt = apply_filters( 'he_v12_consent_receipt_current_v1', null,
+				(string) $consent['verification_id'], (string) $consent['evidence_ref'],
+				(string) $row['public_id'], 'patient-story-research' );
+			if ( true !== $current_receipt ) {
+				return new WP_Error( 'he_case_consent_current_not_verified',
+					__( 'This patient-case consent cannot be confirmed as currently valid.', 'homeopathy-encyclopedia' ),
+					array( 'status' => 503 ) );
 			}
 			if ( self::has_direct_identifier( implode( ' ', array_map( 'strval', $case ) ) ) ) {
 				return new WP_Error( 'he_case_pii_detected', __( 'Potential direct patient identifiers were detected.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
