@@ -295,13 +295,38 @@ final class HE_V12_Completion {
 		$version = sanitize_text_field( (string) ( $data['consent_version'] ?? '' ) );
 		$locale = sanitize_text_field( (string) ( $data['consent_locale'] ?? '' ) );
 		$purpose = 'successful-case' === $record_type ? 'patient-story-research' : ( 'dataset' === $record_type ? 'research-dataset' : 'research-processing' );
-		if ( $verified && ( '' === $version || ! preg_match( '/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale ) ) ) {
-			return new WP_Error( 'he_v12_consent_proof_required', 'Consent policy version and language must be recorded for a verified research consent.', array( 'status' => 422 ) );
+		$receipt = sanitize_text_field( (string) ( $data['consent_evidence_ref'] ?? '' ) );
+		$verification_id = '';
+		if ( $verified ) {
+			if ( '' === $version || ! preg_match( '/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale )
+				|| ! preg_match( '/^[A-Za-z0-9._:-]{8,120}$/', $receipt ) ) {
+				return new WP_Error( 'he_v12_consent_proof_required',
+					'Consent policy version, source locale and an evidence receipt ID are mandatory.', array( 'status' => 422 ) );
+			}
+			// A form checkbox is NOT evidence of subject consent. File 00 or an
+			// independently governed subject-consent owner must attest the receipt.
+			$proof = function_exists( 'apply_filters' )
+				? apply_filters( 'he_v12_consent_receipt_verification_v1', null,
+					array( 'evidence_ref' => $receipt, 'policy_version' => $version,
+						'locale' => $locale, 'purpose' => $purpose, 'actor_id' => absint( $actor_id ) ) ) : null;
+			if ( ! is_array( $proof ) || true !== ( $proof['verified'] ?? false )
+				|| 'file-00' !== ( $proof['authority'] ?? '' )
+				|| ! hash_equals( $receipt, (string) ( $proof['evidence_ref'] ?? '' ) )
+				|| ! hash_equals( $version, (string) ( $proof['policy_version'] ?? '' ) )
+				|| ! hash_equals( $locale, (string) ( $proof['locale'] ?? '' ) )
+				|| ! hash_equals( $purpose, (string) ( $proof['purpose'] ?? '' ) )
+				|| empty( $proof['verification_id'] ) ) {
+				return new WP_Error( 'he_v12_consent_independent_verification_required',
+					'An eligible File 00 verified consent receipt matching the exact purpose, policy and locale is required.', array( 'status' => 503 ) );
+			}
+			$verification_id = sanitize_text_field( (string) $proof['verification_id'] );
 		}
 		return array(
 			'verified' => (bool) $verified, 'version' => $version,
 			'policy_version' => $version, 'locale' => $locale, 'purpose' => $purpose,
 			'recorded_by' => absint( $actor_id ), 'recorded_at_utc' => gmdate( 'c' ),
+			'evidence_ref' => $verified ? $receipt : '', 'verified_by' => $verified ? 'file-00' : '',
+			'verification_id' => $verification_id,
 			'state' => $verified ? 'accepted' : 'unverified',
 			'withdrawn_at_utc' => null, 'withdrawal_policy' => 'requires-subject-authenticated-or-owner-governed-record; no implied blanket consent',
 		);
