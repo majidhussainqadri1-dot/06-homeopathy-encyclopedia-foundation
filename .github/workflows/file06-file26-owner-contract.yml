@@ -1,0 +1,30 @@
+name: File 06 File 26 Candidate Owner Contract QA
+
+on:
+  push:
+    branches: [integration/file06-file26-public-encyclopedia-20261109]
+  pull_request:
+    paths:
+      - 'homeopathy-encyclopedia/**'
+      - '.github/workflows/file06-file26-owner-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-source-regressions:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc
+        with:
+          php-version: '8.3'
+          coverage: none
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Current complete release-source, privacy and deterministic package tests
+        run: bash tests/run-all.sh
+      - name: Check uncommitted release changes
+        run: git diff --exit-code
