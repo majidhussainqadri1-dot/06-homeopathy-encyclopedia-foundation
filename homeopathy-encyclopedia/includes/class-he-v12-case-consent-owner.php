@@ -12,7 +12,7 @@ final class HE_V12_Case_Consent_Owner {
 
 	public static function hooks() {
 		add_filter( 'he_v12_file06_patient_relation_v1', array( __CLASS__, 'relation_claim' ), 10, 3 );
-		add_filter( 'he_v12_file06_consent_policy_v1', array( __CLASS__, 'approved_policy' ), 10, 1 );
+		add_filter( 'he_v12_file06_consent_policy_v1', array( __CLASS__, 'approved_policy' ), 10, 2 );
 		add_filter( 'he_v12_file06_concept_assertion_v1', array( __CLASS__, 'concept_assertion' ), 10, 3 );
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 	}
