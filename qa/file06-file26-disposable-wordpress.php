@@ -131,6 +131,25 @@ if(class_exists('HE_V2_Domain') && class_exists('HE_File26_Connector')) {
                         'entity_type'=>'concept'
                     ]),[]),
                         'Mismatched entity type is rejected at click time');
+                    // Adversarial source owner check: a raw WP edit must not
+                    // change an approved article while retaining the original
+                    // immutable reviewed version and public status.
+                    $before_version=(int)$wpdb->get_var($wpdb->prepare(
+                        "SELECT current_version FROM {$table} WHERE id=%d",
+                        (int)$concept['id']
+                    ));
+                    $unchecked=wp_update_post([
+                        'ID'=>(int)$post_id,
+                        'post_title'=>'UNREVIEWED new public title',
+                        'post_content'=>'UNREVIEWED replacement body'
+                    ],true);
+                    $after_version=(int)$wpdb->get_var($wpdb->prepare(
+                        "SELECT current_version FROM {$table} WHERE id=%d",
+                        (int)$concept['id']
+                    ));
+                    $check(is_wp_error($unchecked)||get_post_status((int)$post_id)!=='publish'
+                        ||$after_version!==$before_version,
+                        'Unreviewed direct content update cannot retain old approval and public state');
                     $changed=$wpdb->update($table,[
                         'status'=>'retracted','row_version'=>3
                     ],['id'=>(int)$concept['id']]);
