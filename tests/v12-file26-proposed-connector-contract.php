@@ -131,7 +131,7 @@ check_file26(HE_File26_Connector::health()['event_tombstone_cutover_approved']==
 check_file26(!array_key_exists('review_and_safety_verified',HE_File26_Connector::health())
     &&(HE_File26_Connector::health()['review_coverage_attested']??null)===false,
     'Schema readiness must not masquerade as a completed human editorial review');
-check_file26((HE_File26_Connector::health()['review_gate_enforced']??null)===true,
+check_file26((HE_File26_Connector::health()['approval_status_flags_checked']??null)===true,
     'Health truthfully reports review-gate code rather than blanket review approval');
 $r=HE_File26_Connector::list_batch('',1,[]);
 check_file26(is_array($r) && count($r['items'])===1 && $r['done']===false &&
