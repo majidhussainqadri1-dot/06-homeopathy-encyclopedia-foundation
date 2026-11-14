@@ -226,6 +226,30 @@ final class HE_V2_Domain {
 			$row = $post_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT status,review_status,safety_status,current_version FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', $post_id ), ARRAY_A ) : null;
 			if ( ! $row || 'published' !== $row['status'] || 'approved' !== $row['review_status'] || 'approved' !== $row['safety_status'] || ! $row['current_version'] ) {
 				$data['post_status'] = 'pending';
+			} else {
+				// WordPress native post editing must not silently mutate an approved
+				// published revision while retaining its prior scholarly review.
+				// The canonical owner transition creates its immutable snapshot
+				// *before* publishing and therefore matches these exact fields.
+				$versions = HE_V2_Schema::table( 'versions' );
+				$approved = $wpdb->get_row( $wpdb->prepare(
+					"SELECT title,summary,body FROM {$versions} WHERE id=%d",
+					(int) $row['current_version']
+				), ARRAY_A );
+				$fields = array( 'post_title' => 'title', 'post_excerpt' => 'summary', 'post_content' => 'body' );
+				$matches = is_array( $approved );
+				foreach ( $fields as $post_field => $version_field ) {
+					if ( ! array_key_exists( $post_field, $data )
+						|| ! is_string( $data[ $post_field ] )
+						|| ! $matches
+						|| (string) wp_unslash( $data[ $post_field ] ) !== (string) ( $approved[ $version_field ] ?? '' ) ) {
+						$matches = false;
+						break;
+					}
+				}
+				if ( ! $matches ) {
+					$data['post_status'] = 'pending';
+				}
 			}
 		}
 		if ( self::RESEARCH_TYPE === $post_type ) {
