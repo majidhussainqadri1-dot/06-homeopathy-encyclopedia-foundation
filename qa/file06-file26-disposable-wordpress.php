@@ -34,7 +34,7 @@ if($matches){
            'Source/list and authorization callables registered');
 }
 if(class_exists('\\Sabri\\File26\\DB')){
-    $table=\\Sabri\\File26\\DB::table('connectors');
+    $table=\Sabri\File26\DB::table('connectors');
     $row=$wpdb->get_row($wpdb->prepare(
         "SELECT owner_file,status,contract_version FROM {$table} WHERE slug=%s",
         'file06-public-encyclopedia'
