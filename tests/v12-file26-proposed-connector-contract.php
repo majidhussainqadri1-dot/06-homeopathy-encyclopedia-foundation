@@ -161,6 +161,20 @@ check_file26(HE_File26_Connector::list_batch('not-a-cursor',50,[]) instanceof WP
     'Invalid cursor rejected');
 check_file26(HE_File26_Connector::list_batch('',50,['object_id'=>'1']) instanceof WP_Error,
     'Partial owner scope rejected');
+check_file26(is_array(HE_File26_Connector::list_batch('',50,['connector'=>HE_File26_Connector::SLUG])),
+    'File26 worker connector-scoped complete snapshot accepted');
+check_file26(HE_File26_Connector::list_batch('',50,['connector'=>'unrelated-owner']) instanceof WP_Error,
+    'Wrong connector scope must fail closed');
+check_file26(HE_File26_Connector::list_batch('',50,['connector'=>HE_File26_Connector::SLUG,'type'=>'research']) instanceof WP_Error,
+    'Unsupported narrower request must not silently export a complete owner snapshot');
+$GLOBALS['concept_rows'][0]['dto']['id']='99999999-9999-4999-8999-999999999999';
+check_file26(HE_File26_Connector::fetch_object('concept',$doc['object_id'])===null,
+    'Owner public identity and projected DTO identity must match');
+$GLOBALS['concept_rows'][0]['dto']['id']=$doc['object_id'];
+check_file26(!HE_File26_Connector::can_view(array_merge($doc,['object_version'=>'3tampered']),[]),
+    'Noncanonical indexed object version must not coerce into valid integer');
+check_file26(!HE_File26_Connector::can_view(array_merge($doc,['object_version'=>3.5]),[]),
+    'Fractional indexed version must not coerce into valid integer');
 $GLOBALS['concept_rows'][0]['status']='retracted';
 check_file26(!HE_File26_Connector::can_view($doc,[]),
     'Retraction invalidates cached public item at view time');
