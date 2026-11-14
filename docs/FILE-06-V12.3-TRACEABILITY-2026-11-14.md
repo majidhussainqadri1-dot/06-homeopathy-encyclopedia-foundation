@@ -39,8 +39,8 @@
 | `F06-NFR-008` | Operational health | `homeopathy-encyclopedia/includes/class-he-v22-operations.php` | Health/queue/reindex/safe repair | UNVERIFIED |
 | `F06-NFR-009` | WordPress/PHP compatibility | `homeopathy-encyclopedia/homeopathy-encyclopedia.php` | Staging WordPress 7.0.1 and PHP 8.3 | UNVERIFIED |
 | `F06-NFR-010` | Localization | `homeopathy-encyclopedia/includes/class-he-v242-multilingual.php` | en-US/ur/ar, mixed-script and dates/numerals | UNVERIFIED |
-| `F06-CEN-001` | Canonical owner/search projection | `homeopathy-encyclopedia/includes/class-he-file26-connector.php` | Real File26 connector active only after owner and release approval | UNVERIFIED |
-| `F06-CEN-002` | Write command and read/caches reauthorization | `homeopathy-encyclopedia/includes/class-he-v2-integrations.php` | Publish/revoke/delete and consumer visibility replay | UNVERIFIED |
+| `F06-CEN-01` | Canonical owner/search projection | `homeopathy-encyclopedia/includes/class-he-file26-connector.php` | Real File26 connector active only after owner and release approval | UNVERIFIED |
+| `F06-CEN-02` | Write command and read/caches reauthorization | `homeopathy-encyclopedia/includes/class-he-v2-integrations.php` | Publish/revoke/delete and consumer visibility replay | UNVERIFIED |
 | `F06-FUT-001` | Claim-level evidence | `homeopathy-encyclopedia/includes/class-he-v24-future-api.php` | Per-claim approved source grade, contradiction and review | UNVERIFIED |
 | `F06-FUT-002` | Provenance ledger | `homeopathy-encyclopedia/includes/class-he-v24-public-provenance.php` | Immutable identity/transformation/version evidence | UNVERIFIED |
 | `F06-FUT-003` | Crossref retraction watch | `homeopathy-encyclopedia/includes/class-he-v12-evidence-impact.php` | Bounded claim-specific update and queue atomicity | UNVERIFIED |
