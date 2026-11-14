@@ -1,0 +1,93 @@
+name: File06 File26 Disposable WordPress MariaDB Contract
+
+on:
+  push:
+    branches:
+      - integration/file06-v12-3-file26-candidate-20261114
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-real-wordpress:
+    name: File00/06/26 disposable DB + proposed search connector
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: wordpress
+          MARIADB_USER: wordpress
+          MARIADB_PASSWORD: wordpress
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Freeze this exact File06 candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Pin File00 consent provider at exact candidate SHA
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: majidhussainqadri1-dot/00-sabri-membership-core
+          ref: 187b792c7baab715a0dbfc2b1270c3c5b0cb74ef
+          path: _pinned_file00
+          persist-credentials: false
+      - name: Pin File26 source contract at exact main SHA
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: majidhussainqadri1-dot/26-search-discovery-recommendations-knowledge-graph-classification
+          ref: 1b064c6ea9f81195611ed001d5457e8ced65460a
+          path: _pinned_file26
+          persist-credentials: false
+      - name: PHP 8.3 and MySQL support
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: none
+          extensions: mysqli, openssl, mbstring, json
+      - name: Verify exact sources and fixture syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C _pinned_file00 rev-parse HEAD)" = 187b792c7baab715a0dbfc2b1270c3c5b0cb74ef
+          test "$(git -C _pinned_file26 rev-parse HEAD)" = 1b064c6ea9f81195611ed001d5457e8ced65460a
+          php -l qa/file06-file26-disposable-wordpress.php
+      - name: Install isolated WordPress 7.0.1 on disposable MariaDB
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/file06-wp-cli.phar
+          php /tmp/file06-wp-cli.phar core download --version=7.0.1 --path=/tmp/file06-wordpress --force
+          php /tmp/file06-wp-cli.phar config create --path=/tmp/file06-wordpress --dbname=wordpress --dbuser=wordpress --dbpass=wordpress --dbhost=127.0.0.1:3306 --skip-check
+          php /tmp/file06-wp-cli.phar config set SMC_MASTER_KEY 'base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=' --type=constant --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar config set SMC_MASTER_KEY_ID 'file06-file26-ci-only-key' --type=constant --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar config set WP_ENVIRONMENT_TYPE 'staging' --type=constant --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar core install --path=/tmp/file06-wordpress --url=http://file06-file26-ci.local --title='File06 File26 CI' --admin_user=ci_admin --admin_password='Disposable-Test-Only!93' --admin_email=ci@example.test --skip-email
+      - name: Install File00 and actual File06/26 candidates only in disposable site
+        run: |
+          set -euo pipefail
+          cp -R _pinned_file00/source/sabri-membership-core /tmp/file06-wordpress/wp-content/plugins/sabri-membership-core
+          cp -R homeopathy-encyclopedia /tmp/file06-wordpress/wp-content/plugins/homeopathy-encyclopedia
+          cp -R _pinned_file26 /tmp/file06-wordpress/wp-content/plugins/sabri-file26
+          php /tmp/file06-wp-cli.phar plugin activate sabri-membership-core --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar plugin activate homeopathy-encyclopedia --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar plugin activate sabri-file26/file-26-search-discovery.php --path=/tmp/file06-wordpress
+      - name: Assert actual plugin activation, MariaDB schema and proposed connector
+        run: |
+          set -euo pipefail
+          php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file26-disposable-wordpress.php" --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
+      - name: No mutation to repository or preexisting live system
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=no)"
