@@ -62,9 +62,9 @@ if(!is_wp_error($posts['source'])&&!is_wp_error($posts['target'])){
    $count=(int)$wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM {$events} WHERE event_name='KnowledgeConceptMerged.v1' AND object_id=%d",
      (int)$t['id']));
-   $count_out=(int)$wpdb->get_var($wpdb->prepare(
-    "SELECT COUNT(*) FROM {$outbox} WHERE event_name='KnowledgeConceptMerged.v1'",
-   ));
+   $count_out=(int)$wpdb->get_var(
+    "SELECT COUNT(*) FROM {$outbox} WHERE event_name='KnowledgeConceptMerged.v1'"
+   );
    echo "FAULT_EVIDENCE canonical_merge=".((int)($after['merged_into_id']??0)===(int)$t['id']?'YES':'NO')
       ." mapping_status=$mapping_state owner_event_count=$count owner_outbox_count=$count_out"
       ." returned=". (is_wp_error($outcome)?$outcome->get_error_code():gettype($outcome))."\n";
