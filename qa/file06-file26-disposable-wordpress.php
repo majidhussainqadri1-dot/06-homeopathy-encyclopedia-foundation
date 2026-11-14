@@ -94,6 +94,28 @@ if(class_exists('HE_V2_Domain') && class_exists('HE_File26_Connector')) {
                 if(is_array($projected)) {
                     $check(HE_File26_Connector::can_view($projected,[]),
                         'File26 click-time authorization accepts current owner version');
+                    $scan=HE_File26_Connector::list_batch('',50,[]);
+                    $hits=is_array($scan)?array_values(array_filter(
+                        $scan['items']??[],static function($doc) use($concept) {
+                            return ($doc['object_id']??'')===$concept['public_id'];
+                        }
+                    )):[];
+                    $check(count($hits)===1,
+                        'Real owner batch contains the single synthetic public concept');
+                    $check(!isset($projected['body'])&&!isset($projected['patient']),
+                        'Public search projection never contains raw clinical/private body');
+                    $check(!HE_File26_Connector::can_view(array_merge($projected,[
+                        'canonical_url'=>'https://attacker.example/canonical/'
+                    ]),[]),
+                        'Off-origin canonical search destination rejected at click time');
+                    $check(!HE_File26_Connector::can_view(array_merge($projected,[
+                        'locale'=>'ar'
+                    ]),[]),
+                        'Mismatched locale is rejected at click time');
+                    $check(!HE_File26_Connector::can_view(array_merge($projected,[
+                        'entity_type'=>'concept'
+                    ]),[]),
+                        'Mismatched entity type is rejected at click time');
                     $changed=$wpdb->update($table,[
                         'status'=>'retracted','row_version'=>3
                     ],['id'=>(int)$concept['id']]);
