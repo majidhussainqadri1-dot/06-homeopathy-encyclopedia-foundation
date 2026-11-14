@@ -9,6 +9,7 @@ on:
       - audit/file06-v12-twenty-code-review-2026-11-08
       - fix/file06-real-file00-05-10-12-bridge-20261108
       - fix/file06-pr14-consent-filter-arity-20261110
+      - integration/file06-v12-3-file26-candidate-20261114
   workflow_dispatch:
 
 permissions:
