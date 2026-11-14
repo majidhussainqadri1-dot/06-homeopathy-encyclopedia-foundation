@@ -100,7 +100,13 @@ final class HE_File26_Connector {
     public static function can_view($document,$audience=array()){
         if(!is_array($document)||($document['connector_slug']??'')!==self::SLUG||($document['visibility']??'')!=='public'){return false;}
         $fresh=self::fetch_object((string)($document['entity_type']??''),(string)($document['object_id']??''));
-        return is_array($fresh)&&(int)$fresh['object_version']===(int)($document['object_version']??0);
+        // File26 must not reuse a stale or tampered canonical destination,
+        // locale or type when a previously indexed document is clicked.
+        return is_array($fresh)
+            &&(int)$fresh['object_version']===(int)($document['object_version']??0)
+            &&(string)$fresh['canonical_url']===(string)($document['canonical_url']??'')
+            &&(string)$fresh['locale']===(string)($document['locale']??'')
+            &&(string)$fresh['entity_type']===(string)($document['entity_type']??'');
     }
     public static function health(){
         return self::source_ready()?
