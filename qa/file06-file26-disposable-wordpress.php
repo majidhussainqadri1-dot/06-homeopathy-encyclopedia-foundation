@@ -48,6 +48,15 @@ if(class_exists('HE_File26_Connector')){
     $r=HE_File26_Connector::list_batch('',50,[]);
     $check(is_array($r)&&isset($r['items'],$r['done']),
            'Real owner batch can read existing fresh canonical schema');
+$check(is_array(HE_File26_Connector::list_batch('',50,[
+        'connector'=>'file06-public-encyclopedia'
+    ])), 'Actual File26 worker connector scope returns a complete owner snapshot');
+$check(is_wp_error(HE_File26_Connector::list_batch('',50,[
+        'connector'=>'unrelated-owner'
+    ])), 'Foreign connector scope is rejected');
+$check(is_wp_error(HE_File26_Connector::list_batch('',50,[
+        'connector'=>'file06-public-encyclopedia','type'=>'research'
+    ])), 'Unimplemented partial scope fails closed');
     $check(HE_File26_Connector::can_view([
         'connector_slug'=>'file06-public-encyclopedia',
         'object_id'=>'00000000-0000-4000-8000-000000000000',
@@ -94,6 +103,12 @@ if(class_exists('HE_V2_Domain') && class_exists('HE_File26_Connector')) {
                 if(is_array($projected)) {
                     $check(HE_File26_Connector::can_view($projected,[]),
                         'File26 click-time authorization accepts current owner version');
+                    $check(!HE_File26_Connector::can_view(array_merge($projected,[
+                        'object_version'=>(string)$projected['object_version'].'spoof'
+                    ]),[]), 'String-suffixed indexed object version rejected');
+                    $check(!HE_File26_Connector::can_view(array_merge($projected,[
+                        'object_version'=>((float)$projected['object_version'])+.5
+                    ]),[]), 'Fractional indexed object version rejected');
                     $scan=HE_File26_Connector::list_batch('',50,[]);
                     $hits=is_array($scan)?array_values(array_filter(
                         $scan['items']??[],static function($doc) use($concept) {
