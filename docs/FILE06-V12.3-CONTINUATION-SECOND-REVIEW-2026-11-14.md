@@ -61,3 +61,22 @@ These are **6 distinct newly discovered source findings** in this continuation. 
 **Exact deployed code ابھی unverified ہے؛ repository-based diagnosis provisional ہے۔**
 
 **Release decision: HOLD / DRAFT / NO MAIN MERGE / NO LIVE DEPLOY.** No actual clinical or public data were supplied for release acceptance.
+
+## Third adversarial continuation — SOURCE-ONLY SRC-10 (supersedes the earlier #19 investigation status)
+
+**P1, confirmed in disposable WordPress/MariaDB, NOT confirmed on Hostinger.**
+The previous "hypothesis only" in Issue #19 was reproducible in a one-shot MariaDB `BEFORE INSERT` trigger on File06's `events` table. The original source committed the canonical merge *before* opening a separate event/outbox transaction.
+
+**RED source and real DB evidence:** Fault-injection branch `audit/file06-v12-3-postcommit-event-failure-20261114`, red run **#43605314355** at exact SHA `7cc470ff8d30a8d99fb969a79b1c6e8703ff6681`. MariaDB log:
+`FAULT_EVIDENCE canonical_merge=YES mapping_status=active owner_event_count=0 owner_outbox_count=0 returned=he_version_conflict`.
+An earlier failed attempt had a false-green test because it counted unrelated earlier outbox events; that fixture mistake was corrected before this authoritative red run. The failure is **source-candidate evidence**, not live root cause.
+
+**Candidate root-cause correction:** `HE_V2_Domain::emit_event(..., $enlisted_in_owner_tx=true)` now permits the canonical merge to insert both event and outbox entries in the **same existing owner transaction**. The governed `HE_V22_Governance::secure_merge()` writes both before COMMIT, and dispatches post-commit hooks only after success. If either insert fails, it rolls back all lineage/index writes and returns the typed `he_merge_event_atomic_failed` 503. Existing 4-argument event emitters retain their original transaction behavior.
+
+**GREEN evidence:** Isolated fault run **#43605503641**: nine of nine fault-injection checks PASS. Failure produces
+`FAULT_EVIDENCE canonical_merge=NO mapping_status=active owner_event_count=0 owner_outbox_count=0 returned=he_merge_event_atomic_failed`.
+Independent full source regression on the experimental branch **#43605619778**: 20/20 suites PASS. The correction and exact disposable fault test are now staged in PR #17, where the **final HEAD must be retested independently**.
+
+**Updated count:** 7 distinct source candidate defects found and corrected in this continuation (SRC-04 through SRC-10); 3 prior source candidate defects (SRC-01 through SRC-03); **10 total candidate source defects corrected only in Draft**, plus 2 prior QA harness defects. Production-verified defect resolutions remain **0**. Issue #19 stays open for staging/deployed verification and retry/reconciliation sign-off; it may be marked source-candidate-corrected but NOT live-resolved.
+
+**Control:** No `main` merge, site install, public search activation, real clinical/consent data, or operator-approved deployment occurred.
