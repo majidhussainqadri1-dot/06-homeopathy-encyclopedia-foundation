@@ -172,6 +172,15 @@ $GLOBALS['concept_rows'][0]['dto']['safety_status']='approved';
 $GLOBALS['concept_rows'][0]['dto']['canonical_url']='https://attacker.example/other-content/';
 check_file26(HE_File26_Connector::fetch_object('concept',$doc['object_id'])===null,
     'Off-origin canonical URL denied despite valid HTTPS');
+$GLOBALS['concept_rows'][0]['dto']['canonical_url']='https://example.org:8443/encyclopedia/external-port/';
+check_file26(HE_File26_Connector::fetch_object('concept',$doc['object_id'])===null,
+    'Same-host noncanonical port denied');
+$GLOBALS['concept_rows'][0]['dto']['canonical_url']='https://admin:secret@example.org/encyclopedia/private/';
+check_file26(HE_File26_Connector::fetch_object('concept',$doc['object_id'])===null,
+    'Credential-bearing URL denied as canonical destination');
+$GLOBALS['concept_rows'][0]['dto']['canonical_url']='https://example.org/encyclopedia/entry/#fragment';
+check_file26(HE_File26_Connector::fetch_object('concept',$doc['object_id'])===null,
+    'Fragment-bearing URL denied as canonical destination');
 $GLOBALS['migration_ready']=false;
 check_file26(HE_File26_Connector::list_batch('',50,[]) instanceof WP_Error,
     'Missing future schema refuses indexing');
