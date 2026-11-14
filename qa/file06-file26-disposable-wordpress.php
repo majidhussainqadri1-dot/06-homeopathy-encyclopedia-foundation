@@ -150,6 +150,27 @@ if(class_exists('HE_V2_Domain') && class_exists('HE_File26_Connector')) {
                     $check(is_wp_error($unchecked)||get_post_status((int)$post_id)!=='publish'
                         ||$after_version!==$before_version,
                         'Unreviewed direct content update cannot retain old approval and public state');
+                    $restored=wp_update_post([
+                        'ID'=>(int)$post_id,
+                        'post_title'=>'Disposable CI encyclopedia source',
+                        'post_excerpt'=>'Synthetic owner-approved test metadata; not medical evidence.',
+                        'post_content'=>'Synthetic text never intended for production.',
+                        'post_status'=>'publish'
+                    ],true);
+                    $check(!is_wp_error($restored)&&get_post_status((int)$post_id)==='publish',
+                        'Restoring exact immutable approved fields permits safe republication');
+                    $original_slug=get_post_field('post_name',(int)$post_id);
+                    $slug_edit=wp_update_post([
+                        'ID'=>(int)$post_id,
+                        'post_name'=>'unreviewed-canonical-url-rewrite'
+                    ],true);
+                    $slug_version=(int)$wpdb->get_var($wpdb->prepare(
+                        "SELECT current_version FROM {$table} WHERE id=%d",
+                        (int)$concept['id']
+                    ));
+                    $check(is_wp_error($slug_edit)||get_post_status((int)$post_id)!=='publish'
+                        ||$slug_version!==$before_version,
+                        'Unreviewed direct canonical slug mutation cannot retain public approval');
                     $changed=$wpdb->update($table,[
                         'status'=>'retracted','row_version'=>3
                     ],['id'=>(int)$concept['id']]);
