@@ -14,7 +14,7 @@ $check = static function($ok,$label) use (&$passes,&$failures) {
 };
 $check(class_exists('HE_File26_Connector'), 'Proposed owner class loaded');
 $health=HE_File26_Connector::health();
-$check(($health['review_gate_enforced']??false)===true
+$check(($health['approval_status_flags_checked']??false)===true
     &&($health['review_coverage_attested']??null)===false
     &&!isset($health['review_and_safety_verified']),
     'Proposed source health distinguishes code-gate enforcement from unverified human review');
