@@ -70,6 +70,7 @@ jobs:
           test "$(git -C _pinned_file26 rev-parse HEAD)" = 1b064c6ea9f81195611ed001d5457e8ced65460a
           test "$(git -C _pinned_file15 rev-parse HEAD)" = 51ed4e2e18349e0e91cd879bab481998ec5f99ed
           php -l qa/file06-file15-disposable-wordpress.php
+          php -l qa/file06-file15-postcommit-fault-injection.php
           php -l qa/file06-file26-disposable-wordpress.php
       - name: Install isolated WordPress 7.0.1 on disposable MariaDB
         run: |
@@ -97,6 +98,7 @@ jobs:
           set -euo pipefail
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file26-disposable-wordpress.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-disposable-wordpress.php" --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
       - name: No mutation to repository or preexisting live system
         run: |
