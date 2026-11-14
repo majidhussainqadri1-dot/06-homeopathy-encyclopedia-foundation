@@ -223,7 +223,7 @@ final class HE_V2_Domain {
 		$post_id = absint( $postarr['ID'] ?? 0 );
 		global $wpdb;
 		if ( self::ENTRY_TYPE === $post_type ) {
-			$row = $post_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT status,review_status,safety_status,current_version FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', $post_id ), ARRAY_A ) : null;
+			$row = $post_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT status,review_status,safety_status,current_version,canonical_slug FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', $post_id ), ARRAY_A ) : null;
 			if ( ! $row || 'published' !== $row['status'] || 'approved' !== $row['review_status'] || 'approved' !== $row['safety_status'] || ! $row['current_version'] ) {
 				$data['post_status'] = 'pending';
 			} else {
@@ -246,6 +246,16 @@ final class HE_V2_Domain {
 						$matches = false;
 						break;
 					}
+				}
+				// An unreviewed URL/slug rewrite must not borrow the earlier
+				// version's approval. During first canonical publish, WordPress
+				// may not yet have populated post_name: derive its safe fallback.
+				$slug = (string) wp_unslash( $data['post_name'] ?? '' );
+				if ( '' === $slug ) {
+					$slug = sanitize_title( (string) wp_unslash( $data['post_title'] ?? '' ) );
+				}
+				if ( '' === $slug || $slug !== (string) ( $row['canonical_slug'] ?? '' ) ) {
+					$matches = false;
 				}
 				if ( ! $matches ) {
 					$data['post_status'] = 'pending';
