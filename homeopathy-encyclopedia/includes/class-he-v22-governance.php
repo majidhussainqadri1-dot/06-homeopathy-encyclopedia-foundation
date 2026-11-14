@@ -735,6 +735,12 @@ final class HE_V22_Governance {
 			if ( ! $source || ! $target || (int) $source['row_version'] !== $sv || (int) $target['row_version'] !== $tv ) {
 				throw new RuntimeException( 'version-conflict' );
 			}
+			// A remedy, symptom and other knowledge types have different
+			// review and consumer-safety contracts. Cross-type redirects can
+			// silently leave File15 remedy mappings eligible after a merge.
+			if ( (string) $source['type_slug'] !== (string) $target['type_slug'] ) {
+				throw new RuntimeException( 'type-mismatch' );
+			}
 			$aliases = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE concept_id=%d ORDER BY id ASC FOR UPDATE', (int) $source['id'] ), ARRAY_A );
 			foreach ( $aliases as $alias ) {
 				$collision = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT concept_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' WHERE normalized_alias=%s AND language=%s AND concept_id<>%d LIMIT 1', $alias['normalized_alias'], $alias['language'], (int) $source['id'] ) );
@@ -801,6 +807,9 @@ final class HE_V22_Governance {
 			if ( 'merge-commit-failed' === $error->getMessage() ) {
 				HE_V2_Schema::record_runtime_failure( 'secure_merge_commit_failed', 'File 06 could not confirm the governed concept-merge commit.' );
 				return new WP_Error( 'he_merge_failed', __( 'The concept merge outcome could not be confirmed safely. Reload state before retrying.', 'homeopathy-encyclopedia' ), array( 'status' => 503 ) );
+			}
+			if ( 'type-mismatch' === $error->getMessage() ) {
+				return new WP_Error( 'he_merge_type_mismatch', __( 'Concepts of different canonical knowledge types cannot be merged.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
 			}
 			if ( in_array( $error->getMessage(), array( 'relation-provenance-invalid', 'relation-provenance-clone-failed' ), true ) ) {
 				return new WP_Error( 'he_relation_provenance_invalid', __( 'Merged graph edges could not be rebound to valid target-concept provenance.', 'homeopathy-encyclopedia' ), array( 'status' => 422 ) );
