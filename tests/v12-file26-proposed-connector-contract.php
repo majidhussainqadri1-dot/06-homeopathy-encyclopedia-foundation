@@ -128,6 +128,11 @@ check_file26(in_array('sabri_file26_connectors_ready',$GLOBALS['hook_names'],tru
     'Owner callback registration');
 check_file26(HE_File26_Connector::health()['event_tombstone_cutover_approved']===false,
     'Health does not falsely approve cutover');
+check_file26(!array_key_exists('review_and_safety_verified',HE_File26_Connector::health())
+    &&(HE_File26_Connector::health()['review_coverage_attested']??null)===false,
+    'Schema readiness must not masquerade as a completed human editorial review');
+check_file26((HE_File26_Connector::health()['review_gate_enforced']??null)===true,
+    'Health truthfully reports review-gate code rather than blanket review approval');
 $r=HE_File26_Connector::list_batch('',1,[]);
 check_file26(is_array($r) && count($r['items'])===1 && $r['done']===false &&
     $r['next_cursor']==='1','Bounded cursor includes current eligible public object');
