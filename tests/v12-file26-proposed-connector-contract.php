@@ -141,6 +141,12 @@ check_file26(HE_File26_Connector::can_view($doc,[]),
     'Click-time owner-public visibility recheck');
 check_file26(!HE_File26_Connector::can_view(array_merge($doc,['object_version'=>2]),[]),
     'Stale indexed version denied');
+check_file26(!HE_File26_Connector::can_view(array_merge($doc,['canonical_url'=>'https://example.org/encyclopedia/stale/']),[]),
+    'Stale canonical destination denied at click time');
+check_file26(!HE_File26_Connector::can_view(array_merge($doc,['locale'=>'en-US']),[]),
+    'Incorrect locale denied at click time');
+check_file26(!HE_File26_Connector::can_view(array_merge($doc,['entity_type'=>'concept']),[]),
+    'Incorrect entity type denied at click time');
 check_file26(!HE_File26_Connector::can_view(array_merge($doc,['visibility'=>'private']),[]),
     'Private visibility denied');
 check_file26(HE_File26_Connector::fetch_object('concept','1')===null,
