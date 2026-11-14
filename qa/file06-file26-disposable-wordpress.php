@@ -56,6 +56,55 @@ if(class_exists('HE_File26_Connector')){
         'locale'=>'en-US'
     ],[])===false, 'Unknown canonical object fails closed');
 }
+// Synthetic fixture only in the disposable CI database. The test deliberately
+// seeds eligibility and does NOT assert real editorial/reviewer approval.
+if(class_exists('HE_V2_Domain') && class_exists('HE_File26_Connector')) {
+    $post_id=wp_insert_post([
+        'post_type'=>HE_V2_Domain::ENTRY_TYPE,
+        'post_status'=>'draft',
+        'post_title'=>'Disposable CI encyclopedia source',
+        'post_excerpt'=>'Synthetic owner-approved test metadata; not medical evidence.',
+        'post_content'=>'Synthetic text never intended for production.',
+        'post_author'=>1
+    ],true);
+    $check(!is_wp_error($post_id)&&is_numeric($post_id)&&$post_id>0,
+        'Synthetic File06 WordPress knowledge post created');
+    if(!is_wp_error($post_id) && (int)$post_id>0) {
+        $concept=HE_V2_Domain::concept_by_post_id((int)$post_id);
+        $check(is_array($concept),'WordPress entry has canonical File06 concept row');
+        if(is_array($concept)) {
+            $ver=HE_V2_Domain::snapshot_version((int)$concept['id'],
+                'Synthetic disposable CI owner metadata','published',1);
+            $check($ver>0,'Immutable File06 version was created');
+            if($ver>0) {
+                $table=HE_V2_Schema::table('concepts');
+                $saved=$wpdb->update($table,[
+                    'current_version'=>(int)$ver,'status'=>'published',
+                    'review_status'=>'approved','safety_status'=>'approved',
+                    'row_version'=>2
+                ],['id'=>(int)$concept['id']]);
+                $check($saved!==false,'Synthetic review eligibility fixture saved');
+                $publish=wp_update_post(['ID'=>(int)$post_id,'post_status'=>'publish'],true);
+                $check(!is_wp_error($publish)&&get_post_status((int)$post_id)==='publish',
+                    'Synthetic approved WordPress post published');
+                $owner=HE_V2_Domain::concept_by_post_id((int)$post_id);
+                $projected=HE_File26_Connector::fetch_object('encyclopedia_entry',$concept['public_id']);
+                $check(is_array($projected),
+                    'File26 source projects an eligible canonical File06 document');
+                if(is_array($projected)) {
+                    $check(HE_File26_Connector::can_view($projected,[]),
+                        'File26 click-time authorization accepts current owner version');
+                    $changed=$wpdb->update($table,[
+                        'status'=>'retracted','row_version'=>3
+                    ],['id'=>(int)$concept['id']]);
+                    $check($changed!==false,'Synthetic retraction persisted');
+                    $check(!HE_File26_Connector::can_view($projected,[]),
+                        'File26 excludes retracted owner version on next view');
+                }
+            }
+        }
+    }
+}
 if($failures){
     fwrite(STDERR,count($failures)." File06/File26 real WP checks failed.\n");
     exit(1);
