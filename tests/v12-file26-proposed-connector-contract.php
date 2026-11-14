@@ -61,12 +61,25 @@ function esc_url_raw($url) { return (string)$url; }
 function wp_http_validate_url($url) { return strpos((string)$url,'https://example.org/') === 0; }
 function sanitize_text_field($value) { return trim(strip_tags((string)$value)); }
 function wp_strip_all_tags($value, $remove_breaks = false) { return strip_tags((string)$value); }
+function sabri_file26_register_connector($manifest) {
+    $GLOBALS['direct_register_calls']++;
+}
+class MockFile26Registry {
+    public $registered = 0;
+    private $items = [];
+    public function register($manifest) {
+        $this->registered++;
+        $this->items[$manifest['slug']] = $manifest;
+    }
+    public function get($slug) { return $this->items[$slug] ?? null; }
+}
 function check_file26($condition, $label) {
     $GLOBALS['checks']++;
     if (!$condition) { fwrite(STDERR, "FAIL: $label\n"); exit(1); }
 }
 $GLOBALS['checks'] = 0;
 $GLOBALS['hook_names'] = [];
+$GLOBALS['direct_register_calls'] = 0;
 $GLOBALS['runtime_status'] = 'active';
 $GLOBALS['migration_ready'] = true;
 $GLOBALS['concept_rows'] = [[
@@ -96,6 +109,14 @@ $GLOBALS['concept_rows'] = [[
 $wpdb = new FakeWPDB();
 require dirname(__DIR__).'/homeopathy-encyclopedia/includes/class-he-file26-connector.php';
 HE_File26_Connector::register();
+check_file26($GLOBALS['direct_register_calls']===0,
+    'No eager direct registration ahead of File26 governed boot');
+$registry = new MockFile26Registry();
+HE_File26_Connector::ready($registry);
+HE_File26_Connector::ready($registry);
+check_file26($registry->registered===1,
+    'Ready event does not duplicate filter-registered connector persistence');
+
 $m=HE_File26_Connector::manifest();
 check_file26($m['status']==='proposed' && strpos($m['deletion_semantics'],'pending')!==false,
     'No automatic connector or tombstone activation');
