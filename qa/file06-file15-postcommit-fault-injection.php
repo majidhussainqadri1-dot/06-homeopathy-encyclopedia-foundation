@@ -75,6 +75,12 @@ if(!is_wp_error($posts['source'])&&!is_wp_error($posts['target'])){
       &&$mapping_state==='active'&&$count===0&&$count_out===0;
    $check(!$unsafe,
     'No committed canonical merge with stale active File15 mapping and absent durable event');
+   $check(is_wp_error($outcome)&&$outcome->get_error_code()==='he_merge_event_atomic_failed',
+    'Atomic event failure returns an accurate fail-closed typed 503 error');
+   $check((int)($after['merged_into_id']??0)===0,
+    'Owner source lineage was rolled back with event failure');
+   $check($mapping_state==='active'&&$count===0&&$count_out===0,
+    'No partial consumer mutation or owner event after atomic owner rollback');
   }
  }
 }
