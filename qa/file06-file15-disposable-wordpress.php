@@ -112,5 +112,40 @@ if(!is_wp_error($source_post)&&!is_wp_error($target_post)){
         }
     }
 }
+// A remedy must never be silently merged into an unrelated symptom
+// concept. Such a merge would bypass File15's remedy merge invalidation.
+$type_source_post=wp_insert_post([
+    'post_type'=>HE_V2_Domain::ENTRY_TYPE,'post_status'=>'draft',
+    'post_title'=>'Synthetic cross-type remedy','post_author'=>1
+],true);
+$type_target_post=wp_insert_post([
+    'post_type'=>HE_V2_Domain::ENTRY_TYPE,'post_status'=>'draft',
+    'post_title'=>'Synthetic cross-type symptom','post_author'=>1
+],true);
+$assert(!is_wp_error($type_source_post)&&!is_wp_error($type_target_post),
+    'Synthetic cross-type owner fixtures created');
+if(!is_wp_error($type_source_post)&&!is_wp_error($type_target_post)){
+    $remedy=HE_V2_Domain::concept_by_post_id((int)$type_source_post);
+    $symptom=HE_V2_Domain::concept_by_post_id((int)$type_target_post);
+    $assert(is_array($remedy)&&is_array($symptom),
+        'Cross-type canonical concepts persisted');
+    if(is_array($remedy)&&is_array($symptom)){
+        $t=HE_V2_Schema::table('concepts');
+        $wpdb->update($t,['type_slug'=>'remedy'],['id'=>(int)$remedy['id']]);
+        $wpdb->update($t,['type_slug'=>'symptom'],['id'=>(int)$symptom['id']]);
+        $decision=HE_V22_Governance::secure_merge([
+            'source_id'=>(int)$remedy['id'],
+            'target_id'=>(int)$symptom['id'],
+            'source_version'=>(int)$remedy['row_version'],
+            'target_version'=>(int)$symptom['row_version'],
+            'actor_id'=>1,
+            'reason'=>'Synthetic cross-type merge must never be allowed'
+        ]);
+        $source_after=HE_V2_Domain::concept_by_post_id((int)$type_source_post);
+        $assert(is_wp_error($decision)&&$decision->get_error_code()==='he_merge_type_mismatch'
+                &&(int)($source_after['merged_into_id']??0)===0,
+            'Cross-type remedy-to-symptom merge denied without altering owner lineage');
+    }
+}
 if($failures){fwrite(STDERR,count($failures)." File06/File15 cross-owner checks failed.\n");exit(1);}
 echo "File06/File15 real disposable WordPress/MariaDB: {$checks} assertions PASS; live unverified.\n";
