@@ -139,7 +139,7 @@ final class HE_File26_Connector {
     }
     public static function health(){
         return self::source_ready()?
-            array('state'=>'healthy','owner_file'=>'File 06','status'=>'proposed','review_gate_enforced'=>true,'review_coverage_attested'=>false,'event_tombstone_cutover_approved'=>false):
+            array('state'=>'healthy','owner_file'=>'File 06','status'=>'proposed','approval_status_flags_checked'=>true,'review_coverage_attested'=>false,'event_tombstone_cutover_approved'=>false):
             array('state'=>'degraded','owner_file'=>'File 06','reason'=>'schema_migration_or_policy_not_verified');
     }
 }
