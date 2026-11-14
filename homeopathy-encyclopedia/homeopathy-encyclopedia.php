@@ -74,6 +74,8 @@ require_once HE_DIR . 'includes/class-he-v242-public-translation-guard.php';
 require_once HE_DIR . 'includes/class-he-v242-language-migration.php';
 require_once HE_DIR . 'includes/class-he-v242-translation-compat.php';
 require_once HE_DIR . 'includes/class-he-v2418-corrections.php';
+require_once HE_DIR . 'includes/class-he-file26-connector.php';
+HE_File26_Connector::register();
 
 function he_activate_future_runtime() {
 	wp_clear_scheduled_hook( HE_V23_Future::CRON );

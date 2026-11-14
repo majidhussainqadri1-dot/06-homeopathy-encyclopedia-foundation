@@ -223,9 +223,43 @@ final class HE_V2_Domain {
 		$post_id = absint( $postarr['ID'] ?? 0 );
 		global $wpdb;
 		if ( self::ENTRY_TYPE === $post_type ) {
-			$row = $post_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT status,review_status,safety_status,current_version FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', $post_id ), ARRAY_A ) : null;
+			$row = $post_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT status,review_status,safety_status,current_version,canonical_slug FROM ' . HE_V2_Schema::table( 'concepts' ) . ' WHERE post_id=%d', $post_id ), ARRAY_A ) : null;
 			if ( ! $row || 'published' !== $row['status'] || 'approved' !== $row['review_status'] || 'approved' !== $row['safety_status'] || ! $row['current_version'] ) {
 				$data['post_status'] = 'pending';
+			} else {
+				// WordPress native post editing must not silently mutate an approved
+				// published revision while retaining its prior scholarly review.
+				// The canonical owner transition creates its immutable snapshot
+				// *before* publishing and therefore matches these exact fields.
+				$versions = HE_V2_Schema::table( 'versions' );
+				$approved = $wpdb->get_row( $wpdb->prepare(
+					"SELECT title,summary,body FROM {$versions} WHERE id=%d",
+					(int) $row['current_version']
+				), ARRAY_A );
+				$fields = array( 'post_title' => 'title', 'post_excerpt' => 'summary', 'post_content' => 'body' );
+				$matches = is_array( $approved );
+				foreach ( $fields as $post_field => $version_field ) {
+					if ( ! array_key_exists( $post_field, $data )
+						|| ! is_string( $data[ $post_field ] )
+						|| ! $matches
+						|| (string) wp_unslash( $data[ $post_field ] ) !== (string) ( $approved[ $version_field ] ?? '' ) ) {
+						$matches = false;
+						break;
+					}
+				}
+				// An unreviewed URL/slug rewrite must not borrow the earlier
+				// version's approval. During first canonical publish, WordPress
+				// may not yet have populated post_name: derive its safe fallback.
+				$slug = (string) wp_unslash( $data['post_name'] ?? '' );
+				if ( '' === $slug ) {
+					$slug = sanitize_title( (string) wp_unslash( $data['post_title'] ?? '' ) );
+				}
+				if ( '' === $slug || $slug !== (string) ( $row['canonical_slug'] ?? '' ) ) {
+					$matches = false;
+				}
+				if ( ! $matches ) {
+					$data['post_status'] = 'pending';
+				}
 			}
 		}
 		if ( self::RESEARCH_TYPE === $post_type ) {
@@ -1719,7 +1753,7 @@ final class HE_V2_Domain {
 		return mb_substr( $text, 0, 1000, 'UTF-8' );
 	}
 
-	public static function emit_event( $name, $object_type, $object_id, $payload ) {
+	public static function emit_event( $name, $object_type, $object_id, $payload, $enlisted_in_owner_tx = false ) {
 		global $wpdb;
 		$event_id = wp_generate_uuid4();
 		$trace_id = self::trace_id();
@@ -1729,8 +1763,10 @@ final class HE_V2_Domain {
 		$payload['occurred_at'] = gmdate( 'c' );
 		$json = wp_json_encode( $payload );
 		$now = current_time( 'mysql', true );
-		/* Internal File 06 transaction call-site audit confirms emit_event() is invoked after owning transactions commit. Own only the event/outbox pair here and avoid vendor-specific transaction-state variables. */
-		$started = $wpdb->query( 'START TRANSACTION' );
+		/* Ordinary callers own a separate outbox transaction. A caller that already
+		 * holds a canonical owner transaction may enlist the event/outbox writes
+		 * in THAT transaction; only that caller then commits and emits hooks. */
+		$started = $enlisted_in_owner_tx ? true : $wpdb->query( 'START TRANSACTION' );
 		if ( false === $started ) {
 			HE_V2_Schema::record_runtime_failure( 'event_outbox_transaction_start_failed', 'File 06 could not start the domain-event/outbox atomic transaction.' );
 			throw new RuntimeException( 'File 06 event/outbox transaction could not start.' );
@@ -1744,9 +1780,12 @@ final class HE_V2_Domain {
 			'next_attempt_at' => $now, 'last_error' => '', 'created_at' => $now, 'updated_at' => $now,
 		), array( '%s','%s','%s','%s','%d','%s','%s','%s','%s' ) );
 		if ( ! $event_ok || ! $outbox_ok ) {
-			$wpdb->query( 'ROLLBACK' );
+			if ( ! $enlisted_in_owner_tx ) { $wpdb->query( 'ROLLBACK' ); }
 			HE_V2_Schema::record_runtime_failure( 'event_outbox_atomic_write_failed', 'A File 06 domain event and its outbox record could not be persisted as one atomic unit.' );
 			throw new RuntimeException( 'File 06 event/outbox atomic persistence failed.' );
+		}
+		if ( $enlisted_in_owner_tx ) {
+			return array( 'event_id' => $event_id, 'trace_id' => $trace_id, 'payload' => $payload );
 		}
 		$committed = $wpdb->query( 'COMMIT' );
 		if ( false === $committed ) {
