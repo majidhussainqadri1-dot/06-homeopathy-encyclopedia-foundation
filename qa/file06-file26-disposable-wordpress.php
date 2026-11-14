@@ -13,6 +13,11 @@ $check = static function($ok,$label) use (&$passes,&$failures) {
     else { $failures[]=$label; fwrite(STDERR,"FAIL File06/File26 real WP: {$label}\n"); }
 };
 $check(class_exists('HE_File26_Connector'), 'Proposed owner class loaded');
+$health=HE_File26_Connector::health();
+$check(($health['review_gate_enforced']??false)===true
+    &&($health['review_coverage_attested']??null)===false
+    &&!isset($health['review_and_safety_verified']),
+    'Proposed source health distinguishes code-gate enforcement from unverified human review');
 $check(function_exists('he_contract_descriptor'), 'File06 runtime contract present');
 $check(defined('HE_SCHEMA_VERSION')&&HE_SCHEMA_VERSION===10,'File06 core schema target 10');
 $check(class_exists('HE_V2_Schema') && 'active'===HE_V2_Schema::runtime_status(),
