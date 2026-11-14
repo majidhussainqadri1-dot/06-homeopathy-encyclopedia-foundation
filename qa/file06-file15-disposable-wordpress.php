@@ -109,6 +109,46 @@ if(!is_wp_error($source_post)&&!is_wp_error($target_post)){
             ]);
             $assert(is_wp_error($changed)&&$changed->get_error_code()==='rsr_event_id_collision',
                 'Reused stable event ID with tampered concept IDs rejected');
+
+            // Now exercise the actual owner merge command rather than only
+            // an isolated, synthetic event envelope.
+            $reset=$wpdb->update($mapping,[
+                'status'=>'active','version'=>3,'updated_at'=>current_time('mysql',true)
+            ],['remedy_public_id'=>(string)$source['public_id']]);
+            $assert(false!==$reset,'Disposable File15 mapping reset for full owner-command E2E');
+            $current_source=HE_V2_Domain::concept_by_post_id((int)$source_post);
+            $current_target=HE_V2_Domain::concept_by_post_id((int)$target_post);
+            $owner_result=HE_V22_Governance::secure_merge([
+                'source_id'=>(int)$current_source['id'],
+                'target_id'=>(int)$current_target['id'],
+                'source_version'=>(int)$current_source['row_version'],
+                'target_version'=>(int)$current_target['row_version'],
+                'actor_id'=>1,'reason'=>'Synthetic same-type owner merge with independent consumer'
+            ]);
+            $source_after_merge=HE_V2_Domain::concept_by_post_id((int)$source_post);
+            $assert(is_array($owner_result)&&
+                (int)($source_after_merge['merged_into_id']??0)===(int)$target['id'],
+                'Actual same-type secure owner merge and lineage persisted');
+            $follow_event_id=(string)$wpdb->get_var($wpdb->prepare(
+                "SELECT event_id FROM {$owner_event} WHERE object_id=%d AND event_name=%s ORDER BY id DESC LIMIT 1",
+                (int)$target['id'],'KnowledgeConceptMerged.v1'
+            ));
+            $assert($follow_event_id!==''&&$follow_event_id!==$eid,
+                'Actual secure merge wrote a new stable event to canonical owner outbox');
+            $cache_before=(int)get_option('rsr_comparison_cache_generation',1);
+            HE_V2_Integrations::process_outbox(50);
+            $follow_status=(string)$wpdb->get_var($wpdb->prepare(
+                "SELECT status FROM {$inbox} WHERE event_id=%s",$follow_event_id
+            ));
+            $mapping_now=$wpdb->get_row($wpdb->prepare(
+                "SELECT status,version FROM {$mapping} WHERE remedy_public_id=%s",
+                (string)$source['public_id']
+            ),ARRAY_A);
+            $assert($follow_status==='delivered'&&is_array($mapping_now)
+                &&$mapping_now['status']==='review_required',
+                'Real secure merge event consumed and remedy mapping held for review');
+            $assert((int)get_option('rsr_comparison_cache_generation',1)===$cache_before+1,
+                'Actual owner-command propagation invalidated clinical comparison cache');
         }
     }
 }
