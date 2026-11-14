@@ -67,7 +67,8 @@ final class HE_File26_Connector {
         // Only owner-approved bounded public DTO fields. Never export full
         // structured body, unverified aliases, research datasets or cases.
         $dto=HE_V2_Domain::public_dto($row);
-        if(!is_array($dto)||empty($dto['id'])||empty($dto['title'])||empty($dto['canonical_url'])){return null;}
+        if(!is_array($dto)||empty($dto['id'])||empty($dto['title'])||empty($dto['canonical_url'])||
+            (string)$dto['id']!==(string)($row['public_id']??'')){return null;}
         if(($dto['review_status']??'')!=='approved'||($dto['safety_status']??'')!=='approved'||($dto['record_status']??'')!=='published'){return null;}
         $safe_url=esc_url_raw((string)$dto['canonical_url']);
         // A valid outbound HTTPS URL may still lead to an external host.
@@ -89,7 +90,14 @@ final class HE_File26_Connector {
     public static function list_batch($cursor='',$limit=50,$scope=array()){
         global $wpdb;
         if(!self::source_ready()){return new WP_Error('file06_search_source_unready','Verified File06 schema and migration are required.');}
-        if(!is_array($scope)||isset($scope['object_id'])){return new WP_Error('file06_search_partial_scope','Only complete owner snapshot supported.');}
+        // File26's reindex worker supplies ['connector' => owner_slug].
+        // All other scopes are unsupported: ignoring them could return
+        // unexpectedly broad owner data to a caller expecting a subset.
+        if(!is_array($scope)||($scope!==array()&&
+            (count($scope)!==1||!isset($scope['connector'])||
+            $scope['connector']!==self::SLUG))){
+            return new WP_Error('file06_search_partial_scope','Only the complete owner snapshot is supported.');
+        }
         if($cursor!==''&&(!is_string($cursor)||!preg_match('/^[0-9]{1,18}$/D',$cursor))){return new WP_Error('file06_search_cursor_invalid','Invalid cursor.');}
         $table=HE_V2_Schema::table('concepts');
         $limit=max(1,min(50,(int)$limit));$current=(int)$cursor;
@@ -112,13 +120,19 @@ final class HE_File26_Connector {
         if(!is_array($row)||(string)$row['public_id']!==$public_id){return null;}
         return self::project($row);
     }
+    private static function matches_version($provided,$owner){
+        if(!is_int($owner)||$owner<1){return false;}
+        if(is_int($provided)){return $provided===$owner;}
+        return is_string($provided)&&preg_match('/^[1-9][0-9]{0,17}$/D',$provided)
+            &&$provided===(string)$owner;
+    }
     public static function can_view($document,$audience=array()){
         if(!is_array($document)||($document['connector_slug']??'')!==self::SLUG||($document['visibility']??'')!=='public'){return false;}
         $fresh=self::fetch_object((string)($document['entity_type']??''),(string)($document['object_id']??''));
         // File26 must not reuse a stale or tampered canonical destination,
         // locale or type when a previously indexed document is clicked.
         return is_array($fresh)
-            &&(int)$fresh['object_version']===(int)($document['object_version']??0)
+            &&self::matches_version($document['object_version']??null,$fresh['object_version'])
             &&(string)$fresh['canonical_url']===(string)($document['canonical_url']??'')
             &&(string)$fresh['locale']===(string)($document['locale']??'')
             &&(string)$fresh['entity_type']===(string)($document['entity_type']??'');
