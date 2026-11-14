@@ -29,6 +29,21 @@ if len(rows) != 49 or missing or extra or duplicates or incomplete:
         f"count={len(rows)}, missing={missing}, extra={extra}, "
         f"duplicates={duplicates}, incomplete={incomplete}"
     )
+# Existence is weaker than semantic acceptance, but a fictional path must
+# never be used as evidence of a requirement's implementation.
+source_paths = {}
+bad_paths = []
+for requirement_id, _, source_cell, _, _ in rows:
+    match = re.fullmatch(r"`(homeopathy-encyclopedia/[A-Za-z0-9_./-]+)`", source_cell.strip())
+    if not match:
+        bad_paths.append((requirement_id, source_cell.strip()))
+        continue
+    source = root / match.group(1)
+    source_paths[requirement_id] = source
+    if not source.is_file():
+        bad_paths.append((requirement_id, match.group(1)))
+if bad_paths or len(source_paths) != 49:
+    raise SystemExit("V12.3 inventory invalid/nonexistent source paths: " + repr(bad_paths))
 if "Deployed Version | UNVERIFIED" not in text or "Live Verification Status | UNVERIFIED" not in text:
     raise SystemExit("Release truth missing: no deployed/live evidence has been established.")
-print("PASS: 49/49 V12.3 identifiers mapped without asserting any runtime/live completion.")
+print("PASS: 49/49 IDs and 49 existing source-path references; implementation/live acceptance unverified.")
