@@ -11,7 +11,8 @@ final class HE_File26_Connector {
     public static function register(){
         add_filter('sabri_file26_connector_manifests',array(__CLASS__,'append'),20);
         add_action('sabri_file26_connectors_ready',array(__CLASS__,'ready'),20);
-        if(function_exists('sabri_file26_register_connector')){sabri_file26_register_connector(self::manifest());}
+        // File26 collects this filter at plugins_loaded; do not also register
+        // directly. Duplicate registrations each persist the same connector.
     }
     public static function manifest(){
         return array(
@@ -34,7 +35,11 @@ final class HE_File26_Connector {
         $manifests[]=self::manifest();return $manifests;
     }
     public static function ready($registry){
-        if(is_object($registry)&&method_exists($registry,'register')){$registry->register(self::manifest());}
+        if(!is_object($registry)||!method_exists($registry,'register')){return;}
+        // Current File26 boot first consumes the manifests filter and then
+        // emits connectors_ready; only use this event as a fallback.
+        if(method_exists($registry,'get')&&$registry->get(self::SLUG)){return;}
+        $registry->register(self::manifest());
     }
     private static function source_ready(){
         return class_exists('HE_V2_Domain')&&class_exists('HE_V2_Schema')&&
