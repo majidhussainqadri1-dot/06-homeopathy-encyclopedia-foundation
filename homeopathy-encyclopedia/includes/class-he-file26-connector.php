@@ -46,6 +46,19 @@ final class HE_File26_Connector {
             defined('HE_SCHEMA_VERSION')&&'active'===HE_V2_Schema::runtime_status()&&
             class_exists('HE_V24_Migration_Safety')&&HE_V24_Migration_Safety::ready();
     }
+    private static function same_origin($url){
+        $base=wp_parse_url(home_url('/'));
+        $target=wp_parse_url((string)$url);
+        if(!is_array($base)||!is_array($target)
+           ||empty($base['scheme'])||empty($base['host'])
+           ||empty($target['scheme'])||empty($target['host'])
+           ||isset($target['user'])||isset($target['pass'])||isset($target['fragment'])){
+            return false;
+        }
+        return strtolower((string)$base['scheme'])===strtolower((string)$target['scheme'])
+            &&strtolower((string)$base['host'])===strtolower((string)$target['host'])
+            &&(string)($base['port']??'')===(string)($target['port']??'');
+    }
     private static function project($row,$version=0){
         if(!self::source_ready()||!is_array($row)||!empty($row['merged_into_id'])||
             ($row['status']??'')!=='published'||!HE_V2_Domain::is_public_concept($row)){return null;}
@@ -57,7 +70,9 @@ final class HE_File26_Connector {
         if(!is_array($dto)||empty($dto['id'])||empty($dto['title'])||empty($dto['canonical_url'])){return null;}
         if(($dto['review_status']??'')!=='approved'||($dto['safety_status']??'')!=='approved'||($dto['record_status']??'')!=='published'){return null;}
         $safe_url=esc_url_raw((string)$dto['canonical_url']);
-        if($safe_url===''||!wp_http_validate_url($safe_url)){return null;}
+        // A valid outbound HTTPS URL may still lead to an external host.
+        // File26's public canonical route must remain on the WordPress origin.
+        if($safe_url===''||!wp_http_validate_url($safe_url)||!self::same_origin($safe_url)){return null;}
         $title=sanitize_text_field((string)$dto['title']);
         $summary=sanitize_text_field(wp_strip_all_tags((string)($dto['summary']??''),true));
         return array(
