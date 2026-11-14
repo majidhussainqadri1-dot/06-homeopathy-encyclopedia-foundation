@@ -58,7 +58,9 @@ function add_action($name, $callback, $priority = 10) {
     return true;
 }
 function esc_url_raw($url) { return (string)$url; }
-function wp_http_validate_url($url) { return strpos((string)$url,'https://example.org/') === 0; }
+function wp_http_validate_url($url) { return strpos((string)$url,'https://') === 0; }
+function home_url($path = '') { return 'https://example.org/' . ltrim((string)$path, '/'); }
+function wp_parse_url($url) { return parse_url($url); }
 function sanitize_text_field($value) { return trim(strip_tags((string)$value)); }
 function wp_strip_all_tags($value, $remove_breaks = false) { return strip_tags((string)$value); }
 function sabri_file26_register_connector($manifest) {
@@ -167,9 +169,9 @@ $GLOBALS['concept_rows'][0]['dto']['safety_status']='rejected';
 check_file26(!HE_File26_Connector::can_view($doc,[]),
     'Safety revocation invalidates public item');
 $GLOBALS['concept_rows'][0]['dto']['safety_status']='approved';
-$GLOBALS['concept_rows'][0]['dto']['canonical_url']='http://foreign.invalid/unsafe/';
+$GLOBALS['concept_rows'][0]['dto']['canonical_url']='https://attacker.example/other-content/';
 check_file26(HE_File26_Connector::fetch_object('concept',$doc['object_id'])===null,
-    'Unapproved canonical URL denied');
+    'Off-origin canonical URL denied despite valid HTTPS');
 $GLOBALS['migration_ready']=false;
 check_file26(HE_File26_Connector::list_batch('',50,[]) instanceof WP_Error,
     'Missing future schema refuses indexing');
