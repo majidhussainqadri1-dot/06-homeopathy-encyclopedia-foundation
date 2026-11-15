@@ -74,6 +74,7 @@ jobs:
           php -l qa/file06-file15-postcommit-fault-injection.php
           php -l qa/file06-merge-postcommit-subscriber-failure.php
           php -l qa/file06-event-postcommit-subscriber-failure.php
+          php -l qa/file06-merge-postcommit-reindex-failure.php
           php -l qa/file06-file26-disposable-wordpress.php
       - name: Install isolated WordPress 7.0.1 on disposable MariaDB
         run: |
@@ -105,6 +106,7 @@ jobs:
           FILE06_DISPOSABLE_QA=1 FILE06_FAULT_TARGET=outbox php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
           FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-merge-postcommit-subscriber-failure.php" --path=/tmp/file06-wordpress
           FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-event-postcommit-subscriber-failure.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-merge-postcommit-reindex-failure.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
       - name: No mutation to repository or preexisting live system
         run: |
