@@ -171,15 +171,15 @@ final class HE_V22_Search {
 		}
 		$limit = min( 10, max( 1, absint( $limit ) ) );
 		$rows = self::checked_results( $wpdb->prepare(
-			'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=a.concept_id WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.is_primary DESC,a.alias ASC LIMIT %d",
-			$wpdb->esc_like( $q ) . '%', $limit
+			'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' c ON c.id=a.concept_id INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type=%s AND p.post_status='publish' WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.is_primary DESC,a.alias ASC LIMIT %d",
+			HE_V2_Domain::ENTRY_TYPE, $wpdb->esc_like( $q ) . '%', $limit
 		), ARRAY_A );
 		if ( is_wp_error( $rows ) ) { return $rows; }
 		if ( ! $rows ) {
 			$first = mb_substr( $q, 0, 1, 'UTF-8' );
 			$candidates = self::checked_results( $wpdb->prepare(
-				'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=a.concept_id WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.id ASC LIMIT 100",
-				$wpdb->esc_like( $first ) . '%'
+				'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' c ON c.id=a.concept_id INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type=%s AND p.post_status='publish' WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.id ASC LIMIT 100",
+				HE_V2_Domain::ENTRY_TYPE, $wpdb->esc_like( $first ) . '%'
 			), ARRAY_A );
 			if ( is_wp_error( $candidates ) ) { return $candidates; }
 			foreach ( $candidates as $candidate ) {

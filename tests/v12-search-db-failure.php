@@ -26,6 +26,7 @@ class HE_V2_Schema {
     public static function table($name) { return 'wp_he_' . $name; }
 }
 class HE_V2_Domain {
+    const ENTRY_TYPE = 'he_entry';
     public static function normalize($value) { return strtolower(trim((string) $value)); }
     public static function public_dto($row) { return $row['dto'] ?? null; }
 }
@@ -57,6 +58,7 @@ function sanitize_text_field($value) { return strip_tags((string) $value); }
 function get_permalink($id) { return 'https://example.org/encyclopedia/entry/' . (int) $id; }
 
 class SearchDB {
+    public $posts = 'wp_posts';
     public $last_error = '';
     public $queries = 0;
     public $mode = 'failure';
