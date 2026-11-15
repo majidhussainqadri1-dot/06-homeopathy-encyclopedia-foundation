@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/file06-v12-3-file26-candidate-20261114
+      - test/file06-v123-outbox-atomicity-20261115
   workflow_dispatch:
 
 permissions:
@@ -71,6 +72,11 @@ jobs:
           test "$(git -C _pinned_file15 rev-parse HEAD)" = 51ed4e2e18349e0e91cd879bab481998ec5f99ed
           php -l qa/file06-file15-disposable-wordpress.php
           php -l qa/file06-file15-postcommit-fault-injection.php
+          php -l qa/file06-merge-postcommit-subscriber-failure.php
+          php -l qa/file06-event-postcommit-subscriber-failure.php
+          php -l qa/file06-merge-postcommit-reindex-failure.php
+          php -l qa/file06-deadletter-health-disposable.php
+          php -l qa/file06-inbound-audit-not-outbox.php
           php -l qa/file06-file26-disposable-wordpress.php
       - name: Install isolated WordPress 7.0.1 on disposable MariaDB
         run: |
@@ -98,8 +104,28 @@ jobs:
           set -euo pipefail
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file26-disposable-wordpress.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-disposable-wordpress.php" --path=/tmp/file06-wordpress
-          php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 FILE06_FAULT_TARGET=events php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 FILE06_FAULT_TARGET=outbox php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-merge-postcommit-subscriber-failure.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-event-postcommit-subscriber-failure.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-merge-postcommit-reindex-failure.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-deadletter-health-disposable.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-inbound-audit-not-outbox.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
+      - name: Validate read-only reality freeze on disposable WordPress and 27 tables
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/file06-ci-bin
+          printf '#!/usr/bin/env bash\nexec php /tmp/file06-wp-cli.phar "$@"\n' > /tmp/file06-ci-bin/wp
+          chmod +x /tmp/file06-ci-bin/wp
+          PATH="/tmp/file06-ci-bin:$PATH" WP_PATH=/tmp/file06-wordpress ACK_READONLY_FREEZE=I_HAVE_AUTHORIZATION bash scripts/file06-live-reality-freeze-readonly.sh > /tmp/file06-disposable-freeze.txt
+          grep -qx 'FILE06_LIVE_REALITY_FREEZE_V12_3' /tmp/file06-disposable-freeze.txt
+          grep -qx 'TABLE_NAME=wp_he_concepts' /tmp/file06-disposable-freeze.txt
+          grep -qx 'TABLE_NAME=wp_he_translations' /tmp/file06-disposable-freeze.txt
+          test "$(grep -c '^TABLE_NAME=wp_he_' /tmp/file06-disposable-freeze.txt)" -eq 28
+          grep -Eq '^DATABASE_ENGINE_VERSION=[A-Za-z0-9._+:-]+' /tmp/file06-disposable-freeze.txt
+          grep -qx 'PASS_READONLY_METADATA_CAPTURE_ONLY' /tmp/file06-disposable-freeze.txt
+          echo 'File06 disposable read-only freeze: 28/28 table names and safe metadata PASS; no live evidence claimed.'
       - name: No mutation to repository or preexisting live system
         run: |
           set -euo pipefail

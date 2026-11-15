@@ -807,9 +807,8 @@ final class HE_V22_Governance {
 				true
 			);
 			if ( false === $wpdb->query( 'COMMIT' ) ) { throw new RuntimeException( 'merge-commit-failed' ); }
-			do_action( 'he_v2_event', 'KnowledgeConceptMerged.v1', $merge_event['payload'], $merge_event['event_id'], $merge_event['trace_id'] );
-			self::reindex_concept_secure( (int) $target['id'] );
-			return HE_V2_Domain::concept_by_id( (int) $target['id'], true );
+			// Everything following COMMIT must be handled OUTSIDE the rollback catch.
+			// A subscriber exception cannot undo the canonical merge or its durable outbox.
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
 			if ( 'File 06 event/outbox atomic persistence failed.' === $error->getMessage() ) {
@@ -836,6 +835,24 @@ final class HE_V22_Governance {
 			$message = 'he_alias_collision' === $code ? __( 'A source alias belongs to a third canonical concept; manual reconciliation is required.', 'homeopathy-encyclopedia' ) : __( 'One of the concepts changed before the merge.', 'homeopathy-encyclopedia' );
 			return new WP_Error( $code, $message, array( 'status' => 409 ) );
 		}
+		// The owner transaction is already committed. Never return a retryable
+		// version-conflict because a secondary event listener or index failed.
+		// Both downstream tasks retain durable repair/replay paths.
+		try {
+			do_action( 'he_v2_event', 'KnowledgeConceptMerged.v1', $merge_event['payload'], $merge_event['event_id'], $merge_event['trace_id'] );
+		} catch ( Throwable $error ) {
+			HE_V2_Schema::record_runtime_failure( 'secure_merge_postcommit_listener_failed', 'The committed merge event listener failed; the durable outbox remains available for replay.' );
+		}
+		try {
+			$reindexed = self::reindex_concept_secure( (int) $target['id'] );
+		} catch ( Throwable $error ) {
+			$reindexed = false;
+		}
+		if ( ! $reindexed ) {
+			update_option( self::REINDEX_REQUIRED, 1, false );
+			HE_V2_Schema::record_runtime_failure( 'secure_merge_postcommit_reindex_failed', 'The committed concept merge needs a queued search-index rebuild; no rollback was attempted.' );
+		}
+		return HE_V2_Domain::concept_by_id( (int) $target['id'], true );
 	}
 
 	private static function dataset_request_gate( $research_id ) {
@@ -1065,10 +1082,12 @@ final class HE_V22_Governance {
 		$wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (legacy_post_id,stage,error_code,error_message,attempts,resolved,created_at,updated_at) VALUES (%d,%s,%s,%s,1,0,%s,%s) ON DUPLICATE KEY UPDATE error_code=VALUES(error_code),error_message=VALUES(error_message),attempts=attempts+1,resolved=0,updated_at=VALUES(updated_at)", absint( $post_id ), sanitize_key( $stage ), sanitize_key( $code ), sanitize_text_field( $message ), $now, $now ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
+	/** Only locally produced events can be reconciled into File06's outbound queue.
+	 * Inbound File05/12/15 records use object_type=external and are audit-only. */
 	public static function reconcile_outbox( $limit = self::BATCH_SIZE ) {
 		global $wpdb;
 		$limit = min( 100, max( 1, absint( $limit ) ) );
-		$sql = 'SELECT e.event_id,e.event_name,e.payload_json,e.created_at FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL ORDER BY e.id ASC LIMIT %d';
+		$sql = 'SELECT e.event_id,e.event_name,e.payload_json,e.created_at FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>\'external\' ORDER BY e.id ASC LIMIT %d';
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $limit ), ARRAY_A );
 		$created = 0;
 		$table = HE_V2_Schema::table( 'outbox' );
@@ -1105,7 +1124,7 @@ final class HE_V22_Governance {
 	public static function repair( $dry_run = true ) {
 		global $wpdb;
 		$quarantine = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'migration_quarantine' ) . ' WHERE resolved=0' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$missing_outbox = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$missing_outbox = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>\'external\'' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$result = array( 'dry_run' => (bool) $dry_run, 'quarantine_unresolved' => $quarantine, 'missing_outbox' => $missing_outbox, 'legacy_done' => (bool) get_option( self::LEGACY_DONE ), 'reindex_required' => (bool) get_option( self::REINDEX_REQUIRED ) );
 		if ( ! $dry_run ) {
 			self::install_extensions();
@@ -1123,8 +1142,8 @@ final class HE_V22_Governance {
 		$base['extension_version'] = (int) get_option( self::EXTENSION_OPTION, 0 );
 		$base['legacy_migration'] = array( 'done' => (bool) get_option( self::LEGACY_DONE ), 'cursor' => absint( get_option( self::LEGACY_CURSOR, 0 ) ) );
 		$base['quarantine_unresolved'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'migration_quarantine' ) . ' WHERE resolved=0' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$base['dead_letter'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . HE_V2_Schema::table( 'outbox' ) . " WHERE status='dead'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$base['outbox_reconciliation_missing'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$base['dead_letter'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . HE_V2_Schema::table( 'outbox' ) . " WHERE status='dead-letter'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$base['outbox_reconciliation_missing'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>\'external\'' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$base['reindex_required'] = (bool) get_option( self::REINDEX_REQUIRED );
 		return $base;
 	}

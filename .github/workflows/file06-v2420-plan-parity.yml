@@ -10,6 +10,7 @@ on:
       - fix/file06-real-file00-05-10-12-bridge-20261108
       - fix/file06-pr14-consent-filter-arity-20261110
       - integration/file06-v12-3-file26-candidate-20261114
+      - test/file06-v123-outbox-atomicity-20261115
   workflow_dispatch:
 
 permissions:

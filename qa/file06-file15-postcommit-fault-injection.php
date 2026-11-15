@@ -1,9 +1,18 @@
 <?php
 /**
- * RED-first P1 post-COMMIT outbox fault injection in disposable MariaDB.
+ * RED-first regression for transactional event AND outbox failure in disposable MariaDB.
  * Must NEVER run on production. All seeded people/content are synthetic.
  */
 defined('ABSPATH') || exit;
+// Refuse to run against an actual site, including production mistakenly labelled staging.
+$qa_host = wp_parse_url(home_url('/'), PHP_URL_HOST);
+if (!defined('WP_CLI') || !WP_CLI || wp_get_environment_type() !== 'staging' ||
+    $qa_host !== 'file06-file26-ci.local' || getenv('FILE06_DISPOSABLE_QA') !== '1') {
+ fwrite(STDERR, "REFUSED: synthetic database fault injection is restricted to disposable CI.\n");
+ exit(2);
+}
+$fault_target = getenv('FILE06_FAULT_TARGET') ?: 'events';
+if (!in_array($fault_target, ['events','outbox'], true)) { exit(2); }
 global $wpdb;
 $errors=[];$passes=0;
 $check=static function($yes,$label)use(&$errors,&$passes){
@@ -40,9 +49,10 @@ if(!is_wp_error($posts['source'])&&!is_wp_error($posts['target'])){
   $check(1===$insert,'Synthetic File15 mapping created');
   $events=HE_V2_Schema::table('events');
   $outbox=HE_V2_Schema::table('outbox');
-  $trigger='file06_ci_fail_event_'.substr(str_replace('-','',wp_generate_uuid4()),0,12);
-  // A trigger affects only the disposable WordPress CI database.
-  $create="CREATE TRIGGER `$trigger` BEFORE INSERT ON `$events` FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='disposable_injected_event_write_failure'";
+  $trigger='file06_ci_fail_'.substr(str_replace('-','',wp_generate_uuid4()),0,12);
+  // Each run injects only one distinct failure point into disposable MariaDB.
+  $fault_table = $fault_target === 'outbox' ? $outbox : $events;
+  $create="CREATE TRIGGER `$trigger` BEFORE INSERT ON `$fault_table` FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='disposable_injected_atomic_write_failure'";
   $created=$wpdb->query($create);
   $check(false!==$created,'Disposable MariaDB trigger installed');
   if(false!==$created){
@@ -66,7 +76,7 @@ if(!is_wp_error($posts['source'])&&!is_wp_error($posts['target'])){
     "SELECT COUNT(*) FROM {$outbox} ob INNER JOIN {$events} ev ON ev.event_id=ob.event_id WHERE ev.object_id=%d AND ev.event_name=%s",
     (int)$t['id'],'KnowledgeConceptMerged.v1'
    ));
-   echo "FAULT_EVIDENCE canonical_merge=".((int)($after['merged_into_id']??0)===(int)$t['id']?'YES':'NO')
+   echo "FAULT_TARGET=$fault_target FAULT_EVIDENCE canonical_merge=".((int)($after['merged_into_id']??0)===(int)$t['id']?'YES':'NO')
       ." mapping_status=$mapping_state owner_event_count=$count owner_outbox_count=$count_out"
       ." returned=". (is_wp_error($outcome)?$outcome->get_error_code():gettype($outcome))."\n";
    // This security invariant SHOULD hold. Its failure proves the exact
@@ -85,4 +95,4 @@ if(!is_wp_error($posts['source'])&&!is_wp_error($posts['target'])){
  }
 }
 if($errors){fwrite(STDERR,count($errors)." FAIL-CLOSED SAFETY INVARIANT(S) NOT MET.\n");exit(1);}
-echo "Post-COMMIT failure injection: $passes checks PASS.\n";
+echo "Atomic $fault_target failure injection: $passes checks PASS.\n";

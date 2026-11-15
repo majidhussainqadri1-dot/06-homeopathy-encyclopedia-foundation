@@ -1793,7 +1793,14 @@ final class HE_V2_Domain {
 			HE_V2_Schema::record_runtime_failure( 'event_outbox_commit_failed', 'File 06 could not commit the domain-event/outbox atomic transaction.' );
 			throw new RuntimeException( 'File 06 event/outbox transaction could not commit.' );
 		}
-		do_action( 'he_v2_event', $name, $payload, $event_id, $trace_id );
+		// The event AND durable outbox are committed. Synchronous subscriber
+		// exceptions must never misreport this persisted command as failed.
+		// Outbox consumers have an independent, bounded retry/dead-letter path.
+		try {
+			do_action( 'he_v2_event', $name, $payload, $event_id, $trace_id );
+		} catch ( Throwable $error ) {
+			HE_V2_Schema::record_runtime_failure( 'event_postcommit_listener_failed', 'A synchronous event listener failed after the event and outbox were committed; durable delivery remains available.' );
+		}
 		return array( 'event_id' => $event_id, 'trace_id' => $trace_id );
 	}
 
