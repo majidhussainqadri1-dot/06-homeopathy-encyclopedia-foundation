@@ -57,4 +57,48 @@ $check($fallback_autos instanceof WP_REST_Response && $fallback_autos->get_statu
 $check($safe($fallback_autos),
     'Fallback autocomplete independently enforces no-store');
 
+// Adversarial synthetic drift: File06's SQL concept flags remain "approved",
+// but the real WordPress owner object is still DRAFT. Autocomplete must never
+// expose its alias or permalink. This simulates a partial migration/transition.
+global $wpdb;
+$draft_post = wp_insert_post(array(
+    'post_type' => HE_V2_Domain::ENTRY_TYPE,
+    'post_status' => 'draft',
+    'post_title' => 'CI only: unpublished private knowledge',
+    'post_content' => 'Do not expose until independently reviewed.',
+    'post_author' => 1
+), true);
+$check(!is_wp_error($draft_post) && (int)$draft_post > 0,
+    'Synthetic unpublished WordPress entry created');
+$draft_concept = HE_V2_Domain::concept_by_post_id((int)$draft_post);
+$check(is_array($draft_concept), 'Canonical draft concept exists');
+$draft_version = HE_V2_Domain::snapshot_version(
+    (int)$draft_concept['id'], 'Synthetic unreleased drift fixture', 'published', 1);
+$check($draft_version > 0, 'Synthetic immutable version seeded');
+$updated = $wpdb->update(HE_V2_Schema::table('concepts'),array(
+    'current_version' => (int)$draft_version,
+    'status' => 'published',
+    'review_status' => 'approved',
+    'safety_status' => 'approved',
+    'row_version' => 2
+),array('id'=>(int)$draft_concept['id']));
+$check($updated !== false && get_post_status((int)$draft_post) === 'draft',
+    'Owner status drift simulated: canonical approved but WordPress unpublished');
+$alias = 'file06draftprivatealias20261115';
+$inserted = $wpdb->insert(HE_V2_Schema::table('aliases'),array(
+    'concept_id'=>(int)$draft_concept['id'],
+    'alias'=>$alias,
+    'normalized_alias'=>HE_V2_Domain::normalize($alias),
+    'language'=>'en-US',
+    'alias_type'=>'synonym',
+    'is_primary'=>0,
+    'created_by'=>1,
+    'created_at'=>gmdate('Y-m-d H:i:s')
+));
+$check($inserted === 1, 'Synthetic private alias inserted only in isolated DB');
+$leaked = HE_V22_Search::autocomplete('file06draftprivatealias',10);
+$check(is_array($leaked) && !array_filter($leaked,static function($item) use ($draft_concept) {
+    return ($item['id']??'') === $draft_concept['public_id'];
+}), 'Autocomplete excludes aliases whose WordPress post is unpublished');
+
 WP_CLI::success('File06 disposable WordPress search: ' . $checks . ' checks passed; not Hostinger staging/live.');
