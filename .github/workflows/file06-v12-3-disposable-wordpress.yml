@@ -120,10 +120,10 @@ jobs:
           grep -qx 'FILE06_LIVE_REALITY_FREEZE_V12_3' /tmp/file06-disposable-freeze.txt
           grep -qx 'TABLE_NAME=wp_he_concepts' /tmp/file06-disposable-freeze.txt
           grep -qx 'TABLE_NAME=wp_he_translations' /tmp/file06-disposable-freeze.txt
-          test "$(grep -c '^TABLE_NAME=wp_he_' /tmp/file06-disposable-freeze.txt)" -eq 27
+          test "$(grep -c '^TABLE_NAME=wp_he_' /tmp/file06-disposable-freeze.txt)" -eq 28
           grep -Eq '^DATABASE_ENGINE_VERSION=[A-Za-z0-9._+:-]+' /tmp/file06-disposable-freeze.txt
           grep -qx 'PASS_READONLY_METADATA_CAPTURE_ONLY' /tmp/file06-disposable-freeze.txt
-          echo 'File06 disposable read-only freeze: 27/27 table names and safe metadata PASS; no live evidence claimed.'
+          echo 'File06 disposable read-only freeze: 28/28 table names and safe metadata PASS; no live evidence claimed.'
       - name: No mutation to repository or preexisting live system
         run: |
           set -euo pipefail
