@@ -46,9 +46,12 @@ fi
 
 echo "[file06-selected-nonsensitive-option-values]"
 for key in \
-  he_schema_version he_v24_future_version \
-  he_v2_safe_mode he_v24_migration_pending \
+  he_schema_version he_v22_extension_version he_v24_future_version \
+  he_v2_safe_mode he_v22_reindex_required he_v22_legacy_cursor he_v22_legacy_done \
+  he_v24_migration_pending \
+  he_v24_provenance_migration_cursor he_v24_impact_migration_cursor \
   he_v24_provenance_migration_done he_v24_impact_migration_done \
+  he_v24_orcid_postflight_cursor he_v24_emitted_postflight_cursor \
   he_v24_orcid_postflight_done he_v24_emitted_postflight_done
 do
   # Reading the above *known numeric/status markers only*. Never dump wp_options.
@@ -67,11 +70,27 @@ prefix="$(wp db prefix "${flags[@]}")"
 if [[ ! "$prefix" =~ ^[A-Za-z0-9_]{1,48}$ ]]; then
   echo 'BLOCKED: unsupported database table prefix' >&2; exit 2
 fi
-echo "[file06-db-table-names-and-structure]"
-for suffix in concepts aliases versions references relations reviews \
-  research dataset_access events outbox search_index \
-  claims claim_evidence provenance impact_queue translations
-do
+echo "[mariadb-mysql-engine-version]"
+if db_version="$(wp db query 'SELECT VERSION();' "${flags[@]}" --skip-column-names 2>/dev/null)"; then
+  if [[ "$db_version" =~ ^[A-Za-z0-9._+:-]{1,120}$ ]]; then
+    printf 'DATABASE_ENGINE_VERSION=%s\\n' "$db_version"
+  else
+    echo 'DATABASE_ENGINE_VERSION=REDACTED_OR_UNEXPECTED'
+  fi
+else
+  echo 'DATABASE_ENGINE_VERSION=UNAVAILABLE'
+fi
+
+echo "[file06-required-db-tables-columns-and-approximate-row-counts]"
+# These 27 schema suffixes are the literal union of HE_V2_Schema::required_tables
+# and HE_V24_Future_Schema::required_shape; unit tests reject drift.
+# Never query raw rows, free-text columns, tokens or patient identifiers.
+FILE06_SCHEMA_SUFFIXES=(concepts aliases versions references relations reviews
+  integrity_actions research dataset_access events outbox idempotency bookmarks
+  rate_limits search_index claims claim_evidence concept_mappings similarity
+  provenance external_records researcher_ids freshness impact_queue research_gaps
+  watchlists translations)
+for suffix in "${FILE06_SCHEMA_SUFFIXES[@]}"; do
   table="${prefix}he_${suffix}"
   echo "TABLE_NAME=$table"
   # SHOW COLUMNS is metadata only; no raw rows, no patient data.
@@ -79,7 +98,20 @@ do
       awk '{print $1 " " $2 " " $4}' ; then
     echo 'STRUCTURE_UNAVAILABLE'
   fi
+  # InnoDB information_schema estimates are not exact counts nor migration proof.
+  estimate_sql="SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$table' LIMIT 1;"
+  if estimate="$(wp db query "$estimate_sql" "${flags[@]}" --skip-column-names 2>/dev/null)" && [[ "$estimate" =~ ^[0-9]+$ ]]; then
+    printf 'INFORMATION_SCHEMA_ESTIMATED_ROWS=%s\\n' "$estimate"
+  else
+    echo 'INFORMATION_SCHEMA_ESTIMATED_ROWS=UNAVAILABLE'
+  fi
 done
+echo "[runtime-failure-presence-no-value]"
+if wp option get he_v2_runtime_failure "${flags[@]}" >/dev/null 2>&1; then
+  echo 'RUNTIME_FAILURE_OPTION=PRESENT_REDACTED'
+else
+  echo 'RUNTIME_FAILURE_OPTION=MISSING_OR_UNREADABLE'
+fi
 
 echo '[safety-evidence-boundary]'
 echo 'NEVER_INCLUDE_RAW_PATIENT_ROWS_IDENTIFIERS_UPLOADS_LOGS_OR_SECRETS'
