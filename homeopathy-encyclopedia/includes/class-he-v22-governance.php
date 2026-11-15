@@ -1087,7 +1087,7 @@ final class HE_V22_Governance {
 	public static function reconcile_outbox( $limit = self::BATCH_SIZE ) {
 		global $wpdb;
 		$limit = min( 100, max( 1, absint( $limit ) ) );
-		$sql = 'SELECT e.event_id,e.event_name,e.payload_json,e.created_at FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>'external' ORDER BY e.id ASC LIMIT %d';
+		$sql = 'SELECT e.event_id,e.event_name,e.payload_json,e.created_at FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>\'external\' ORDER BY e.id ASC LIMIT %d';
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $limit ), ARRAY_A );
 		$created = 0;
 		$table = HE_V2_Schema::table( 'outbox' );
@@ -1124,7 +1124,7 @@ final class HE_V22_Governance {
 	public static function repair( $dry_run = true ) {
 		global $wpdb;
 		$quarantine = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'migration_quarantine' ) . ' WHERE resolved=0' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$missing_outbox = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>'external'' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$missing_outbox = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>\'external\'' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$result = array( 'dry_run' => (bool) $dry_run, 'quarantine_unresolved' => $quarantine, 'missing_outbox' => $missing_outbox, 'legacy_done' => (bool) get_option( self::LEGACY_DONE ), 'reindex_required' => (bool) get_option( self::REINDEX_REQUIRED ) );
 		if ( ! $dry_run ) {
 			self::install_extensions();
@@ -1143,7 +1143,7 @@ final class HE_V22_Governance {
 		$base['legacy_migration'] = array( 'done' => (bool) get_option( self::LEGACY_DONE ), 'cursor' => absint( get_option( self::LEGACY_CURSOR, 0 ) ) );
 		$base['quarantine_unresolved'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'migration_quarantine' ) . ' WHERE resolved=0' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$base['dead_letter'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . HE_V2_Schema::table( 'outbox' ) . " WHERE status='dead-letter'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$base['outbox_reconciliation_missing'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>'external'' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$base['outbox_reconciliation_missing'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL AND e.object_type<>\'external\'' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$base['reindex_required'] = (bool) get_option( self::REINDEX_REQUIRED );
 		return $base;
 	}
