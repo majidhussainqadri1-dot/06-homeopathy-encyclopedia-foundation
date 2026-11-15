@@ -73,7 +73,7 @@ fi
 echo "[mariadb-mysql-engine-version]"
 if db_version="$(wp db query 'SELECT VERSION();' "${flags[@]}" --skip-column-names 2>/dev/null)"; then
   if [[ "$db_version" =~ ^[A-Za-z0-9._+:-]{1,120}$ ]]; then
-    printf 'DATABASE_ENGINE_VERSION=%s\\n' "$db_version"
+    printf 'DATABASE_ENGINE_VERSION=%s\n' "$db_version"
   else
     echo 'DATABASE_ENGINE_VERSION=REDACTED_OR_UNEXPECTED'
   fi
@@ -101,7 +101,7 @@ for suffix in "${FILE06_SCHEMA_SUFFIXES[@]}"; do
   # InnoDB information_schema estimates are not exact counts nor migration proof.
   estimate_sql="SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$table' LIMIT 1;"
   if estimate="$(wp db query "$estimate_sql" "${flags[@]}" --skip-column-names 2>/dev/null)" && [[ "$estimate" =~ ^[0-9]+$ ]]; then
-    printf 'INFORMATION_SCHEMA_ESTIMATED_ROWS=%s\\n' "$estimate"
+    printf 'INFORMATION_SCHEMA_ESTIMATED_ROWS=%s\n' "$estimate"
   else
     echo 'INFORMATION_SCHEMA_ESTIMATED_ROWS=UNAVAILABLE'
   fi
