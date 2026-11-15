@@ -240,8 +240,12 @@ final class HE_V2_API {
 	}
 
 	public function search( WP_REST_Request $request ) {
-		$response = rest_ensure_response( HE_V2_Domain::search( $request->get_params() ) );
-		$response->header( 'Cache-Control', 'public, max-age=60, stale-while-revalidate=120' );
+		// The REST fallback must share the reviewed search's fail-closed semantics.
+		// An earlier hook or bypass must not restore the legacy unsafe query/cache.
+		$data = HE_V22_Search::search( $request->get_params() );
+		if ( is_wp_error( $data ) ) { return $data; }
+		$response = rest_ensure_response( $data );
+		$response->header( 'Cache-Control', 'private, no-store, max-age=0, must-revalidate' );
 		$response->header( 'X-File-06-Contract', HE_CONTRACT_VERSION );
 		return $response;
 	}
@@ -432,7 +436,11 @@ final class HE_V2_API {
 	}
 
 	public function autocomplete( WP_REST_Request $request ) {
-		return rest_ensure_response( HE_V2_Domain::autocomplete( $request->get_param( 'q' ), $request->get_param( 'limit' ) ) );
+		$data = HE_V22_Search::autocomplete( (string) $request->get_param( 'q' ), absint( $request->get_param( 'limit' ) ?: 8 ) );
+		if ( is_wp_error( $data ) ) { return $data; }
+		$response = rest_ensure_response( $data );
+		$response->header( 'Cache-Control', 'private, no-store, max-age=0, must-revalidate' );
+		return $response;
 	}
 
 	public function browse_research( WP_REST_Request $request ) {
