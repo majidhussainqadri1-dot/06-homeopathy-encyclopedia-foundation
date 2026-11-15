@@ -101,4 +101,28 @@ $check(is_array($leaked) && !array_filter($leaked,static function($item) use ($d
     return ($item['id']??'') === $draft_concept['public_id'];
 }), 'Autocomplete excludes aliases whose WordPress post is unpublished');
 
+// After the draft-only negative case, publish this disposable reviewed
+// fixture, then test the canonical entry route's freshness policy. An ETag
+// based on version alone cannot account for correction/rights withdrawal.
+$published = wp_update_post(array('ID'=>(int)$draft_post,'post_status'=>'publish'),true);
+$check(!is_wp_error($published) && get_post_status((int)$draft_post) === 'publish',
+    'Disposable synthetic reviewed entry published for entry-cache test');
+$entry_request = new WP_REST_Request('GET',
+    '/sabri/v2/file-06/entries/' . $draft_concept['public_id']);
+$entry_response = rest_do_request($entry_request);
+$check($entry_response instanceof WP_REST_Response &&
+    $entry_response->get_status() === 200,
+    'Canonical published entry reads through actual WordPress REST');
+$check($safe($entry_response),
+    'Canonical entry body is not publicly cached after retraction/correction');
+$entry_etag = '';
+foreach ((array)$entry_response->get_headers() as $header_key => $header_value) {
+    if (strtolower((string)$header_key) === 'etag') {
+        $entry_etag = (string)$header_value;
+        break;
+    }
+}
+$check($entry_etag === '',
+    'No version-only ETag can validate a withdrawn entry after state changes');
+
 WP_CLI::success('File06 disposable WordPress search: ' . $checks . ' checks passed; not Hostinger staging/live.');
