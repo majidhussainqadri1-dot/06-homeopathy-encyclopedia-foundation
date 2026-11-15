@@ -40,7 +40,7 @@ final class HE_V22_Search {
 			$data = self::search( $request->get_params() );
 			if ( is_wp_error( $data ) ) { return $data; }
 			$result = rest_ensure_response( $data );
-			$result->header( 'Cache-Control', 'public, max-age=60, stale-while-revalidate=120' );
+			$result->header( 'Cache-Control', 'private, no-store, max-age=0, must-revalidate' );
 			$result->header( 'X-File-06-Contract', HE_CONTRACT_VERSION );
 			return $result;
 		}
@@ -48,7 +48,7 @@ final class HE_V22_Search {
 			$data = self::autocomplete( (string) $request->get_param( 'q' ), absint( $request->get_param( 'limit' ) ?: 8 ) );
 			if ( is_wp_error( $data ) ) { return $data; }
 			$result = rest_ensure_response( $data );
-			$result->header( 'Cache-Control', 'public, max-age=60' );
+			$result->header( 'Cache-Control', 'private, no-store, max-age=0, must-revalidate' );
 			return $result;
 		}
 		return $response;
