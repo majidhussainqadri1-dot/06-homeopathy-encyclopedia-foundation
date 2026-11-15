@@ -82,6 +82,7 @@
     const hideSuggestions=()=>{
       suggestions.hidden=true;
       suggestions.replaceChildren();
+      q.setAttribute('aria-expanded','false');
     };
     const cancelSuggestions=()=>{
       ++suggestSequence;
@@ -103,6 +104,7 @@
           if(sequence!==suggestSequence||q.value.trim()!==value)return;
           suggestions.replaceChildren(...items.map(item=>make('a',{href:item.url,text:item.label})));
           suggestions.hidden=!items.length;
+          q.setAttribute('aria-expanded',items.length?'true':'false');
         }catch(error){
           if(sequence===suggestSequence&&error.name!=='AbortError')hideSuggestions();
         }finally{
@@ -115,6 +117,18 @@
       if(event.key==='ArrowDown'&&!suggestions.hidden){
         const first=suggestions.querySelector('a');
         if(first){event.preventDefault();first.focus();}
+      }
+    });
+    suggestions.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){
+        event.preventDefault();
+        cancelSuggestions();hideSuggestions();q.focus();
+      }else if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+        const links=Array.from(suggestions.querySelectorAll('a'));
+        const current=links.indexOf(document.activeElement);
+        const offset=event.key==='ArrowDown'?1:-1;
+        const next=links[(current+offset+links.length)%links.length];
+        if(next){event.preventDefault();next.focus();}
       }
     });
     document.addEventListener('click',event=>{

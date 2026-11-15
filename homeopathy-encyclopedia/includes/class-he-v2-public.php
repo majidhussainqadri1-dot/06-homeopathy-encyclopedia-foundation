@@ -72,6 +72,8 @@ final class HE_V2_Public {
 		$letters = array_merge( range( 'A', 'Z' ), array( 'ا', 'ب', 'پ', 'ت', 'ج', 'د', 'ر', 'س', 'ش', 'ع', 'ف', 'ک', 'گ', 'ل', 'م', 'ن', 'و', 'ہ', 'ی' ) );
 		/* Shortcodes can legitimately appear more than once on a page. Keep ARIA references instance-scoped instead of emitting duplicate document IDs. */
 		$results_id = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'he-v2-results-' ) : 'he-v2-results-' . wp_generate_uuid4();
+		$search_id = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'he-v2-search-' ) : 'he-v2-search-' . wp_generate_uuid4();
+		$suggestions_id = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'he-v2-suggestions-' ) : 'he-v2-suggestions-' . wp_generate_uuid4();
 		ob_start();
 		?>
 		<section class="he-v2" data-he-encyclopedia data-limit="<?php echo esc_attr( min( 50, absint( $atts['limit'] ) ) ); ?>" data-type="<?php echo esc_attr( sanitize_key( $atts['type'] ) ); ?>" data-system="<?php echo esc_attr( sanitize_key( $atts['body_system'] ) ); ?>">
@@ -84,7 +86,10 @@ final class HE_V2_Public {
 				<div class="he-v2__trust" role="note"><?php echo $this->icon( 'shield' ); ?><span><?php esc_html_e( 'Educational knowledge only. Urgent or individualized medical care requires a qualified local professional.', 'homeopathy-encyclopedia' ); ?></span></div>
 			</header>
 			<form class="he-v2__filters" data-he-filters role="search" aria-label="<?php esc_attr_e( 'Search encyclopedia', 'homeopathy-encyclopedia' ); ?>">
-				<label class="he-v2__search"><span class="screen-reader-text"><?php esc_html_e( 'Search', 'homeopathy-encyclopedia' ); ?></span><?php echo $this->icon( 'search' ); ?><input type="search" name="q" autocomplete="off" placeholder="<?php esc_attr_e( 'Search exact terms, phrases, aliases, Urdu or English…', 'homeopathy-encyclopedia' ); ?>" aria-controls="<?php echo esc_attr( $results_id ); ?>"><div class="he-v2__suggestions" data-he-suggestions hidden></div></label>
+				<div class="he-v2__search">
+					<label for="<?php echo esc_attr( $search_id ); ?>"><span class="screen-reader-text"><?php esc_html_e( 'Search', 'homeopathy-encyclopedia' ); ?></span><?php echo $this->icon( 'search' ); ?><input id="<?php echo esc_attr( $search_id ); ?>" type="search" name="q" autocomplete="off" placeholder="<?php esc_attr_e( 'Search exact terms, phrases, aliases, Urdu or English…', 'homeopathy-encyclopedia' ); ?>" aria-controls="<?php echo esc_attr( $suggestions_id ); ?>" aria-expanded="false"></label>
+					<div class="he-v2__suggestions" id="<?php echo esc_attr( $suggestions_id ); ?>" role="group" aria-label="<?php esc_attr_e( 'Search suggestions', 'homeopathy-encyclopedia' ); ?>" data-he-suggestions hidden></div>
+				</div>
 				<label><span><?php esc_html_e( 'Knowledge type', 'homeopathy-encyclopedia' ); ?></span><select name="type"><option value=""><?php esc_html_e( 'All types', 'homeopathy-encyclopedia' ); ?></option><?php foreach ( HE_V2_Domain::types() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
 				<label><span><?php esc_html_e( 'Body system', 'homeopathy-encyclopedia' ); ?></span><select name="body_system"><option value=""><?php esc_html_e( 'All systems', 'homeopathy-encyclopedia' ); ?></option><?php foreach ( HE_V2_Domain::systems() as $slug => $name ) : ?><option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></label>
 				<label><span><?php esc_html_e( 'Language', 'homeopathy-encyclopedia' ); ?></span><select name="language"><option value=""><?php esc_html_e( 'All languages', 'homeopathy-encyclopedia' ); ?></option><option value="en-US">English (US)</option><option value="ur-PK">اردو</option><option value="ar">العربية</option></select></label>
