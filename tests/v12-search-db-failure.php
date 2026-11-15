@@ -164,4 +164,25 @@ $result = HE_V22_Search::search(array('q' => 'review'));
 require_check(is_array($result) && count($result['items']) === 1 &&
     $result['items'][0]['id'] === 'public-7', 'Normal sourced public search still works');
 
+// Safety changes must not remain publicly cacheable after a correction or
+// withdrawal. Until an actual owner purge protocol is proven, responses are
+// deliberately no-store (both entries and autocomplete).
+$GLOBALS['wpdb'] = new SearchDB();
+$GLOBALS['wpdb']->mode = 'one_result';
+$entries = HE_V22_Search::intercept(null, array(),
+    new WP_REST_Request('/sabri/v2/file-06/entries', array('q' => 'review')));
+require_check($entries instanceof FakeRestResponse &&
+    strpos((string)($entries->headers['Cache-Control'] ?? ''), 'no-store') !== false &&
+    strpos((string)($entries->headers['Cache-Control'] ?? ''), 'public') === false,
+    'Reviewed public entries are not cacheable beyond a correction or retraction');
+
+$GLOBALS['wpdb'] = new SearchDB();
+$GLOBALS['wpdb']->mode = 'empty';
+$autocomplete = HE_V22_Search::intercept(null, array(),
+    new WP_REST_Request('/sabri/v2/file-06/autocomplete', array('q' => 'review')));
+require_check($autocomplete instanceof FakeRestResponse &&
+    strpos((string)($autocomplete->headers['Cache-Control'] ?? ''), 'no-store') !== false &&
+    strpos((string)($autocomplete->headers['Cache-Control'] ?? ''), 'public') === false,
+    'Autocomplete responses cannot retain stale source/retracted suggestions');
+
 echo "PASS File06 V12.3 fail-closed search DB and REST checks: {$GLOBALS['check_count']} assertions.\n";
