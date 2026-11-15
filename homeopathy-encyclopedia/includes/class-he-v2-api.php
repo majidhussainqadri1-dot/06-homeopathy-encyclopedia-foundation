@@ -260,9 +260,11 @@ final class HE_V2_API {
 			return new WP_Error( 'he_version_not_found', __( 'The requested entry version is unavailable.', 'homeopathy-encyclopedia' ), array( 'status' => 404 ) );
 		}
 		$response = rest_ensure_response( $dto );
+		// A concept's integrity, consent, source rights or safety status may
+		// change without advancing its version number. Public max-age and a
+		// version-only ETag could otherwise retain a withdrawn clinical claim.
 		$response->set_headers( array(
-			'Cache-Control' => 'public, max-age=120, stale-while-revalidate=300',
-			'ETag' => '"he-' . $dto['id'] . '-v' . $dto['version'] . '"',
+			'Cache-Control' => 'private, no-store, max-age=0, must-revalidate',
 			'X-File-06-Contract' => HE_CONTRACT_VERSION,
 		) );
 		return $response;
