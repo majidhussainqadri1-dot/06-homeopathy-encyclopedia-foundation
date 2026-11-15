@@ -99,5 +99,5 @@ const collectText = node => [
     'An older in-flight autocomplete cannot re-open suggestions after a query is cleared');
   assert.equal(collectText(suggestions).includes('STALE_AUTOCOMPLETE'), false,
     'An older in-flight autocomplete cannot inject stale suggestions');
-  console.log('File06 JS concurrency: 7 source-executed ordering/accessibility assertions PASS.');
+  console.log('File06 JS concurrency: 12 source-executed ordering/accessibility assertions PASS.');
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
