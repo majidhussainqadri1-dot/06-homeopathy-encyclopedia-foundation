@@ -19,6 +19,7 @@ class WP_Error {
     public function get_error_data() { return $this->data; }
 }
 function is_wp_error($value) { return $value instanceof WP_Error; }
+function __($text, $domain = '') { return $text; }
 class HE_V2_API { const NS = 'sabri/v2/file-06'; }
 class HE_V2_Schema {
     public static function runtime_status() { return $GLOBALS['schema_state']; }
