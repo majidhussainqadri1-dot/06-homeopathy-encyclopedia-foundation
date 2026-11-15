@@ -82,14 +82,15 @@ else
 fi
 
 echo "[file06-required-db-tables-columns-and-approximate-row-counts]"
-# These 27 schema suffixes are the literal union of HE_V2_Schema::required_tables
-# and HE_V24_Future_Schema::required_shape; unit tests reject drift.
+# These 28 schema suffixes are the literal union of 15 HE_V2_Schema tables,
+# 12 HE_V24_Future_Schema tables and the V22 migration_quarantine extension.
+# Unit tests reject drift. No production data are modified.
 # Never query raw rows, free-text columns, tokens or patient identifiers.
 FILE06_SCHEMA_SUFFIXES=(concepts aliases versions references relations reviews
   integrity_actions research dataset_access events outbox idempotency bookmarks
   rate_limits search_index claims claim_evidence concept_mappings similarity
   provenance external_records researcher_ids freshness impact_queue research_gaps
-  watchlists translations)
+  watchlists translations migration_quarantine)
 for suffix in "${FILE06_SCHEMA_SUFFIXES[@]}"; do
   table="${prefix}he_${suffix}"
   echo "TABLE_NAME=$table"
