@@ -15,8 +15,10 @@ const source = fs.readFileSync(
 
 function build() {
   class Element {
-    constructor() {
+    constructor(tag = 'div') {
+      this.tagName = tag;
       this.attrs = {};
+      this.focused = false;
       this.children = [];
       this.hidden = false;
       this.value = '';
@@ -31,7 +33,9 @@ function build() {
     addEventListener(type, callback) { this.listeners[type] = callback; }
     dispatch(type, event = {}) { if (this.listeners[type]) this.listeners[type](event); }
     contains(element) { return element === this || this.children.includes(element); }
-    querySelectorAll() { return []; }
+    focus() { this.focused = true; }
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+    querySelectorAll(selector) { return selector === 'a' ? this.children.filter(el => el.tagName === 'a') : []; }
   }
   const q = new Element();
   const form = new Element();
@@ -56,8 +60,8 @@ function build() {
     querySelectorAll(selector) {
       return selector === '[data-he-encyclopedia]' ? [root] : [];
     },
-    createElement() { return new Element(); },
-    createElementNS() { return new Element(); },
+    createElement(tag) { return new Element(tag); },
+    createElementNS(ns, tag) { return new Element(tag); },
     addEventListener(type, callback) { documentEvents[type] = callback; }
   };
 
@@ -149,6 +153,24 @@ async function tests() {
   check(a.suggestions.children[0]?.textContent === 'Vitamin fresh',
     'Late response from earlier query cannot overwrite latest suggestions');
   check(a.suggestions.hidden === false, 'Fresh suggestion remains available');
+  check(a.q.getAttribute('aria-expanded') === 'true',
+    'Autocomplete announces open suggestions to assistive technology');
+  a.q.dispatch('keydown', {key: 'ArrowDown', preventDefault() {}});
+  check(a.suggestions.children[0].focused === true,
+    'Keyboard ArrowDown focuses the first real suggestion link');
+  a.suggestions.dispatch('keydown', {key: 'Escape', preventDefault() {}});
+  check(a.suggestions.hidden === true &&
+    a.q.getAttribute('aria-expanded') === 'false' && a.q.focused === true,
+    'Escape from a suggestion closes the popup and restores search input focus');
+
+  const php = fs.readFileSync(path.join(__dirname, '..',
+    'homeopathy-encyclopedia', 'includes', 'class-he-v2-public.php'), 'utf8');
+  check(!/data-he-suggestions hidden><\\/div><\\/label>/.test(php),
+    'Suggestion links are not nested inside a form label');
+  check(/aria-expanded="false"/.test(php),
+    'Initial HTML search field describes collapsed suggestion state');
+  check(/role="group"[^>]*data-he-suggestions/.test(php),
+    'Suggestion links have an accessible named grouping');
 
   console.log('PASS File06 browser search race checks: ' + count + ' assertions.');
 }
