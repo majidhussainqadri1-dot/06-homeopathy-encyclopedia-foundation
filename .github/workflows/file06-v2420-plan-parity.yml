@@ -11,6 +11,7 @@ on:
       - fix/file06-pr14-consent-filter-arity-20261110
       - integration/file06-v12-3-file26-candidate-20261114
       - fix/file06-v12-3-search-fail-closed-20261115
+      - test/file06-pr20-browser-last-response-20261115
   workflow_dispatch:
 
 permissions:
