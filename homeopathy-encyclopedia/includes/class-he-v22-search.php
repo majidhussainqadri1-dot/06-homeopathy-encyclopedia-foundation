@@ -7,6 +7,29 @@ final class HE_V22_Search {
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'intercept' ), 70, 3 );
 	}
 
+	/**
+	 * Do not convert a failed DB query into "no matches", a stale cached 200,
+	 * or a PHP 8 count()/foreach() warning. Never expose raw SQL errors.
+	 */
+	private static function unavailable() {
+		return new WP_Error( 'he_knowledge_search_unavailable',
+			__( 'Encyclopedia search is temporarily unavailable.', 'homeopathy-encyclopedia' ),
+			array( 'status' => 503 ) );
+	}
+
+	private static function checked_results( $prepared, $format = ARRAY_A ) {
+		global $wpdb;
+		if ( ! is_string( $prepared ) || '' === $prepared ) {
+			return self::unavailable();
+		}
+		$wpdb->last_error = '';
+		$rows = $wpdb->get_results( $prepared, $format );
+		if ( ! is_array( $rows ) || '' !== (string) $wpdb->last_error ) {
+			return self::unavailable();
+		}
+		return $rows;
+	}
+
 	public static function intercept( $response, $handler, $request ) {
 		if ( null !== $response || ! $request instanceof WP_REST_Request || WP_REST_Server::READABLE !== $request->get_method() ) {
 			return $response;
@@ -14,14 +37,18 @@ final class HE_V22_Search {
 		$prefix = '/' . HE_V2_API::NS;
 		$route = $request->get_route();
 		if ( $prefix . '/entries' === $route ) {
-			$result = rest_ensure_response( self::search( $request->get_params() ) );
-			$result->header( 'Cache-Control', 'public, max-age=60, stale-while-revalidate=120' );
+			$data = self::search( $request->get_params() );
+			if ( is_wp_error( $data ) ) { return $data; }
+			$result = rest_ensure_response( $data );
+			$result->header( 'Cache-Control', 'private, no-store, max-age=0, must-revalidate' );
 			$result->header( 'X-File-06-Contract', HE_CONTRACT_VERSION );
 			return $result;
 		}
 		if ( $prefix . '/autocomplete' === $route ) {
-			$result = rest_ensure_response( self::autocomplete( (string) $request->get_param( 'q' ), absint( $request->get_param( 'limit' ) ?: 8 ) ) );
-			$result->header( 'Cache-Control', 'public, max-age=60' );
+			$data = self::autocomplete( (string) $request->get_param( 'q' ), absint( $request->get_param( 'limit' ) ?: 8 ) );
+			if ( is_wp_error( $data ) ) { return $data; }
+			$result = rest_ensure_response( $data );
+			$result->header( 'Cache-Control', 'private, no-store, max-age=0, must-revalidate' );
 			return $result;
 		}
 		return $response;
@@ -49,6 +76,7 @@ final class HE_V22_Search {
 
 	public static function search( $args ) {
 		global $wpdb;
+		if ( 'active' !== HE_V2_Schema::runtime_status() ) { return self::unavailable(); }
 		$limit = min( 50, max( 1, absint( $args['limit'] ?? 20 ) ) );
 		$cursor = max( 0, absint( $args['cursor'] ?? 0 ) );
 		$term = HE_V2_Domain::normalize( $args['q'] ?? '' );
@@ -76,10 +104,12 @@ final class HE_V22_Search {
 
 		$params[] = $limit + 1;
 		$sql = 'SELECT DISTINCT c.* FROM ' . HE_V2_Schema::table( 'concepts' ) . ' c INNER JOIN ' . HE_V2_Schema::table( 'search_index' ) . ' i ON i.concept_id=c.id WHERE ' . implode( ' AND ', $where ) . ' ORDER BY c.id ASC LIMIT %d';
-		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = self::checked_results( $wpdb->prepare( $sql, $params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( is_wp_error( $rows ) ) { return $rows; }
 		$mode = $term ? 'exact-phrase-token-alias' : 'browse';
 		if ( $term && ! $rows ) {
 			$rows = self::spelling_rows( $term, $args, $cursor, $limit + 1 );
+			if ( is_wp_error( $rows ) ) { return $rows; }
 			$mode = $rows ? 'spelling-recovery' : 'no-match';
 		}
 		$has_more = count( $rows ) > $limit;
@@ -103,10 +133,11 @@ final class HE_V22_Search {
 		global $wpdb;
 		$first = mb_substr( $term, 0, 1, 'UTF-8' );
 		$length = mb_strlen( $term, 'UTF-8' );
-		$candidates = $wpdb->get_results( $wpdb->prepare(
+		$candidates = self::checked_results( $wpdb->prepare(
 			'SELECT a.concept_id,a.normalized_alias FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=a.concept_id WHERE c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 AND c.id>%d AND a.normalized_alias LIKE %s AND CHAR_LENGTH(a.normalized_alias) BETWEEN %d AND %d ORDER BY a.id ASC LIMIT 200",
 			absint( $cursor ), $wpdb->esc_like( $first ) . '%', max( 1, $length - 4 ), $length + 4
 		), ARRAY_A );
+		if ( is_wp_error( $candidates ) ) { return $candidates; }
 		$scores = array();
 		foreach ( $candidates as $candidate ) {
 			$percent = 0.0;
@@ -128,26 +159,29 @@ final class HE_V22_Search {
 		$where = array_merge( $where, self::filters( $args, $params ) );
 		$params[] = min( 51, max( 1, absint( $limit ) ) );
 		$sql = 'SELECT DISTINCT c.* FROM ' . HE_V2_Schema::table( 'concepts' ) . ' c INNER JOIN ' . HE_V2_Schema::table( 'search_index' ) . ' i ON i.concept_id=c.id WHERE ' . implode( ' AND ', $where ) . ' ORDER BY c.id ASC LIMIT %d';
-		return $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return self::checked_results( $wpdb->prepare( $sql, $params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	public static function autocomplete( $q, $limit = 8 ) {
 		global $wpdb;
 		$q = HE_V2_Domain::normalize( $q );
+		if ( 'active' !== HE_V2_Schema::runtime_status() ) { return self::unavailable(); }
 		if ( mb_strlen( $q, 'UTF-8' ) < 2 ) {
 			return array();
 		}
 		$limit = min( 10, max( 1, absint( $limit ) ) );
-		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=a.concept_id WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.is_primary DESC,a.alias ASC LIMIT %d",
-			$wpdb->esc_like( $q ) . '%', $limit
+		$rows = self::checked_results( $wpdb->prepare(
+			'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' c ON c.id=a.concept_id INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type=%s AND p.post_status='publish' WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.is_primary DESC,a.alias ASC LIMIT %d",
+			HE_V2_Domain::ENTRY_TYPE, $wpdb->esc_like( $q ) . '%', $limit
 		), ARRAY_A );
+		if ( is_wp_error( $rows ) ) { return $rows; }
 		if ( ! $rows ) {
 			$first = mb_substr( $q, 0, 1, 'UTF-8' );
-			$candidates = $wpdb->get_results( $wpdb->prepare(
-				'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . " c ON c.id=a.concept_id WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.id ASC LIMIT 100",
-				$wpdb->esc_like( $first ) . '%'
+			$candidates = self::checked_results( $wpdb->prepare(
+				'SELECT DISTINCT a.alias,a.normalized_alias,c.public_id,c.post_id FROM ' . HE_V2_Schema::table( 'aliases' ) . ' a INNER JOIN ' . HE_V2_Schema::table( 'concepts' ) . ' c ON c.id=a.concept_id INNER JOIN ' . $wpdb->posts . " p ON p.ID=c.post_id AND p.post_type=%s AND p.post_status='publish' WHERE a.normalized_alias LIKE %s AND c.status='published' AND c.review_status='approved' AND c.safety_status='approved' AND c.merged_into_id=0 AND c.current_version>0 ORDER BY a.id ASC LIMIT 100",
+				HE_V2_Domain::ENTRY_TYPE, $wpdb->esc_like( $first ) . '%'
 			), ARRAY_A );
+			if ( is_wp_error( $candidates ) ) { return $candidates; }
 			foreach ( $candidates as $candidate ) {
 				$percent = 0.0;
 				similar_text( $q, mb_substr( (string) $candidate['normalized_alias'], 0, max( mb_strlen( $q, 'UTF-8' ), 2 ), 'UTF-8' ), $percent );

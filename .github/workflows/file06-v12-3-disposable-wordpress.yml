@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/file06-v12-3-file26-candidate-20261114
+      - fix/file06-v12-3-search-fail-closed-20261115
   workflow_dispatch:
 
 permissions:
@@ -72,6 +73,7 @@ jobs:
           php -l qa/file06-file15-disposable-wordpress.php
           php -l qa/file06-file15-postcommit-fault-injection.php
           php -l qa/file06-file26-disposable-wordpress.php
+          php -l qa/file06-search-disposable-wordpress.php
       - name: Install isolated WordPress 7.0.1 on disposable MariaDB
         run: |
           set -euo pipefail
@@ -99,6 +101,7 @@ jobs:
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file26-disposable-wordpress.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-disposable-wordpress.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
+          php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-search-disposable-wordpress.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
       - name: No mutation to repository or preexisting live system
         run: |

@@ -86,7 +86,16 @@ f06r20_ok( false !== strpos( $research_authoring, 'add_filter( \'pre_delete_post
 // R19 — public UI instances/accessibility and extreme-text reflow.
 $public_ui = f06r20_read( $root . '/homeopathy-encyclopedia/includes/class-he-v2-public.php' );
 $public_css = f06r20_read( $root . '/homeopathy-encyclopedia/assets/css/encyclopedia-v2.css' );
-f06r20_ok( false !== strpos( $public_ui, "wp_unique_id( 'he-v2-results-' )" ) && false !== strpos( $public_ui, 'aria-controls="<?php echo esc_attr( $results_id ); ?>"' ) && false !== strpos( $public_ui, 'id="<?php echo esc_attr( $results_id ); ?>"' ), 'R19 repeated encyclopedia shortcodes must not emit duplicate result IDs or broken ARIA references.' );
+f06r20_ok(
+    false !== strpos( $public_ui, "wp_unique_id( 'he-v2-results-' )" )
+    && false !== strpos( $public_ui, "wp_unique_id( 'he-v2-search-' )" )
+    && false !== strpos( $public_ui, "wp_unique_id( 'he-v2-suggestions-' )" )
+    && false !== strpos( $public_ui, 'id="<?php echo esc_attr( $results_id ); ?>"' )
+    && false !== strpos( $public_ui, 'id="<?php echo esc_attr( $search_id ); ?>"' )
+    && false !== strpos( $public_ui, 'for="<?php echo esc_attr( $search_id ); ?>"' )
+    && false !== strpos( $public_ui, 'aria-controls="<?php echo esc_attr( $suggestions_id ); ?>"' )
+    && false !== strpos( $public_ui, 'id="<?php echo esc_attr( $suggestions_id ); ?>"' ),
+    'R19 repeated encyclopedia shortcodes must preserve unique results, search and popup IDs with correct ARIA/label references.' );
 f06r20_ok( false !== strpos( $public_css, 'overflow-wrap:anywhere' ), 'R19 public knowledge surfaces must reflow long multilingual/unbroken text at narrow/high-zoom layouts.' );
 
 if($fail){fwrite(STDERR,"File 06 twentieth-review regressions FAILED:\n- ".implode("\n- ",$fail)."\n");exit(1);}echo "File 06 twentieth-review regressions through current round: PASS\n";
