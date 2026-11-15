@@ -22,7 +22,7 @@ assert len(core_tables) == 15, f"Unexpected core table inventory: {sorted(core_t
 assert len(future_tables) == 12, f"Unexpected Future schema inventory: {sorted(future_tables)}"
 assert not (core_tables & future_tables), "Schema registries must not overlap"
 ext_def = between(extension, "public static function install_extensions()", "public static function register_rewrites()")
-extension_tables = set(re.findall(r"HE_V2_Schema::table\\(\\s*'([a-z_]+)'\\s*\\)", ext_def)) - core_tables
+extension_tables = set(re.findall(r"HE_V2_Schema::table\(\s*'([a-z_]+)'\s*\)", ext_def)) - core_tables
 assert extension_tables == {'migration_quarantine'}, (
     f"Unexpected File06 extension SQL table registry: {sorted(extension_tables)}"
 )
