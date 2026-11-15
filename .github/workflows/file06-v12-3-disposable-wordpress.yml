@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/file06-v12-3-file26-candidate-20261114
+      - test/file06-v123-outbox-atomicity-20261115
   workflow_dispatch:
 
 permissions:
@@ -98,7 +99,8 @@ jobs:
           set -euo pipefail
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file26-disposable-wordpress.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-disposable-wordpress.php" --path=/tmp/file06-wordpress
-          php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 FILE06_FAULT_TARGET=events php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 FILE06_FAULT_TARGET=outbox php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-file15-postcommit-fault-injection.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
       - name: No mutation to repository or preexisting live system
         run: |
