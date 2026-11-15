@@ -165,7 +165,7 @@ async function tests() {
 
   const php = fs.readFileSync(path.join(__dirname, '..',
     'homeopathy-encyclopedia', 'includes', 'class-he-v2-public.php'), 'utf8');
-  check(!/data-he-suggestions hidden><\\/div><\\/label>/.test(php),
+  check(!php.includes('data-he-suggestions hidden></div></label>'),
     'Suggestion links are not nested inside a form label');
   check(/aria-expanded="false"/.test(php),
     'Initial HTML search field describes collapsed suggestion state');
