@@ -76,6 +76,7 @@ jobs:
           php -l qa/file06-event-postcommit-subscriber-failure.php
           php -l qa/file06-merge-postcommit-reindex-failure.php
           php -l qa/file06-deadletter-health-disposable.php
+          php -l qa/file06-inbound-audit-not-outbox.php
           php -l qa/file06-file26-disposable-wordpress.php
       - name: Install isolated WordPress 7.0.1 on disposable MariaDB
         run: |
@@ -109,6 +110,7 @@ jobs:
           FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-event-postcommit-subscriber-failure.php" --path=/tmp/file06-wordpress
           FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-merge-postcommit-reindex-failure.php" --path=/tmp/file06-wordpress
           FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-deadletter-health-disposable.php" --path=/tmp/file06-wordpress
+          FILE06_DISPOSABLE_QA=1 php /tmp/file06-wp-cli.phar eval-file "$GITHUB_WORKSPACE/qa/file06-inbound-audit-not-outbox.php" --path=/tmp/file06-wordpress
           php /tmp/file06-wp-cli.phar plugin list --status=active --format=table --path=/tmp/file06-wordpress
       - name: Validate read-only reality freeze on disposable WordPress and 27 tables
         run: |
