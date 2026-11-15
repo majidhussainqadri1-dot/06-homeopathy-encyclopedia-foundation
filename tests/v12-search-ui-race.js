@@ -169,7 +169,7 @@ async function tests() {
     'Suggestion links are not nested inside a form label');
   check(/aria-expanded="false"/.test(php),
     'Initial HTML search field describes collapsed suggestion state');
-  check(/role="group"[^>]*data-he-suggestions/.test(php),
+  check(php.includes('role="group"') && php.includes('data-he-suggestions hidden'),
     'Suggestion links have an accessible named grouping');
 
   console.log('PASS File06 browser search race checks: ' + count + ' assertions.');
