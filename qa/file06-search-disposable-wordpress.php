@@ -125,4 +125,28 @@ foreach ((array)$entry_response->get_headers() as $header_key => $header_value) 
 $check($entry_etag === '',
     'No version-only ETag can validate a withdrawn entry after state changes');
 
+// Exercise the actual shortcode rendering, not just static string assertions.
+// Multiple encyclopedia instances must have independent accessible input/popup IDs.
+$shortcode_one = do_shortcode('[he_encyclopedia]');
+$shortcode_two = do_shortcode('[he_encyclopedia]');
+$check(strpos($shortcode_one, 'data-he-encyclopedia') !== false,
+    'Real WordPress encyclopedia shortcode renders its public search surface');
+$check((bool)preg_match('/<input[^>]*aria-expanded="false"[^>]*>/', $shortcode_one),
+    'Rendered search input initially announces collapsed suggestions');
+$controls = array(); $controls_two = array();
+preg_match('/<input[^>]*aria-controls="([^"]+)"[^>]*>/', $shortcode_one, $controls);
+preg_match('/<input[^>]*aria-controls="([^"]+)"[^>]*>/', $shortcode_two, $controls_two);
+$check(!empty($controls[1]) && strpos($shortcode_one, 'id="' . $controls[1] . '" role="group"') !== false,
+    'Rendered suggestion group has the ID referenced by its search control');
+$check(!empty($controls_two[1]) && !empty($controls[1]) && $controls_two[1] !== $controls[1],
+    'Separate shortcode instances do not duplicate autocomplete popup IDs');
+$label_pos = strpos($shortcode_one, '<label for="');
+$label_end = false === $label_pos ? false : strpos($shortcode_one, '</label>', $label_pos);
+$label_markup = (false === $label_pos || false === $label_end)
+    ? '' : substr($shortcode_one, $label_pos, $label_end - $label_pos);
+$check($label_markup !== '' && strpos($label_markup, 'data-he-suggestions') === false &&
+    strpos($shortcode_one, 'role="group" aria-label=') !== false,
+    'Suggestion links are outside the search label and have an accessible group name');
+
+
 WP_CLI::success('File06 disposable WordPress search: ' . $checks . ' checks passed; not Hostinger staging/live.');
