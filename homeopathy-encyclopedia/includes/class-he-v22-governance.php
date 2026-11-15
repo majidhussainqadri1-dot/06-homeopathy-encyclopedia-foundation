@@ -1140,7 +1140,7 @@ final class HE_V22_Governance {
 		$base['extension_version'] = (int) get_option( self::EXTENSION_OPTION, 0 );
 		$base['legacy_migration'] = array( 'done' => (bool) get_option( self::LEGACY_DONE ), 'cursor' => absint( get_option( self::LEGACY_CURSOR, 0 ) ) );
 		$base['quarantine_unresolved'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'migration_quarantine' ) . ' WHERE resolved=0' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$base['dead_letter'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . HE_V2_Schema::table( 'outbox' ) . " WHERE status='dead'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$base['dead_letter'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . HE_V2_Schema::table( 'outbox' ) . " WHERE status='dead-letter'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$base['outbox_reconciliation_missing'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . HE_V2_Schema::table( 'events' ) . ' e LEFT JOIN ' . HE_V2_Schema::table( 'outbox' ) . ' o ON o.event_id=e.event_id WHERE o.event_id IS NULL' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$base['reindex_required'] = (bool) get_option( self::REINDEX_REQUIRED );
 		return $base;
