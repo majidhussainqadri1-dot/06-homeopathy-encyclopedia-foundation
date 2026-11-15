@@ -49,24 +49,28 @@
   function skeletons(container,count=6){container.replaceChildren(...Array.from({length:count},()=>make('div',{class:'he-v2__card he-v2__skeleton','aria-hidden':'true'})));}
   document.querySelectorAll('[data-he-encyclopedia]').forEach(root=>{
     const form=root.querySelector('[data-he-filters]'),results=root.querySelector('[data-he-results]'),status=root.querySelector('[data-he-status]'),more=root.querySelector('[data-he-more]'),suggestions=root.querySelector('[data-he-suggestions]');
-    let cursor=0,controller=null,letter='',suggestTimer=null;
+    let cursor=0,controller=null,letter='',suggestTimer=null,listSequence=0,suggestSequence=0,suggestController=null;
     const params=()=>{
       const fd=new FormData(form),p=new URLSearchParams();
       ['q','type','body_system','language'].forEach(k=>{const v=fd.get(k);if(v)p.set(k,v)});
       if(letter)p.set('letter',letter);p.set('limit',root.dataset.limit||'20');if(cursor)p.set('cursor',String(cursor));return p;
     };
     const load=async append=>{
-      if(controller)controller.abort();controller=new AbortController();
+      if(controller)controller.abort();
+      const sequence=++listSequence;
+      const activeController=new AbortController();
+      controller=activeController;
       if(!append){cursor=0;skeletons(results);}
       results.setAttribute('aria-busy','true');status.textContent=(config.i18n&&config.i18n.loading)||'Loading…';more.hidden=true;
       try{
-        const data=await get(api+'/entries?'+params().toString(),controller.signal);
+        const data=await get(api+'/entries?'+params().toString(),activeController.signal);
+        if(sequence!==listSequence)return;
         if(!append)results.replaceChildren();
         (data.items||[]).forEach(item=>results.append(knowledgeCard(item)));
         cursor=data.next_cursor||0;more.hidden=!cursor;
         status.textContent=(data.items||[]).length?((append?'More results loaded. ':'')+(cursor?'More results are available.':'End of results.')):((config.i18n&&config.i18n.noResults)||'No results.');
-      }catch(error){if(error.name!=='AbortError'){if(!append)results.replaceChildren();status.textContent=(config.i18n&&config.i18n.error)||'Could not load.';}}
-      finally{results.setAttribute('aria-busy','false');}
+      }catch(error){if(sequence===listSequence&&error.name!=='AbortError'){if(!append)results.replaceChildren();status.textContent=(config.i18n&&config.i18n.error)||'Could not load.';}}
+      finally{if(sequence===listSequence){results.setAttribute('aria-busy','false');controller=null;}}
     };
     form.addEventListener('submit',e=>{e.preventDefault();load(false)});
     form.querySelectorAll('select').forEach(el=>el.addEventListener('change',()=>load(false)));
@@ -75,13 +79,49 @@
     }));
     more.addEventListener('click',()=>load(true));
     const q=form.querySelector('input[name="q"]');
+    const hideSuggestions=()=>{
+      suggestions.hidden=true;
+      suggestions.replaceChildren();
+    };
+    const cancelSuggestions=()=>{
+      ++suggestSequence;
+      clearTimeout(suggestTimer);
+      if(suggestController)suggestController.abort();
+      suggestController=null;
+    };
     q.addEventListener('input',()=>{
-      clearTimeout(suggestTimer);const value=q.value.trim();if(value.length<2){suggestions.hidden=true;suggestions.replaceChildren();return;}
+      cancelSuggestions();
+      hideSuggestions();
+      const value=q.value.trim();
+      if(value.length<2)return;
+      const sequence=suggestSequence;
       suggestTimer=setTimeout(async()=>{
-        try{const items=await get(api+'/autocomplete?q='+encodeURIComponent(value)+'&limit=8');suggestions.replaceChildren(...items.map(item=>make('a',{href:item.url,text:item.label})));suggestions.hidden=!items.length;}catch(e){suggestions.hidden=true;}
+        const activeController=new AbortController();
+        suggestController=activeController;
+        try{
+          const items=await get(api+'/autocomplete?q='+encodeURIComponent(value)+'&limit=8',activeController.signal);
+          if(sequence!==suggestSequence||q.value.trim()!==value)return;
+          suggestions.replaceChildren(...items.map(item=>make('a',{href:item.url,text:item.label})));
+          suggestions.hidden=!items.length;
+        }catch(error){
+          if(sequence===suggestSequence&&error.name!=='AbortError')hideSuggestions();
+        }finally{
+          if(sequence===suggestSequence&&suggestController===activeController)suggestController=null;
+        }
       },220);
     });
-    document.addEventListener('click',e=>{if(!suggestions.contains(e.target)&&e.target!==q)suggestions.hidden=true});
+    q.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){cancelSuggestions();hideSuggestions();}
+      if(event.key==='ArrowDown'&&!suggestions.hidden){
+        const first=suggestions.querySelector('a');
+        if(first){event.preventDefault();first.focus();}
+      }
+    });
+    document.addEventListener('click',event=>{
+      if(!suggestions.contains(event.target)&&event.target!==q){
+        cancelSuggestions();hideSuggestions();
+      }
+    });
     if(root.dataset.type)form.elements.type.value=root.dataset.type;if(root.dataset.system)form.elements.body_system.value=root.dataset.system;
     load(false);
   });
